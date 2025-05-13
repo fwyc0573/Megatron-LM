@@ -27,7 +27,7 @@ PP=4
 TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
-BASE_PATH=/research/d1/gds/ytyang/yichengfeng/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
+BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
 LOG_NAME=GPT_${MODEL_SIZE}_pretrain_WS${WORLD_SIZE}_TP${TP}_PP${PP}
 LOG_PATH=${BASE_PATH}/log/${LOG_NAME}/node${NODE_RANK}.log
 
@@ -167,7 +167,7 @@ GPT_ARGS="
 
 
 # CHECKPOINT_PATH=<Specify path>
-BASE_PATH=/research/d1/gds/ytyang/yichengfeng/Megatron-LM
+# BASE_PATH=/research/d1/gds/ytyang/yichengfeng/Megatron-LM
 VOCAB_FILE=${BASE_PATH}/data/output_prefix_gpt2/gpt2-vocab.json
 MERGE_FILE=${BASE_PATH}/data/output_prefix_gpt2/gpt2-merges.txt
 DATA_PATH=${BASE_PATH}/data/output_prefix_gpt2/my-gpt2_text_document
