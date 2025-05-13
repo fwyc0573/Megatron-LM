@@ -49,4 +49,4 @@ build/
 dist/
 .cache/
 *.prof
-*.trace
+*.tracelog/
