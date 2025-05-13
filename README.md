@@ -1,6 +1,3 @@
-## 我对Megatron-LM项目进行了修改，具体来说，我添加了一系列profiling代码，并且将本身分布式运行的架构修改为集中式，从而使得megatron-lm其能够在单卡上按序迭代获取到不同ranks上的execution graph。我这样做的初衷是为LLM training simulator获取每个ranks上的执行图，从而可以进行training的模拟（只需要小规模的集群就可实现）。simulator的论文路径在：/research/d1/gds/ytyang/yichengfeng/Megatron-LM/docs/echo_paper.pdf
-
-
 <div align="center">
 
 Megatron-LM & Megatron-Core
