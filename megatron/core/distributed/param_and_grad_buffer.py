@@ -13,6 +13,8 @@ from .distributed_data_parallel_config import DistributedDataParallelConfig
 
 logger = getLogger(__name__)
 
+import torch.cuda.nvtx as nvtx
+from megatron.profiler.cmd import CMD
 
 class BufferType(Enum):
     PARAM = 1
@@ -117,8 +119,7 @@ class Bucket:
                 f'Device: {torch.cuda.current_device()}, node: {os.uname()[1]}'
             )
 
-        if self.gradient_scaling_factor != 1.0:
-            self.grad_data *= self.gradient_scaling_factor
+        self.grad_data *= self.gradient_scaling_factor
         # Use async_op only when overlap_grad_reduce is True.
         if self.ddp_config.use_distributed_optimizer:
             local_data_view = shard_buffer(self.grad_data, self.data_parallel_world_size)[
@@ -131,11 +132,19 @@ class Bucket:
                 async_op=self.ddp_config.overlap_grad_reduce,
             )
         else:
+            # import torch.distributed as dist
+            # rank_id = dist.get_rank()
+            # print(f"rank_id: {rank_id} | allreduce | Grad data size: {self.grad_data.size()}, dtype: {self.grad_data.dtype}")
+            # raise 0 
+            # nvtx.range_push(f"all_reduce_dp_{self.data_parallel_rank}")
             self.communication_handle = torch.distributed.all_reduce(
                 self.grad_data,
                 group=self.data_parallel_group,
                 async_op=self.ddp_config.overlap_grad_reduce,
             )
+            cmd = CMD.get_current_cmd()
+            cmd.set_tensor_shape_and_dtype(self.grad_data.shape, self.grad_data.dtype)
+        
         self.communication_issued = True
 
     def finish_grad_sync(self):
@@ -155,6 +164,7 @@ class Bucket:
             f'({len(self.params_with_grad)}/{len(self.params)} params have grad available)'
         )
         self.communication_handle.wait()
+        # nvtx.range_pop()
 
     def register_grad_ready(self, param: torch.nn.Parameter):
         """
@@ -228,19 +238,15 @@ class ParamAndGradBuffer:
         self.param_to_bucket = {}  # Param -> bucket mapping.
         self.param_index_map = {}  # Param -> location in buffer mapping (used in dist. optimizer).
 
-        def _pad(number_to_be_padded: int, divisor: int) -> int:
-            return int(math.ceil(number_to_be_padded / divisor) * divisor)
-
         def _pad_if_needed(data_index: int) -> int:
             """
             Pads data indices if using distributed optimizer (to ensure uniform sharding).
             """
             if self.ddp_config.use_distributed_optimizer:
-                # Workaround for TE bug causing cuBLAS to pick an incompatible algorithm.
-                # This also helps cuBLAS pick more efficient algorithms for GEMMs.
-                # We now ensure that all buckets start at a memory address that is 256-byte
-                # aligned (128 values since params and grads use >= 16-bit precision).
-                return _pad(data_index, math.lcm(self.data_parallel_world_size, 128))
+                return (
+                    int(math.ceil(data_index / self.data_parallel_world_size))
+                    * self.data_parallel_world_size
+                )
             return data_index
 
         # First, figure out how many elements should be in the underlying buffer storage.
@@ -323,13 +329,8 @@ class ParamAndGradBuffer:
         # Next, create underlying storage for buffer (with numel elements that includes
         # padding as necessary).
         self.numel = data_end_index
-        self.numel_unpadded = sum(per_bucket_numel_unpadded)
-        assert self.numel_unpadded <= self.numel
         if self.ddp_config.use_distributed_optimizer:
             assert self.numel % self.data_parallel_world_size == 0
-        else:
-            assert self.numel == self.numel_unpadded
-
         self.param_data = None
         # Only re-map param tensors if using distributed optimizer.
         if self.ddp_config.use_distributed_optimizer:
@@ -412,10 +413,6 @@ class ParamAndGradBuffer:
                 for param in bucket.params:
                     logger.info(f'    {param_to_name[param]}')
 
-    def scale_gradients(self, scaling_factor: float) -> None:
-        """Scale the gradient data by `scaling_factor`."""
-        self.grad_data *= scaling_factor
-
     def _get(self, shape: torch.Size, start_index: int, buffer_type: BufferType) -> torch.Tensor:
         """
         Return a tensor with the input `shape` as a view into the 1-D data starting at
@@ -497,6 +494,7 @@ class ParamAndGradBuffer:
         calls. When overlap_grad_reduce is set to False, calls synchronous
         communication ops.
         """
+        # print(f"start_grad_sync | len(self.buckets):{self.buckets}")
         for bucket in self.buckets:
             bucket.start_grad_sync()
 

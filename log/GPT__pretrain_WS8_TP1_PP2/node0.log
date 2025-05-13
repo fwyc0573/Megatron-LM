@@ -1,0 +1,164 @@
+[2025-05-13 16:37:11,803] torch.distributed.run: [WARNING] 
+[2025-05-13 16:37:11,803] torch.distributed.run: [WARNING] *****************************************
+[2025-05-13 16:37:11,803] torch.distributed.run: [WARNING] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+[2025-05-13 16:37:11,803] torch.distributed.run: [WARNING] *****************************************
+using world size: 8, data-parallel size: 4, context-parallel size: 1 tensor-model-parallel size: 1, pipeline-model-parallel size: 2 
+WARNING: Setting args.overlap_p2p_comm to False since non-interleaved schedule does not support overlapping p2p communication
+Traceback (most recent call last):
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
+    pretrain(train_valid_test_datasets_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
+    initialize_megatron(extra_args_provider=extra_args_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 55, in initialize_megatron
+    validate_args(args, args_defaults)
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/arguments.py", line 282, in validate_args
+    assert not args.bf16
+AssertionError
+Traceback (most recent call last):
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
+    pretrain(train_valid_test_datasets_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
+    initialize_megatron(extra_args_provider=extra_args_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 55, in initialize_megatron
+    validate_args(args, args_defaults)
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/arguments.py", line 282, in validate_args
+    assert not args.bf16
+AssertionError
+Traceback (most recent call last):
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
+    pretrain(train_valid_test_datasets_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
+    initialize_megatron(extra_args_provider=extra_args_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 55, in initialize_megatron
+    validate_args(args, args_defaults)
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/arguments.py", line 282, in validate_args
+    assert not args.bf16
+AssertionError
+Traceback (most recent call last):
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
+    pretrain(train_valid_test_datasets_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
+    initialize_megatron(extra_args_provider=extra_args_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 55, in initialize_megatron
+    validate_args(args, args_defaults)
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/arguments.py", line 282, in validate_args
+    assert not args.bf16
+AssertionError
+Traceback (most recent call last):
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
+Traceback (most recent call last):
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
+    pretrain(train_valid_test_datasets_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
+    pretrain(train_valid_test_datasets_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
+    initialize_megatron(extra_args_provider=extra_args_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 55, in initialize_megatron
+    initialize_megatron(extra_args_provider=extra_args_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 55, in initialize_megatron
+    validate_args(args, args_defaults)
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/arguments.py", line 282, in validate_args
+    validate_args(args, args_defaults)
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/arguments.py", line 282, in validate_args
+    assert not args.bf16
+AssertionError
+    assert not args.bf16
+AssertionError
+Traceback (most recent call last):
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
+    pretrain(train_valid_test_datasets_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
+    initialize_megatron(extra_args_provider=extra_args_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 55, in initialize_megatron
+    validate_args(args, args_defaults)
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/arguments.py", line 282, in validate_args
+    assert not args.bf16
+AssertionError
+Traceback (most recent call last):
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
+    pretrain(train_valid_test_datasets_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
+    initialize_megatron(extra_args_provider=extra_args_provider,
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 55, in initialize_megatron
+    validate_args(args, args_defaults)
+  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/arguments.py", line 282, in validate_args
+    assert not args.bf16
+AssertionError
+[2025-05-13 16:37:31,974] torch.distributed.elastic.multiprocessing.api: [ERROR] failed (exitcode: 1) local_rank: 0 (pid: 2500983) of binary: /research/d1/gds/ytyang/anaconda3/envs/myenv_yc/bin/python
+Traceback (most recent call last):
+  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/bin/torchrun", line 33, in <module>
+    sys.exit(load_entry_point('torch==2.1.2', 'console_scripts', 'torchrun')())
+  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 346, in wrapper
+    return f(*args, **kwargs)
+  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/distributed/run.py", line 806, in main
+    run(args)
+  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/distributed/run.py", line 797, in run
+    elastic_launch(
+  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/distributed/launcher/api.py", line 134, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py FAILED
+------------------------------------------------------------
+Failures:
+[1]:
+  time      : 2025-05-13_16:37:31
+  host      : proj186
+  rank      : 1 (local_rank: 1)
+  exitcode  : 1 (pid: 2500984)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[2]:
+  time      : 2025-05-13_16:37:31
+  host      : proj186
+  rank      : 2 (local_rank: 2)
+  exitcode  : 1 (pid: 2500985)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[3]:
+  time      : 2025-05-13_16:37:31
+  host      : proj186
+  rank      : 3 (local_rank: 3)
+  exitcode  : 1 (pid: 2500986)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[4]:
+  time      : 2025-05-13_16:37:31
+  host      : proj186
+  rank      : 4 (local_rank: 4)
+  exitcode  : 1 (pid: 2500987)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[5]:
+  time      : 2025-05-13_16:37:31
+  host      : proj186
+  rank      : 5 (local_rank: 5)
+  exitcode  : 1 (pid: 2500988)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[6]:
+  time      : 2025-05-13_16:37:31
+  host      : proj186
+  rank      : 6 (local_rank: 6)
+  exitcode  : 1 (pid: 2500989)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+[7]:
+  time      : 2025-05-13_16:37:31
+  host      : proj186
+  rank      : 7 (local_rank: 7)
+  exitcode  : 1 (pid: 2500990)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2025-05-13_16:37:31
+  host      : proj186
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 2500983)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================

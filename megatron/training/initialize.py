@@ -43,7 +43,7 @@ def initialize_megatron(
 
     # Parse arguments
     args = parse_args(extra_args_provider, ignore_unknown_args)
-
+    args_defaults['tokenizer_type'] = args.main_tokenizer_type
     if args.use_checkpoint_args or args_defaults.get("use_checkpoint_args", False):
         assert args.load is not None, "--use-checkpoints-args requires --load argument"
         load_args_from_checkpoint(args)
@@ -51,8 +51,8 @@ def initialize_megatron(
     if args.yaml_cfg is not None:
         args = validate_yaml(args, args_defaults)
     else:
+        # 参数检查和修正，这儿注释掉了一部分
         validate_args(args, args_defaults)
-
 
     # set global args, build tokenizer, and set adlr-autoresume,
     # tensorboard-writer, and timers.
@@ -90,6 +90,41 @@ def initialize_megatron(
         # Autoresume.
         _init_autoresume()
 
+        # print()
+        # # test rank group info
+        # current_rank = torch.distributed.get_rank()
+        # print(f"current_rank: {current_rank}")
+
+        # pp_rank = mpu.get_pipeline_model_parallel_rank()
+        # print(f"pp_rank: {pp_rank}")
+
+        # pp_global_ranks = mpu._PIPELINE_GLOBAL_RANKS
+        # print(f"pp_global_ranks: {pp_global_ranks}")
+
+        # pp_next_rank = mpu.get_pipeline_model_parallel_next_rank()
+        # print(f"pp_next_rank: {pp_next_rank}")
+
+        # pp_last_rank = mpu.get_pipeline_model_parallel_last_rank()
+        # print(f"pp_last_rank: {pp_last_rank}")
+
+        # tp_rank = mpu.get_tensor_model_parallel_rank()
+        # print(f"tp_rank: {tp_rank}")
+
+        # tp_src_rank = mpu.get_tensor_model_parallel_src_rank()
+        # print(f"tp_src_rank: {tp_src_rank}")
+
+        # tp_global_ranks = mpu._TENSOR_MODEL_PARALLEL_GLOBAL_RANKS
+        # print(f"tp_global_ranks: {tp_global_ranks}")
+
+        # dp_rank = mpu.get_data_parallel_rank()
+        # print(f"dp_rank: {dp_rank}")
+
+        # dp_global_rank = mpu._DATA_PARALLEL_GLOBAL_RANKS
+        # print(f"dp_src_rank: {dp_global_rank}")
+        # print()
+
+        # raise 0
+    
         # Compile dependencies.
         _compile_dependencies()
 
@@ -207,23 +242,31 @@ def _initialize_distributed():
     """Initialize torch.distributed and core model parallel."""
     args = get_args()
 
+    # if not args.is_scaling_mode:
+    #     device_count = torch.cuda.device_count()
+    # else:
+    #     device_count = args.fake_gpus_per_node
     device_count = torch.cuda.device_count()
+    
     if torch.distributed.is_initialized():
-
         if args.rank == 0:
             print(
                 "torch distributed is already initialized, "
                 "skipping initialization ...",
                 flush=True,
             )
+        # if not args.is_scaling_mode:
+        #     args.rank = torch.distributed.get_rank()
+        #     args.world_size = torch.distributed.get_world_size()
+        # else:
+        #     args.rank = args.fake_wrank
+        #     args.world_size = args.fake_world_size
         args.rank = torch.distributed.get_rank()
         args.world_size = torch.distributed.get_world_size()
-
     else:
-
         if args.rank == 0:
             print("> initializing torch distributed ...", flush=True)
-        # Manually set the device ids.
+        # Manually set the device ids（local rank）
         if device_count > 0:
             device = args.rank % device_count
             if args.local_rank is not None:
@@ -247,6 +290,7 @@ def _initialize_distributed():
         if mpu.model_parallel_is_initialized():
             print("model parallel is already initialized")
         else:
+            # TODO: 让这里的值变成一个定值（肯定不能使用传入的参数...）？
             mpu.initialize_model_parallel(
                 args.tensor_model_parallel_size,
                 args.pipeline_model_parallel_size,

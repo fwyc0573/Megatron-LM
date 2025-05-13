@@ -1,0 +1,8 @@
+stage:0:get_batch(batch_id=0, mg_state=warmup, duration=None, description=None, group_kind=None, input__shape=None, input__dtype=None)
+stage:0:forward_step(batch_id=0, mg_state=warmup, duration=None, description=None, group_kind=None, input__shape=None, input__dtype=None)
+stage:0:send_forward(batch_id=0, mg_state=warmup, duration=None, description=None, group_kind=pp, input__shape=[2048, 2, 5120], input__dtype=torch.float32)
+stage:0:recv_backward(batch_id=0, mg_state=cooldown, duration=None, description=None, group_kind=pp, input__shape=[2048, 2, 5120], input__dtype=torch.float32)
+stage:0:backward_step(batch_id=0, mg_state=cooldown, duration=None, description=None, group_kind=None, input__shape=None, input__dtype=None)
+stage:0:dp_allreduce(batch_id=0, mg_state=finalize, duration=None, description=model_chunk.finish_grad_sync(), All-reduce / reduce-scatter across DP replicas, group_kind=dp, input__shape=None, input__dtype=None)
+stage:0:ep_allreduce(batch_id=0, mg_state=finalize, duration=None, description=_allreduce_embedding_grads, All-reduce embedding grads (for pipeline parallelism), group_kind=ep, input__shape=None, input__dtype=None)
+stage:0:optimizer_step(batch_id=0, mg_state=finalize, duration=None, description=None, group_kind=None, input__shape=None, input__dtype=None)

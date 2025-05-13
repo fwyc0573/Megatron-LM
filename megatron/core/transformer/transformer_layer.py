@@ -131,12 +131,16 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         self.bias_dropout_add_exec_handler = torch.enable_grad
 
     def _get_layer_offset(self):
-
-        pipeline_rank = parallel_state.get_pipeline_model_parallel_rank()
-
-        num_layers_per_pipeline_rank = (
-            self.config.num_layers // parallel_state.get_pipeline_model_parallel_world_size()
-        )
+        if not self.config.is_scaling_mode:
+            pipeline_rank = parallel_state.get_pipeline_model_parallel_rank()
+            num_layers_per_pipeline_rank = (
+                self.config.num_layers // parallel_state.get_pipeline_model_parallel_world_size()
+            )
+        else:
+            pipeline_rank = self.config.pp_rank
+            num_layers_per_pipeline_rank = (
+                self.config.num_layers // self.config.fake_pp
+            )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
             vp_rank = parallel_state.get_virtual_pipeline_model_parallel_rank()

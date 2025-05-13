@@ -30,9 +30,14 @@ from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_viewles
 
 def get_num_layers_to_build(config: TransformerConfig) -> int:
 
-    num_layers_per_pipeline_rank = (
-        config.num_layers // parallel_state.get_pipeline_model_parallel_world_size()
-    )
+    if not config.is_scaling_mode:
+        num_layers_per_pipeline_rank = (
+            config.num_layers // parallel_state.get_pipeline_model_parallel_world_size()
+        )
+    else:
+        num_layers_per_pipeline_rank = (
+            config.num_layers // config.fake_pp
+        )
 
     if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
         # Interleaved pipeline parallelism:

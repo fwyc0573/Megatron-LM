@@ -1,0 +1,12 @@
+---
+description: This project rule ensures the development of the profiling module for the MoE (Expert Parallelism, EP) dimension in the Megatron-LM project.
+globs: 
+alwaysApply: false
+---
+
+# Rule content
+- Paper/doc related: [echo_paper.md](mdc:docs/echo_paper/echo_paper.md), [moe_layer.py](mdc:megatron/core/transformer/moe/moe_layer.py), [moe_utils.py](mdc:megatron/core/transformer/moe/moe_utils.py), @moe.rst
+
+- Main Direction: You need to understand the high-level design of the workload tracer component as described in my paper (refer to Section 4: Workload Tracing). Specifically, I am working on transforming the original distributed architecture of Megatron-LM into a centralized one. This redesign aims to decouple execution from physical hardware constraints, enabling sequential execution of each rank’s workload on a single GPU while skipping communication phases. By adopting this ex-situ execution approach, we can capture the training workload under a given setting.
+
+- Current Focus: The current project already supports ex-situ execution for 3D parallelism. Now, we need to extend this support to the EP (Expert Parallelism) dimension to capture workloads of MoE-based models. Therefore, you should focus on how Megatron-LM implements the EP module (MoE), help analyze its original workflow (initialization and training), and guide the integration of profiling code to support ex-situ execution for the EP module.

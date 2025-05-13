@@ -6,7 +6,7 @@ import math
 from abc import ABC, abstractmethod
 from itertools import chain
 from logging import getLogger
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Callable, List, Optional
 
 import amp_C
 import torch
@@ -298,7 +298,7 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
 
     @torch.no_grad()
     def step(self):
-
+        # print(f"===== MixedPrecisionOptimizer.step() called! ")
         timers = self.config.timers
 
         # Copy gradients from model params to main params.
@@ -306,30 +306,25 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
             timers('optimizer-copy-to-main-grad', log_level=1).start(
                 barrier=self.config.barrier_with_L1_time
             )
+        
         self._copy_model_grads_to_main_grads()
+        
         if timers is not None:
             timers('optimizer-copy-to-main-grad').stop()
 
         # Do unscale, check for inf, and update grad scaler only for
         # the case that grad scaler is provided.
-        if self.grad_scaler:
-
-            # Unscale and check for inf/nan.
-            if timers is not None:
-                timers('optimizer-unscale-and-check-inf', log_level=1).start(
-                    barrier=self.config.barrier_with_L1_time
-                )
-            found_inf_flag = self._unscale_main_grads_and_check_for_nan()
-            if timers is not None:
-                timers('optimizer-unscale-and-check-inf').stop()
-
-            # We are done with scaling gradients
-            # so we can update the loss scale.
-            self.grad_scaler.update(found_inf_flag)
-
-            # If we found inf/nan, skip the update.
-            if found_inf_flag:
-                return False, None, None
+        # if self.grad_scaler:
+        #     print("Grad scaler exists, checking for inf/nan...")
+        #     found_inf_flag = self._unscale_main_grads_and_check_for_nan()
+        #     print(f"Found inf/nan: {found_inf_flag}")
+            
+        #     self.grad_scaler.update(found_inf_flag)
+            
+        #     # If we found inf/nan, skip the update.
+        #     if found_inf_flag:
+        #         print("Skipping update due to inf/nan")
+        #         return False, None, None
 
         # Clip the main gradients.
         if timers is not None:
@@ -356,7 +351,18 @@ class MixedPrecisionOptimizer(MegatronOptimizer):
             timers('optimizer-inner-step', log_level=1).start(
                 barrier=self.config.barrier_with_L1_time
             )
+
+        # start_event = torch.cuda.Event(enable_timing=True)
+        # stop_event = torch.cuda.Event(enable_timing=True)
+        # start_event.record()
+        
         self.optimizer.step()
+        
+        # stop_event.record()
+        # torch.cuda.synchronize()
+        # duration = start_event.elapsed_time(stop_event)
+        # print(f"mixedprecisionOptimizer | Optimizer step time: {duration}")
+
         if timers is not None:
             timers('optimizer-inner-step').stop()
 
@@ -601,7 +607,98 @@ class Float16OptimizerWithFloat16Params(MixedPrecisionOptimizer):
         ):
             for current_param, saved_param in zip(current_group, saved_group):
                 current_param.data.copy_(saved_param.data)
+    
+    # @torch.no_grad()
+    # def step(self):
+    #     print("Float16OptimizerWithFloat16Params.step() called!")
+    #     return super().step()
 
+# class FP32Optimizer(MegatronOptimizer):
+#     """Float32 optimizer.
+
+#     Args:
+#         optimizer (torch.optim.Optimizer): base optimizer such as Adam or SGD.
+#         config (OptimizerConfig): configuration object for optimizer.
+#         init_state_fn (Callable, optional): function to initialize state in the optimizer.
+#     """
+
+#     def __init__(
+#         self, optimizer: torch.optim.Optimizer, config: OptimizerConfig, init_state_fn: Callable,
+#     ):
+
+#         super(FP32Optimizer, self).__init__(
+#             optimizer, config, init_state_fn,
+#         )
+
+#         self._scale = torch.tensor([1.0], dtype=torch.float, device='cuda')
+
+#     def zero_grad(self, set_to_none=True):
+#         """Copied from torch.optim.optimizer"""
+#         for group in self.optimizer.param_groups:
+#             _zero_grad_group_helper(group['params'], set_to_none)
+
+#     def get_loss_scale(self):
+#         """FP32 optimizer does not do any scaling."""
+#         return self._scale
+
+#     @torch.no_grad()
+#     def step(self):
+#         """Clip gradients (if needed) and step the base optimizer.
+#         Always return successful since there is no overflow."""
+
+#         timers = self.config.timers
+
+#         # Copy main_grads to grads.
+#         if timers is not None:
+#             timers('optimizer-copy-to-main-grad', log_level=1).start(
+#                 barrier=self.config.barrier_with_L1_time
+#             )
+#         for param_group in self.optimizer.param_groups:
+#             for param in param_group['params']:
+#                 param.grad = param.main_grad
+#         if timers is not None:
+#             timers('optimizer-copy-to-main-grad').stop()
+
+#         # Clip gradients.
+#         if timers is not None:
+#             timers('optimizer-clip-main-grad', log_level=1).start(
+#                 barrier=self.config.barrier_with_L1_time
+#             )
+#         grad_norm = None
+#         if self.config.clip_grad > 0.0:
+#             grad_norm = self.clip_grad_norm(self.config.clip_grad)
+#         if timers is not None:
+#             timers('optimizer-clip-main-grad').stop()
+
+#         # Count the zeros in the grads.
+#         if timers is not None:
+#             timers('optimizer-count-zeros', log_level=1).start(
+#                 barrier=self.config.barrier_with_L1_time
+#             )
+#         num_zeros_in_grad = self.count_zeros() if self.config.log_num_zeros_in_grad else None
+#         if timers is not None:
+#             timers('optimizer-count-zeros').stop()
+
+#         # Update parameters.
+#         if timers is not None:
+#             timers('optimizer-inner-step', log_level=1).start(
+#                 barrier=self.config.barrier_with_L1_time
+#             )
+#         self.optimizer.step()
+#         if timers is not None:
+#             timers('optimizer-inner-step').stop()
+
+#         # No overflow for FP32 optimizer.
+#         return True, grad_norm, num_zeros_in_grad
+
+#     def reload_model_params(self):
+#         pass
+
+#     def state_dict(self):
+#         return self.optimizer.state_dict()
+
+#     def load_state_dict(self, state_dict):
+#         self.optimizer.load_state_dict(state_dict)
 
 class FP32Optimizer(MegatronOptimizer):
     """Float32 optimizer.
@@ -613,12 +710,12 @@ class FP32Optimizer(MegatronOptimizer):
     """
 
     def __init__(
-        self, optimizer: torch.optim.Optimizer, config: OptimizerConfig, init_state_fn: Callable,
+        self, optimizer: torch.optim.Optimizer, config: OptimizerConfig, init_state_fn: Callable
     ):
+        # if has_config_logger_enabled(config):
+        #     log_config_to_disk(config, locals(), prefix=type(self).__name__)
 
-        super(FP32Optimizer, self).__init__(
-            optimizer, config, init_state_fn,
-        )
+        super(FP32Optimizer, self).__init__(optimizer, config, init_state_fn)
 
         self._scale = torch.tensor([1.0], dtype=torch.float, device='cuda')
 
@@ -632,10 +729,8 @@ class FP32Optimizer(MegatronOptimizer):
         return self._scale
 
     @torch.no_grad()
-    def step(self):
-        """Clip gradients (if needed) and step the base optimizer.
-        Always return successful since there is no overflow."""
-
+    def prepare_grads(self) -> bool:
+        """Pre-processing gradients before the optimizer step, returns whether inf/nan is found."""
         timers = self.config.timers
 
         # Copy main_grads to grads.
@@ -648,6 +743,34 @@ class FP32Optimizer(MegatronOptimizer):
                 param.grad = param.main_grad
         if timers is not None:
             timers('optimizer-copy-to-main-grad').stop()
+
+        return False
+
+    @torch.no_grad()
+    def step_with_ready_grads(self) -> bool:
+        """Step the optimizer with ready gradients, return successful."""
+        timers = self.config.timers
+
+        # Update parameters.
+        if timers is not None:
+            timers('optimizer-inner-step', log_level=1).start(
+                barrier=self.config.barrier_with_L1_time
+            )
+        self.optimizer.step()
+        if timers is not None:
+            timers('optimizer-inner-step').stop()
+
+        return True
+
+    @torch.no_grad()
+    def step(self):
+        """Clip gradients (if needed) and step the base optimizer.
+        Always return successful since there is no overflow."""
+        timers = self.config.timers
+
+        found_inf_flag = self.prepare_grads()
+        if found_inf_flag:
+            return False, None, None
 
         # Clip gradients.
         if timers is not None:
@@ -669,17 +792,10 @@ class FP32Optimizer(MegatronOptimizer):
         if timers is not None:
             timers('optimizer-count-zeros').stop()
 
-        # Update parameters.
-        if timers is not None:
-            timers('optimizer-inner-step', log_level=1).start(
-                barrier=self.config.barrier_with_L1_time
-            )
-        self.optimizer.step()
-        if timers is not None:
-            timers('optimizer-inner-step').stop()
+        success = self.step_with_ready_grads()
 
         # No overflow for FP32 optimizer.
-        return True, grad_norm, num_zeros_in_grad
+        return success, grad_norm, num_zeros_in_grad
 
     def reload_model_params(self):
         pass
@@ -688,6 +804,10 @@ class FP32Optimizer(MegatronOptimizer):
         return self.optimizer.state_dict()
 
     def load_state_dict(self, state_dict):
+        pipeline_parallel_size = parallel_state.get_pipeline_model_parallel_world_size()
+        if 'common_step' in state_dict['state']:
+            common_step = state_dict['state'].pop('common_step')
+            self._restore_common_per_param_step(state_dict, common_step)
         self.optimizer.load_state_dict(state_dict)
 
     def sharded_state_dict(
@@ -700,51 +820,21 @@ class FP32Optimizer(MegatronOptimizer):
         id_to_sharded_param_map = get_param_id_to_sharded_param_map(
             model_sharded_state_dict, self.get_parameters()
         )
-        optim_state_to_sharding_state(state_dict, id_to_sharded_param_map)
+        step = self._extract_common_per_param_step(state_dict)
 
+        # all optimizer parameters passed to optim_state_to_sharding_state are
+        # expected to have the same shape as the model parameters,
+        # so we save the step separately and ignore it here
+        optim_state_to_sharding_state(state_dict, id_to_sharded_param_map, exclude_keys="step")
+        # save step as a shared step among all parameters. Separate per-parameter
+        # steps are not supported
+        state_dict['state']['common_step'] = step
         return state_dict
-
-
-class ProxyDict:
-    """
-    A dictionary-like object that proxies to a list of dictionaries.
-
-    e.g., ProxyDict([{'a': 1}, {'b': 2}]) behaves like:
-    {
-        (0, 'a'): 1,
-        (1, 'b'): 2,
-    }
-    We use tuples as keys to avoid ambiguity with the keys of the inner dicts.
-    """
-
-    def __init__(self, inner_dicts: List[dict]):
-        self._inner_dicts = inner_dicts
-
-    def __getitem__(self, key: Tuple[int, str]):
-        idx, inner_key = key
-        return self._inner_dicts[idx].get(inner_key)
-
-    def __setitem__(self, key: Tuple[int, str], value: Any):
-        idx, inner_key = key
-        self._inner_dicts[idx][inner_key] = value
-
-    def __len__(self) -> int:
-        return sum([len(inner_dict) for inner_dict in self._inner_dicts])
-
-    def __iter__(self):
-        for idx, inner_dict in enumerate(self._inner_dicts):
-            for inner_key in inner_dict:
-                yield (idx, inner_key)
-
-    def items(self):
-        for idx, inner_dict in enumerate(self._inner_dicts):
-            for inner_key, value in inner_dict.items():
-                yield (idx, inner_key), value
 
 
 class ChainedOptimizer(MegatronOptimizer):
     """ChainedOptimizer is designed for a collection of optimizers.
-
+    
     These optimizers are responsible for different parts of multiple models for
     a training task and will be executed one-by-one when the model is updated.
 
@@ -752,23 +842,15 @@ class ChainedOptimizer(MegatronOptimizer):
         chained_optimizers: a list of optimizers.
     """
 
+    # Remove these attributes which inherits from MegatronOptimizer.
+    state = None
+    param_groups = None
+
     def __init__(self, chained_optimizers: List[MegatronOptimizer]):
         self.chained_optimizers = chained_optimizers
-
-    @property
-    def param_groups(self) -> List[dict]:
-        param_groups = []
+        self.param_groups = []
         for optimizer in self.chained_optimizers:
-            param_groups += optimizer.param_groups
-        return param_groups
-
-    @property
-    def state(self) -> ProxyDict:
-        """
-        Return optimizer state with tuple keys, where the first element is the
-        index of the optimizer in the list of chained optimizers.
-        """
-        return ProxyDict([opt.state for opt in self.chained_optimizers])
+            self.param_groups += optimizer.param_groups
 
     def zero_grad(self, set_to_none=True):
         for optimizer in self.chained_optimizers:
@@ -806,6 +888,11 @@ class ChainedOptimizer(MegatronOptimizer):
             state_dict = (v for k, v in sorted(state_dict.items()))
         for optimizer, state in zip(self.chained_optimizers, state_dict):
             optimizer.load_state_dict(state)
+
+        # Reset param_groups as load_state_dict reset chained optimizers's attribute.
+        self.param_groups = []
+        for optimizer in self.chained_optimizers:
+            self.param_groups += optimizer.param_groups
 
     def disable_pre_hook(self):
         for optimizer in self.chained_optimizers:

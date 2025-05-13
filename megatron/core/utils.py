@@ -46,7 +46,6 @@ def get_attr_wrapped_model(model, attr, allow_none=True, return_model_obj=False)
         raise RuntimeError("_get_attr_wrapped_model given a list of models")
 
     if allow_none:
-
         def condition(model, attr):
             return not hasattr(model, attr)
 

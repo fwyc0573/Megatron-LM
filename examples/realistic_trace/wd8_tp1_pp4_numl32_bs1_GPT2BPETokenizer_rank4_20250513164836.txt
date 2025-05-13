@@ -1,0 +1,8 @@
+rank:4:recv_forward(stage_id=2,batch_id=0,mg_state=warmup,duration=70.12,description=None,group_kind=pp,input__shape=[256, 1, 4096],input__dtype=torch.bfloat16,timestamp=19716148656.62,sub_operations=[])
+rank:4:forward_step(stage_id=2,batch_id=0,mg_state=warmup,duration=30.06,description=None,group_kind=None,input__shape=None,input__dtype=None,timestamp=19716148687.41,sub_operations=[])
+rank:4:send_forward(stage_id=2,batch_id=0,mg_state=warmup,duration=0.2,description=None,group_kind=pp,input__shape=[256, 1, 4096],input__dtype=torch.bfloat16,timestamp=19716148687.88,sub_operations=[])
+rank:4:recv_backward(stage_id=2,batch_id=0,mg_state=cooldown,duration=96.65,description=None,group_kind=pp,input__shape=[256, 1, 4096],input__dtype=torch.bfloat16,timestamp=19716148784.65,sub_operations=[])
+rank:4:backward_step(stage_id=2,batch_id=0,mg_state=cooldown,duration=45.17,description=None,group_kind=None,input__shape=None,input__dtype=None,timestamp=19716148829.92,sub_operations=[])
+rank:4:send_backward(stage_id=2,batch_id=0,mg_state=cooldown,duration=0.39,description=None,group_kind=pp,input__shape=[256, 1, 4096],input__dtype=torch.bfloat16,timestamp=19716148830.48,sub_operations=[])
+rank:4:dp_allreduce(stage_id=2,batch_id=0,mg_state=finalize,duration=42.31,description=model_chunk.finish_grad_sync(), All-reduce / reduce-scatter across DP replicas,group_kind=dp,input__shape=[3221225472],input__dtype=torch.float32,timestamp=19716148872.9,sub_operations=[])
+rank:4:optimizer_step(stage_id=2,batch_id=0,mg_state=finalize,duration=242.86,description=None,group_kind=None,input__shape=None,input__dtype=None,timestamp=19716149116.07,sub_operations=[])

@@ -116,8 +116,7 @@ build_torch_run_cmd() {
       --${TRAINING_DTYPE} \
       --img-h 336 \
       --img-w 336 \
-      --patch-dim 14 \
-      --mock-data"
+      --patch-dim 14"
 
   if [[ "${TRAINING_DTYPE}" == "fp16" ]]; then
       torch_run_cmd+=" --apply-query-key-layer-scaling"

@@ -440,8 +440,8 @@ def initialize_model_parallel(
             f"combination of expert model prallellism and context parallelism is not supported"
         )
 
-    num_tensor_model_parallel_groups: int = world_size // tensor_model_parallel_size
-    num_pipeline_model_parallel_groups: int = world_size // pipeline_model_parallel_size
+    # num_tensor_model_parallel_groups: int = world_size // tensor_model_parallel_size
+    # num_pipeline_model_parallel_groups: int = world_size // pipeline_model_parallel_size
 
     if virtual_pipeline_model_parallel_size is not None:
         if not pipeline_model_parallel_size > 2:
@@ -585,6 +585,8 @@ def initialize_model_parallel(
         group = torch.distributed.new_group(
             ranks, timeout=timeout, pg_options=get_nccl_options('pp', nccl_comm_cfgs)
         )
+        # print(f"pp group: ranks:{ranks}")
+        # raise 0
         if rank in ranks:
             _PIPELINE_MODEL_PARALLEL_GROUP = group
             _PIPELINE_GLOBAL_RANKS = ranks
@@ -605,7 +607,7 @@ def initialize_model_parallel(
         else:
             embedding_ranks = ranks
             position_embedding_ranks = ranks
-
+    
         group = torch.distributed.new_group(
             embedding_ranks, timeout=timeout, pg_options=get_nccl_options('embd', nccl_comm_cfgs)
         )
@@ -623,6 +625,8 @@ def initialize_model_parallel(
             _POSITION_EMBEDDING_GROUP = group
         if rank in ranks:
             _POSITION_EMBEDDING_GLOBAL_RANKS = position_embedding_ranks
+        # print(f"embedding_ranks:{embedding_ranks}, position_embedding_ranks:{position_embedding_ranks}")
+    # raise 0
 
     # Build the tensor + data parallel groups.
     global _TENSOR_AND_DATA_PARALLEL_GROUP
@@ -663,12 +667,19 @@ def initialize_model_parallel(
         if rank in ranks:
             _TENSOR_AND_EXPERT_PARALLEL_GROUP = group
 
+    # 打印EP group信息
+    ep_group = {}
+    group_idx = 0
     for ranks in rank_generator.get_ranks('ep', independent_ep=True):
+        ep_group[group_idx] = ranks
+        group_idx += 1
         group = torch.distributed.new_group(
             ranks, pg_options=get_nccl_options('exp', nccl_comm_cfgs)
         )
         if rank in ranks:
             _EXPERT_MODEL_PARALLEL_GROUP = group
+    print(f"finish init EP group: {ep_group}")
+
 
     for ranks in rank_generator.get_ranks('dp', independent_ep=True):
         group = torch.distributed.new_group(
@@ -1165,14 +1176,6 @@ def get_data_modulo_expert_parallel_rank():
     """Return my rank for the context parallel group."""
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         return torch.distributed.get_rank(group=get_data_modulo_expert_parallel_group())
-    else:
-        return 0
-
-
-def get_tensor_and_expert_parallel_rank():
-    """Return my rank for the tensor and expert parallel group"""
-    if torch.distributed.is_available() and torch.distributed.is_initialized():
-        return torch.distributed.get_rank(group=get_tensor_and_expert_parallel_group())
     else:
         return 0
 

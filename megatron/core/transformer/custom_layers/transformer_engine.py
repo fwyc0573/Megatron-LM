@@ -37,6 +37,13 @@ def _get_extra_te_kwargs(config: TransformerConfig):
             extra_transformer_engine_kwargs["device"] = torch.cuda.current_device()
     return extra_transformer_engine_kwargs
 
+def _get_extra_fk_kwargs(config: TransformerConfig):
+    extra_fake_kwargs = {
+        'is_scaling_mode': config.is_scaling_mode,
+        'fake_tp': config.fake_tp
+    }
+    return extra_fake_kwargs
+
 
 def condition_init_method(config, init_method):
     return init_method if config.perform_initialization else (lambda w: None)
@@ -115,6 +122,7 @@ class TELinear(te.pytorch.Linear):
             )
 
         extra_kwargs = _get_extra_te_kwargs(config)
+        extra_fake_kwargs = _get_extra_fk_kwargs(config)
 
         if _te_version >= packaging.version.Version("0.8.0"):
             if self.config.tp_comm_overlap:
@@ -156,6 +164,7 @@ class TELinear(te.pytorch.Linear):
             return_bias=self.te_return_bias,
             parallel_mode=parallel_mode,
             **extra_kwargs,
+            **extra_fake_kwargs,
         )
 
     def forward(self, x):
@@ -215,7 +224,8 @@ class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
         self.is_first_microbatch = True
         self.disable_parameter_transpose_cache = self.config.disable_parameter_transpose_cache
         extra_kwargs = _get_extra_te_kwargs(config)
-
+        extra_fake_kwargs = _get_extra_fk_kwargs(config)
+        
         # Only Transformer-Engine version >= 0.11.0 supports `RMSNorm`
         if _te_version >= packaging.version.Version("0.11.0"):
             extra_kwargs["normalization"] = self.config.normalization
@@ -250,6 +260,8 @@ class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
                     ), "Buffer name should be set to configure communication overlap settings"
                     extra_kwargs["ub_name"] = tp_comm_buffer_name
 
+        # 合并 extra_kwargs 和 extra_fake_kwargs
+        # combined_kwargs = {**extra_kwargs, **extra_fake_kwargs}
         super().__init__(
             in_features=input_size,
             out_features=output_size,
@@ -268,6 +280,7 @@ class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
             return_layernorm_output=False,
             zero_centered_gamma=self.config.layernorm_zero_centered_gamma,
             **extra_kwargs,
+            **extra_fake_kwargs,
         )
 
     def forward(self, x):
@@ -458,6 +471,8 @@ class TEDotProductAttention(te.pytorch.DotProductAttention):
             ), f"Transformer-Engine version ({str(_te_version)}) must be >= 1.2.0 to support sliding window attention."
             extra_kwargs['window_size'] = config.window_size
 
+        extra_fake_kwargs = _get_extra_fk_kwargs(config)
+        
         super().__init__(
             num_attention_heads=self.config.num_attention_heads,
             kv_channels=self.config.kv_channels,
@@ -473,6 +488,7 @@ class TEDotProductAttention(te.pytorch.DotProductAttention):
             tp_group=get_tensor_model_parallel_group(check_initialized=False),
             layer_number=layer_number,
             **extra_kwargs,
+            **extra_fake_kwargs,
         )
 
     def forward(

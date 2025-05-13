@@ -87,6 +87,7 @@ def get_gpt_layer_local_spec(
 def _get_mlp_module_spec(
     use_te: bool = True, num_experts: int = None, moe_grouped_gemm: bool = False
 ) -> ModuleSpec:
+    
     if num_experts is None:
         # Dense MLP w/ or w/o TE modules.
         return ModuleSpec(

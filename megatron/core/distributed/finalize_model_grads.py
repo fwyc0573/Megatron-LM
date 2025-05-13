@@ -1,6 +1,6 @@
 # Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
 
-from typing import List, Optional
+from typing import List
 
 import torch
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
@@ -8,6 +8,10 @@ from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 from .. import parallel_state
 from ..transformer.transformer_config import TransformerConfig
 from ..utils import get_attr_wrapped_model, get_model_config
+
+import torch.cuda.nvtx as nvtx
+# from megatron.training import get_args
+from megatron.profiler.cmd import CMD
 
 
 def _allreduce_word_embedding_grads(model: List[torch.nn.Module], config: TransformerConfig):
@@ -38,7 +42,10 @@ def _allreduce_word_embedding_grads(model: List[torch.nn.Module], config: Transf
         if model_module.share_embeddings_and_output_weights:
             weight = model_module.shared_embedding_or_output_weight()
             grad = weight.main_grad
+            # print(f"_allreduce_word_embedding_grads | grad.shape: {grad.shape}, grad.d: {grad.dtype}")
             torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+            cmd = CMD.get_current_cmd()
+            cmd.set_tensor_shape_and_dtype(grad.shape, grad.dtype)
 
 
 def _allreduce_position_embedding_grads(model: List[torch.nn.Module], config: TransformerConfig):
@@ -57,14 +64,15 @@ def _allreduce_position_embedding_grads(model: List[torch.nn.Module], config: Tr
             model_module, 'language_model.embedding.position_embeddings.weight.main_grad'
         )
         torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
-
+        cmd = CMD.get_current_cmd()
+        cmd.set_tensor_shape_and_dtype(grad.shape, grad.dtype)
 
 def _allreduce_embedding_grads(model: List[torch.nn.Module], config: TransformerConfig):
     """
     All-reduce both word and position embeddings.
     """
     _allreduce_word_embedding_grads(model, config)
-    _allreduce_position_embedding_grads(model, config)
+    _allreduce_position_embedding_grads(model, config) # for T5
 
 
 def _allreduce_layernorm_grads(model: List[torch.nn.Module], config: TransformerConfig):
@@ -81,8 +89,7 @@ def _allreduce_layernorm_grads(model: List[torch.nn.Module], config: Transformer
         for model_chunk in model:
             for name, param in get_attr_wrapped_model(model_chunk, 'named_parameters')():
                 if (
-                    param.requires_grad
-                    and getattr(param, 'sequence_parallel', False)
+                    getattr(param, 'sequence_parallel', False)
                     or 'q_layernorm' in name
                     or 'k_layernorm' in name
                 ):
@@ -97,20 +104,40 @@ def _allreduce_layernorm_grads(model: List[torch.nn.Module], config: Transformer
                 buf.copy_(synced)
 
 
-def finalize_model_grads(model: List[torch.nn.Module], num_tokens: Optional[torch.Tensor] = None):
+def finalize_model_grads(model: List[torch.nn.Module], args):
     """
     All-reduce all model grads across DP replicas, layernorm grads for sequence parallelism,
-    embedding grads across first and last pipeline stages (if not tied),
-    scale gradients by `num_tokens`.
+    embedding grads across first and last pipeline stages (if not tied).
     """
 
     config = get_model_config(model[0])
+    # args = get_args()
 
     # All-reduce / reduce-scatter across DP replicas.
     if config.timers is not None:
         config.timers('all-grads-sync', log_level=1).start(barrier=config.barrier_with_L1_time)
-    for model_chunk in model:
-        model_chunk.finish_grad_sync()
+    cmd = CMD(
+        rank_id=args.simu_rank,
+        mg_state=args.simu_state,
+        name_cmd="dp_allreduce",
+        use_cuda=True,
+        stage_operations_trace_dict=args.stage_operations_trace,
+        micro_batch_ids_dict=args.simu_micro_batch_ids,
+        stage_id=args.simu_stage_id,
+        simu_start=args.simu_start,
+        description="model_chunk.finish_grad_sync(), All-reduce / reduce-scatter across DP replicas",
+        group_kind="dp",
+        trace_start=args.trace_start,
+        current_iter=args.current_iter,
+        args=args
+    )
+    CMD.set_current_cmd(cmd)
+    with cmd:
+        nvtx.range_push(f"allreduce_grads_sync_model_chunk")
+        for model_chunk in model:
+            model_chunk.finish_grad_sync()
+        nvtx.range_pop()
+
     if config.timers is not None:
         config.timers('all-grads-sync').stop()
 
@@ -119,7 +146,8 @@ def finalize_model_grads(model: List[torch.nn.Module], num_tokens: Optional[torc
         config.timers('layernorm-grads-all-reduce', log_level=1).start(
             barrier=config.barrier_with_L1_time
         )
-    _allreduce_layernorm_grads(model, config)
+    # sequence_parallel
+    _allreduce_layernorm_grads(model, config) 
     if config.timers is not None:
         config.timers('layernorm-grads-all-reduce').stop()
 
@@ -128,24 +156,58 @@ def finalize_model_grads(model: List[torch.nn.Module], num_tokens: Optional[torc
         config.timers('embedding-grads-all-reduce', log_level=1).start(
             barrier=config.barrier_with_L1_time
         )
-    _allreduce_embedding_grads(model, config)
+    # 拆分了_allreduce_embedding_grads()函数分别对应到了_allreduce_word_embedding_grads()和_allreduce_position_embedding_grads()
+    if (
+        parallel_state.is_rank_in_embedding_group(ignore_virtual=True)
+        and parallel_state.get_pipeline_model_parallel_world_size() > 1
+    ):
+        cmd = CMD(
+            rank_id=args.simu_rank,
+            mg_state=args.simu_state,
+            name_cmd="ep_allreduce",
+            use_cuda=True,
+            stage_operations_trace_dict=args.stage_operations_trace,
+            micro_batch_ids_dict=args.simu_micro_batch_ids,
+            stage_id=args.simu_stage_id,
+            simu_start=args.simu_start,
+            description="_allreduce_word_embedding_grads",
+            group_kind="ep",
+            trace_start=args.trace_start,
+            current_iter=args.current_iter,
+            args=args
+        )
+        CMD.set_current_cmd(cmd)
+        with cmd: 
+            nvtx.range_push(f"allreduce_word_embedding_grads")
+            # _allreduce_embedding_grads(model, config)
+            _allreduce_word_embedding_grads(model, config)
+            nvtx.range_pop()
+
+    if (
+        parallel_state.is_rank_in_position_embedding_group()
+        and parallel_state.get_pipeline_model_parallel_world_size() > 1
+        and config.pipeline_model_parallel_split_rank is not None
+    ):
+        cmd = CMD(
+            rank_id=args.simu_rank,
+            mg_state=args.simu_state,
+            name_cmd="pep_allreduce",
+            use_cuda=True,
+            stage_operations_trace_dict=args.stage_operations_trace,
+            micro_batch_ids_dict=args.simu_micro_batch_ids,
+            stage_id=args.simu_stage_id,
+            simu_start=args.simu_start,
+            description="_allreduce_position_embedding_grads",
+            group_kind="pep",
+            trace_start=args.trace_start,
+            current_iter=args.current_iter,
+            args=args
+        )
+        with cmd: 
+            nvtx.range_push(f"allreduce_position_embedding_grads")
+            _allreduce_position_embedding_grads(model, config)
+            nvtx.range_pop()
+
     if config.timers is not None:
         config.timers('embedding-grads-all-reduce').stop()
 
-    # normalize gradients for per-token loss normalization.
-    # if we are using by the number of tokens, then we use that as a divisor. this number
-    # will be the total number of non-padded tokens in the global batch.
-    if num_tokens is not None:
-        # the number of tokens is only present on the last stage, so broadcast it
-        # to the other ranks in the pipeline parallel group.
-        torch.distributed.broadcast(
-            num_tokens,
-            src=parallel_state.get_pipeline_model_parallel_last_rank(),
-            group=parallel_state.get_pipeline_model_parallel_group(),
-        )
-        # all-reduce across DP ranks.
-        torch.distributed.all_reduce(num_tokens, group=parallel_state.get_data_parallel_group())
-        for model_chunk in model:
-            if num_tokens > 0:
-                scaling = 1.0 / num_tokens
-                model_chunk.scale_gradients(scaling)

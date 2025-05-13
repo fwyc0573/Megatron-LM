@@ -12,6 +12,10 @@ from megatron.core.pipeline_parallel import p2p_communication
 from megatron.core.transformer.moe.router import MoEAuxLossAutoScaler
 from megatron.core.utils import get_attr_wrapped_model, get_model_config, get_model_type
 
+import torch.cuda.nvtx as nvtx
+from megatron.training import get_args
+from megatron.profiler.cmd import CMD, current_cmd_var
+
 # Types
 Shape = Union[List[int], torch.Size]
 
@@ -173,6 +177,7 @@ def forward_step(
     checkpoint_activations_microbatch=None,
     is_first_microbatch=False,
     current_microbatch=None,
+    args=None,
 ):
 
     """Forward step for passed-in model.
@@ -194,6 +199,8 @@ def forward_step(
         input_tensor = [input_tensor]
         unwrap_output_tensor = True
 
+    # print(f"fwd | len(input_tensor):{len(input_tensor)}")
+    # print(f"fwd | input_tensor:{input_tensor}")
     set_input_tensor = get_attr_wrapped_model(model, "set_input_tensor")
     set_input_tensor(input_tensor)
 
@@ -203,30 +210,48 @@ def forward_step(
         context_manager = contextlib.nullcontext()
     with context_manager:
         if checkpoint_activations_microbatch is None:
+            # 这里包含了dataload和fwd
             output_tensor, loss_func = forward_step_func(data_iterator, model)
         else:
             output_tensor, loss_func = forward_step_func(
                 data_iterator, model, checkpoint_activations_microbatch
             )
 
-    num_tokens = torch.tensor(0, dtype=torch.int)
     if parallel_state.is_pipeline_last_stage():
-        if not collect_non_loss_data:
-            outputs = loss_func(output_tensor)
-            if len(outputs) == 3:
-                output_tensor, num_tokens, loss_reduced = outputs
-                if not config.calculate_per_token_loss:
-                    output_tensor /= num_tokens
-                    output_tensor /= num_microbatches
+        # DP allreduce for the last stage.
+
+        # loss allreduce (dp)
+        # args.simu_micro_batch_ids["dp_allreduce"] += 1
+        # record_name = args.simu_rank + ":loss:dp_allreduce:" + str(args.simu_micro_batch_ids["dp_allreduce"])
+        # args.simu_stage_operations_trace.append(record_name)
+        # args.simu_micro_batch_ids["dp_allreduce"] += 1
+        # cmd = CMD(args.simu_rank, args.simu_state, "dp_allreduce", args.simu_micro_batch_ids["dp_allreduce"], 
+        #           description="DP allreduce for the last stage", group_kind="dp")
+        # args.stage_operations_trace[args.simu_rank].append(str(cmd))
+        cmd = CMD(
+            rank_id=args.simu_rank,
+            mg_state=args.simu_state,
+            name_cmd="loss_func",
+            use_cuda=True,
+            stage_operations_trace_dict=args.stage_operations_trace,
+            micro_batch_ids_dict=args.simu_micro_batch_ids,
+            stage_id=args.simu_stage_id,
+            simu_start=args.simu_start,
+            description="loss_func, calculate and DP allreduce for the last stage", 
+            trace_start=args.trace_start,
+            current_iter=args.current_iter,
+            args=args
+        )
+        CMD.set_current_cmd(cmd)
+        with cmd:
+            if not collect_non_loss_data:
+                output_tensor = loss_func(output_tensor)
+                loss, loss_reduced = output_tensor
+                output_tensor = loss / num_microbatches
+                forward_data_store.append(loss_reduced)
             else:
-                # preserve legacy loss averaging behavior (ie, over the number of microbatches)
-                assert len(outputs) == 2
-                output_tensor, loss_reduced = outputs
-                output_tensor /= num_microbatches
-            forward_data_store.append(loss_reduced)
-        else:
-            data = loss_func(output_tensor, non_loss_data=True)
-            forward_data_store.append(data)
+                data = loss_func(output_tensor, non_loss_data=True)
+                forward_data_store.append(data)
 
     if config.timers is not None:
         config.timers('forward-compute').stop()
@@ -251,11 +276,10 @@ def forward_step(
         parallel_state.is_pipeline_stage_after_split()
         and model_type == ModelType.encoder_and_decoder
     ):
-        return [output_tensor, input_tensor[-1]], num_tokens
-
+        return [output_tensor, input_tensor[-1]]
     if unwrap_output_tensor:
-        return output_tensor, num_tokens
-    return [output_tensor], num_tokens
+        return output_tensor
+    return [output_tensor]
 
 
 def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config):
@@ -375,10 +399,10 @@ def forward_backward_no_pipelining(
 
     forward_data_store = []
     input_tensor, output_tensor_grad = None, None
-    total_num_tokens = torch.tensor(0, dtype=torch.int).cuda()
     with no_sync_func():
         for i in range(num_microbatches - 1):
-            output_tensor, num_tokens = forward_step(
+            nvtx.range_push(f"nopipe_{i}_fwd")
+            output_tensor = forward_step(
                 forward_step_func,
                 data_iterator,
                 model,
@@ -390,13 +414,17 @@ def forward_backward_no_pipelining(
                 is_first_microbatch=check_first_val_step(first_val_step, forward_only, i == 0),
                 current_microbatch=i,
             )
-            total_num_tokens += num_tokens.item()
+            nvtx.range_pop()
+            
             if not forward_only:
+                nvtx.range_push(f"nopipe_{i}_bwd")
                 backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config)
+                nvtx.range_pop()
 
     # Run computation for last microbatch out of context handler (want to
     # synchronize gradients).
-    output_tensor, num_tokens = forward_step(
+    nvtx.range_push("last_micro_nopipe_fwd")
+    output_tensor = forward_step(
         forward_step_func,
         data_iterator,
         model,
@@ -410,20 +438,22 @@ def forward_backward_no_pipelining(
         ),
         current_microbatch=num_microbatches - 1,
     )
-    total_num_tokens += num_tokens.item()
+    nvtx.range_pop()
 
     if not forward_only:
+        nvtx.range_push("last_micro_nopipe_bwd")
         backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config)
+        nvtx.range_pop()
+
+    if config.timers is not None:
+        config.timers('forward-backward').stop()
 
     if config.finalize_model_grads_func is not None and not forward_only:
         # Finalize model grads (perform full grad all-reduce / reduce-scatter for
         # data parallelism and layernorm all-reduce for sequence parallelism).
-        config.finalize_model_grads_func(
-            [model], total_num_tokens if config.calculate_per_token_loss else None
-        )
-
-    if config.timers is not None:
-        config.timers('forward-backward').stop()
+        nvtx.range_push("finalize_grads_func")
+        config.finalize_model_grads_func([model])
+        nvtx.range_pop()
 
     return forward_data_store
 
@@ -500,8 +530,6 @@ def forward_backward_pipelining_with_interleaving(
 
     input_tensors = [[] for _ in range(len(model))]
     output_tensors = [[] for _ in range(len(model))]
-    total_num_tokens = torch.tensor(0, dtype=torch.int).cuda()
-
     forward_data_store = []
     if not forward_only:
         output_tensor_grads = [[] for _ in range(len(model))]
@@ -637,7 +665,7 @@ def forward_backward_pipelining_with_interleaving(
                 input_tensors[model_chunk_id].append(None)
         input_tensor = input_tensors[model_chunk_id][-1]
 
-        output_tensor, num_tokens = forward_step(
+        output_tensor = forward_step(
             forward_step_func,
             data_iterator[model_chunk_id],
             model[model_chunk_id],
@@ -653,9 +681,6 @@ def forward_backward_pipelining_with_interleaving(
             current_microbatch=current_microbatch,
         )
         output_tensors[model_chunk_id].append(output_tensor)
-
-        nonlocal total_num_tokens
-        total_num_tokens += num_tokens.item()
 
         # if forward-only, no need to save tensors for a backward pass
         if forward_only:
@@ -912,9 +937,7 @@ def forward_backward_pipelining_with_interleaving(
             )
 
         else:  # no p2p overlap
-            output_tensor = forward_step_helper(
-                forward_k, current_microbatch, checkpoint_activations_microbatch
-            )
+            output_tensor = forward_step_helper(forward_k, checkpoint_activations_microbatch)
 
             # Backward pass.
             backward_k = k
@@ -1022,16 +1045,14 @@ def forward_backward_pipelining_with_interleaving(
                     config.grad_sync_func[model_chunk_id](model[model_chunk_id].parameters())
                     synchronized_model_chunks.add(model_chunk_id)
 
+    if config.timers is not None:
+        config.timers('forward-backward').stop()
+
     if config.finalize_model_grads_func is not None and not forward_only:
         # Finalize model grads (perform full grad all-reduce / reduce-scatter for
         # data parallelism, layernorm all-reduce for sequence parallelism, and
         # embedding all-reduce for pipeline parallelism).
-        config.finalize_model_grads_func(
-            model, total_num_tokens if config.calculate_per_token_loss else None
-        )
-
-    if config.timers is not None:
-        config.timers('forward-backward').stop()
+        config.finalize_model_grads_func(model)
 
     return forward_data_store
 
@@ -1163,6 +1184,9 @@ def forward_backward_pipelining_without_interleaving(
 
     Returns dictionary with losses if the last stage, empty dict otherwise."""
 
+    args = get_args()
+
+    # TODO: 如何"model chunking"?
     if isinstance(model, list):
         assert (
             len(model) == 1
@@ -1174,6 +1198,7 @@ def forward_backward_pipelining_without_interleaving(
         ), "non-pipeline-parallel schedule does not support model chunking"
         data_iterator = data_iterator[0]
 
+    # TODO: 为什么非交错的PP无法overlap p2p comm.
     config = get_model_config(model)
     if config.overlap_p2p_comm:
         raise ValueError(
@@ -1206,6 +1231,8 @@ def forward_backward_pipelining_without_interleaving(
     disable_grad_sync()
 
     # Compute number of warmup microbatches.
+    # num_warmup_microbatches == 0 时，是last stage；
+    # TODO: get_stage_id(world_rank)
     num_warmup_microbatches = (
         parallel_state.get_pipeline_model_parallel_world_size()
         - parallel_state.get_pipeline_model_parallel_rank()
@@ -1227,8 +1254,25 @@ def forward_backward_pipelining_without_interleaving(
         max_outstanding_backprops = num_warmup_microbatches + 1
 
     model_type = get_model_type(model)
-
+    
+    # stage id
     rank = parallel_state.get_pipeline_model_parallel_rank()
+    # args.simu_rank = str(torch.distributed.get_rank())
+
+    # try:
+    #     # model_parallel_group = torch.distributed.get_rank(parallel_state.get_model_parallel_group())
+    #     # pipeline_model_parallel_group = torch.distributed.get_rank(parallel_state.get_pipeline_model_parallel_group())
+    #     # data_parallel_group = torch.distributed.get_rank(parallel_state.get_data_parallel_group())
+    #     # tensor_model_parallel_group = torch.distributed.get_rank(parallel_state.get_tensor_model_parallel_group())
+        
+    #     # print(f"rank: {rank}, model_parallel_group = {model_parallel_group}")
+    #     # print(f"rank: {rank}, pipeline_model_parallel_group = {pipeline_model_parallel_group}")
+    #     # print(f"rank: {rank}, data_parallel_group= {data_parallel_group}")
+    #     # print(f"rank: {rank}, tensor_model_parallel_group = {tensor_model_parallel_group}")
+    #     print(f"world_rank: {args.simu_rank}, stage_id: {rank}, num_microbatches: {num_microbatches}, num_warmup_microbatches: {num_warmup_microbatches}, num_microbatches_remaining: {num_microbatches_remaining}, parallel_state.get_pipeline_model_parallel_world_size(): {parallel_state.get_pipeline_model_parallel_world_size()}")
+    # except:
+    #     print("3D group info cannot be obtained...")
+        
     recv_tensor_shapes = get_tensor_shapes(
         rank=rank - 1,
         model_type=model_type,
@@ -1245,18 +1289,23 @@ def forward_backward_pipelining_without_interleaving(
         decoder_seq_length=decoder_seq_length,
         config=config,
     )
+    # print(f"test | recv_tensor_shapes:{recv_tensor_shapes}, send_tensor_shapes:{send_tensor_shapes}")
 
     # Input, output tensors only need to be saved when doing backward passes
     input_tensors = None
     output_tensors = None
-    total_num_tokens = torch.tensor(0, dtype=torch.int).cuda()
-
     if not forward_only:
         input_tensors = []
         output_tensors = []
     forward_data_store = []
 
+    args = get_args()
+
+
+    ''' ------------------------------------------- warmup state -----------------------------------------'''
     # Run warmup forward passes.
+    # last stage 不存在warmup阶段的，num_warmup_microbatches 是 0；num_warmup_microbatches = PP_size - PP_rank - 1
+    args.simu_state = "warmup"
     for i in range(num_warmup_microbatches):
         # Decide to checkpoint all layers' activations of the current micro-batch
         if max_outstanding_backprops is not None:
@@ -1266,9 +1315,51 @@ def forward_backward_pipelining_without_interleaving(
             )
         else:
             checkpoint_activations_microbatch = None
+            
+        # p2p_communication.recv_forward 中有 config.timers('forward-recv', log_level=2).start()
+        ''' 1. recv_forward '''
+        nvtx_add_label_micro_batch_id = None
+        if not parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            # args.simu_micro_batch_ids["recv_forward"] += 1
+            # record_name = str(args.simu_rank) + ":warmup:recv_forward:" + str(args.simu_micro_batch_ids["recv_forward"])
+            # args.simu_stage_operations_trace.append(record_name)
+            # args.simu_micro_batch_ids["recv_forward"] += 1
+            # cmd = CMD(args.simu_rank, "warmup", "recv_forward", args.simu_micro_batch_ids["recv_forward"], stage_operations_trace=args.stage_operations_trace, stage_id=args.simu_stage_id)
+            # args.stage_operations_trace[args.simu_rank].append(str(cmd))
+            cmd = CMD(
+                rank_id=args.simu_rank,
+                mg_state=args.simu_state,
+                name_cmd="recv_forward",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.simu_stage_id,
+                simu_start=args.simu_start,
+                trace_start=args.trace_start,
+                group_kind="pp",
+                input__shape=recv_tensor_shapes[0],
+                input__dtype=config.pipeline_dtype,
+                current_iter=args.current_iter,
+                args=args
+            )
+            assert isinstance(recv_tensor_shapes, list) and len(recv_tensor_shapes) == 1
+            nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["recv_forward"])
+            with cmd:
+                nvtx.range_push(f"{args.simu_rank}_wm_recv_forward_{nvtx_add_label_micro_batch_id}")
+                input_tensor = recv_forward(recv_tensor_shapes, config)
+                nvtx.range_pop()
+        else:
+            # 还是让recv_forward来处理,区别在于没有cmd wrap, 可以跳过cmd的计时处理.
+            input_tensor = recv_forward(recv_tensor_shapes, config)
 
-        input_tensor = recv_forward(recv_tensor_shapes, config)
-        output_tensor, num_tokens = forward_step(
+        ''' 2. forward_step '''
+        # TODO: first stage的loadbatch耗时？
+        # args.simu_micro_batch_ids["forward_step"] += 1
+        # record_name = str(rank) + ":warmup:forward_step:" + str(args.simu_micro_batch_ids["forward_step"])
+        # args.simu_stage_operations_trace.append(record_name)
+        nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["forward_step"])
+        nvtx.range_push(f"{args.simu_rank}_wm_mixed_forward_step_{nvtx_add_label_micro_batch_id}")
+        output_tensor = forward_step(
             forward_step_func,
             data_iterator,
             model,
@@ -1280,22 +1371,89 @@ def forward_backward_pipelining_without_interleaving(
             checkpoint_activations_microbatch,
             check_first_val_step(first_val_step, forward_only, i == 0),
             current_microbatch=i,
+            args=args
         )
-        send_forward(output_tensor, send_tensor_shapes, config)
-        total_num_tokens += num_tokens.item()
+        nvtx.range_pop()
+        assert output_tensor is not None, "output_tensor of forward_step is None."
+        
+        ''' 3. send_forward '''
+        nvtx_add_label_micro_batch_id = None
+        if not parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+            # args.simu_micro_batch_ids["send_forward"] += 1
+            # record_name = str(args.simu_rank) + ":warmup:send_forward:" + str(args.simu_micro_batch_ids["send_forward"])
+            # args.simu_stage_operations_trace.append(record_name)
+            # print(f"output_tensor.shape:{output_tensor[0].shape}, send_tensor_shapes:{send_tensor_shapes}")
+            cmd = CMD(
+                rank_id=args.simu_rank,
+                mg_state=args.simu_state,
+                name_cmd="send_forward",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.simu_stage_id,
+                simu_start=args.simu_start,
+                trace_start=args.trace_start,
+                group_kind="pp",
+                input__shape=output_tensor[0].shape,
+                input__dtype=config.pipeline_dtype,
+                current_iter=args.current_iter,
+                args=args
+            )
+            assert isinstance(output_tensor,list) and len(output_tensor) == 1
+            nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["send_forward"])
+            with cmd:
+                nvtx.range_push(f"{args.simu_rank}_wm_send_forward_{nvtx_add_label_micro_batch_id}")
+                send_forward(output_tensor, send_tensor_shapes, config)
+                nvtx.range_pop()
 
+        
+        ''' ?. store input/output tensor '''
         if not forward_only:
-            input_tensors.append(input_tensor)
-            output_tensors.append(output_tensor)
+            input_tensors.append(input_tensor) # 保存上游激活
+            output_tensors.append(output_tensor) # 保存当前fwd的激活
             deallocate_output_tensor(output_tensor[0], config.deallocate_pipeline_outputs)
 
+    ''' ------------------------------------------- warmup state -----------------------------------------'''
     # Before running 1F1B, need to receive first forward tensor.
     # If all microbatches are run in warmup / cooldown phase, then no need to
     # receive this tensor here.
+    # 1F1B开始前获取 (last stage - 1)上send的activation
+    args.simu_state = "help"
     if num_microbatches_remaining > 0:
-        input_tensor = recv_forward(recv_tensor_shapes, config)
+        nvtx_add_label_micro_batch_id = None
+        if not parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            # args.simu_micro_batch_ids["recv_forward"] += 1
+            # record_name = str(args.simu_rank) + ":help:recv_forward:" + str(args.simu_micro_batch_ids["recv_forward"])
+            # args.simu_stage_operations_trace.append(record_name)
+            cmd = CMD(
+                rank_id=args.simu_rank,
+                mg_state=args.simu_state,
+                name_cmd="recv_forward",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.simu_stage_id,
+                simu_start=args.simu_start,
+                trace_start=args.trace_start,
+                group_kind="pp",
+                input__shape=recv_tensor_shapes[0],
+                input__dtype=config.pipeline_dtype,
+                current_iter=args.current_iter,
+                args=args
+            )
+            assert isinstance(recv_tensor_shapes,list) and len(recv_tensor_shapes) == 1
 
+            nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["recv_forward"])
+            with cmd:
+                nvtx.range_push(f"{args.simu_rank}_hp_recv_forward_{nvtx_add_label_micro_batch_id}")
+                input_tensor = recv_forward(recv_tensor_shapes, config)
+                # args.simu_micro_batch_ids["recv_forward"] += 1 if not parallel_state.is_pipeline_first_stage else 0
+                nvtx.range_pop()
+        else:
+            input_tensor = recv_forward(recv_tensor_shapes, config)
+    ''' ------------------------------------------- steady state -----------------------------------------'''
     # Run 1F1B in steady state.
+    args.simu_state = "steady"
     for i in range(num_microbatches_remaining):
         last_iteration = i == (num_microbatches_remaining - 1)
 
@@ -1306,8 +1464,14 @@ def forward_backward_pipelining_without_interleaving(
             ) >= config.num_microbatches_with_partial_activation_checkpoints
         else:
             checkpoint_activations_microbatch = None
-
-        output_tensor, num_tokens = forward_step(
+            
+        ''' 1. forward_step '''
+        # args.simu_micro_batch_ids["forward_step"] += 1
+        # record_name = str(rank) + ":steady:forward_step:" + str(args.simu_micro_batch_ids["forward_step"])
+        # args.simu_stage_operations_trace.append(record_name)
+        nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["forward_step"])
+        nvtx.range_push(f"{args.simu_rank}_sd_mixed_forward_step_{nvtx_add_label_micro_batch_id}")
+        output_tensor = forward_step(
             forward_step_func,
             data_iterator,
             model,
@@ -1321,19 +1485,73 @@ def forward_backward_pipelining_without_interleaving(
                 first_val_step, forward_only, (i == 0) and (num_warmup_microbatches == 0)
             ),
             current_microbatch=i + num_warmup_microbatches,
+            args=args
         )
-        total_num_tokens += num_tokens.item()
-
+        nvtx.range_pop()
+        assert output_tensor is not None, "output_tensor of forward_step is None"
+        
+        ''' 2. send_forward_recv_backward '''
+        # send_forward_recv_backward 和 forward_step 可以并行可以异步吗？
+        # Note: 串行过程，先send后recv，comm.和comp.不重叠（通信是阻塞式的，but why？）
         if forward_only:
             send_forward(output_tensor, send_tensor_shapes, config)
 
             if not last_iteration:
                 input_tensor = recv_forward(recv_tensor_shapes, config)
-
         else:
-            output_tensor_grad = send_forward_recv_backward(
-                output_tensor, send_tensor_shapes, config
-            )
+            nvtx_add_label_micro_batch_id = None
+            if not parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                # args.simu_micro_batch_ids["send_forward"] += 1
+                # record_name = str(args.simu_rank) + ":steady:send_forward:" + str(args.simu_micro_batch_ids["send_forward"])
+                # args.simu_stage_operations_trace.append(record_name)
+                cmd_send = CMD(
+                    rank_id=args.simu_rank,
+                    mg_state=args.simu_state,
+                    name_cmd="send_forward",
+                    use_cuda=True,
+                    stage_operations_trace_dict=args.stage_operations_trace,
+                    micro_batch_ids_dict=args.simu_micro_batch_ids,
+                    stage_id=args.simu_stage_id,
+                    simu_start=args.simu_start,
+                    trace_start=args.trace_start,
+                    group_kind="pp",
+                    input__shape=output_tensor[0].shape,
+                    input__dtype=config.pipeline_dtype,
+                    current_iter=args.current_iter,
+                    args=args
+                )
+                cmd_recv = CMD(
+                    rank_id=args.simu_rank,
+                    mg_state=args.simu_state,
+                    name_cmd="recv_backward",
+                    use_cuda=True,
+                    stage_operations_trace_dict=args.stage_operations_trace,
+                    micro_batch_ids_dict=args.simu_micro_batch_ids,
+                    stage_id=args.simu_stage_id,
+                    simu_start=args.simu_start,
+                    trace_start=args.trace_start,
+                    group_kind="pp",
+                    input__shape=send_tensor_shapes[0],
+                    input__dtype=config.pipeline_dtype,
+                    current_iter=args.current_iter,
+                    args=args
+                )
+                assert isinstance(output_tensor,list) and len(output_tensor) == 1 and isinstance(send_tensor_shapes,list) and len(send_tensor_shapes) == 1
+                # args.simu_micro_batch_ids["recv_backward"] += 1
+                # record_name = str(args.simu_rank) + ":steady:recv_backward:" + str(args.simu_micro_batch_ids["recv_backward"])
+                # args.simu_stage_operations_trace.append(record_name)
+                nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["send_forward"]) + "_" + str(args.simu_micro_batch_ids["recv_backward"])
+                with cmd_send:
+                    nvtx.range_push(f"{args.simu_rank}_sd_send_fwd_recv_bwd_{nvtx_add_label_micro_batch_id}")
+                    output_tensor_grad = send_forward_recv_backward(
+                        output_tensor, send_tensor_shapes, config
+                    )
+                    nvtx.range_pop()
+                cmd_recv.no_trace_update(cmd_send.duration, cmd_send.time_stamp) # 传入duration更新
+            else:
+                output_tensor_grad = send_forward_recv_backward(
+                    output_tensor, send_tensor_shapes, config
+                )
 
             # Add input_tensor and output_tensor to end of list.
             input_tensors.append(input_tensor)
@@ -1342,6 +1560,7 @@ def forward_backward_pipelining_without_interleaving(
 
             # Pop input_tensor and output_tensor from the start of the list for
             # the backward pass.
+            # 处理最早加入的micro-batch（进行bwd）
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
@@ -1351,19 +1570,128 @@ def forward_backward_pipelining_without_interleaving(
                 if config.grad_sync_func is None or rank == 0:
                     enable_grad_sync()
 
-            input_tensor_grad = backward_step(
-                input_tensor, output_tensor, output_tensor_grad, model_type, config
+            ''' 3. backward_step '''
+            # bwd_n进行的input需求：fwd_n的input和output + output_tensor_grad (from next stage)
+            # args.simu_micro_batch_ids["backward_step"] += 1
+            # record_name = str(args.simu_rank) + ":steady:backward_step:" + str(args.simu_micro_batch_ids["backward_step"])
+            # args.simu_stage_operations_trace.append(record_name)
+            cmd = CMD(
+                rank_id=args.simu_rank,
+                mg_state=args.simu_state,
+                name_cmd="backward_step",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.simu_stage_id,
+                simu_start=args.simu_start,
+                trace_start=args.trace_start,
+                current_iter=args.current_iter,
+                args=args
             )
-
+            # token = current_cmd_var.set(cmd)
+            CMD.set_current_cmd(cmd)
+            nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["backward_step"])
+            with cmd:
+                nvtx.range_push(f"{args.simu_rank}_sd_backward_step_{nvtx_add_label_micro_batch_id}")
+                input_tensor_grad = backward_step(
+                    input_tensor, output_tensor, output_tensor_grad, model_type, config
+                )
+                nvtx.range_pop()
+            # current_cmd_var.reset(token)
+            # print(f"rank:{args.simu_rank}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
+            assert input_tensor_grad is not None, "input_tensor_grad of backward_step is None"
+            
+            ''' 4. send_backward / send_backward_recv_forward '''
             if last_iteration:
                 input_tensor = None
-                send_backward(input_tensor_grad, recv_tensor_shapes, config)
+                nvtx_add_label_micro_batch_id = None
+                if not parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+                    # args.simu_micro_batch_ids["send_backward"] += 1
+                    # record_name = str(args.simu_rank) + ":steady:send_backward:" + str(args.simu_micro_batch_ids["send_backward"])
+                    # args.simu_stage_operations_trace.append(record_name)
+                    cmd = CMD(
+                        rank_id=args.simu_rank,
+                        mg_state=args.simu_state,
+                        name_cmd="send_backward",
+                        use_cuda=True,
+                        stage_operations_trace_dict=args.stage_operations_trace,
+                        micro_batch_ids_dict=args.simu_micro_batch_ids,
+                        stage_id=args.simu_stage_id,
+                        simu_start=args.simu_start,
+                        trace_start=args.trace_start,
+                        group_kind="pp",
+                        input__shape=input_tensor_grad[0].shape,
+                        input__dtype=config.pipeline_dtype,
+                        current_iter=args.current_iter,
+                        args=args
+                    )
+                    assert isinstance(output_tensor,list) and len(output_tensor) == 1
+                    nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["send_backward"])
+                    with cmd:
+                        nvtx.range_push(f"{args.simu_rank}_sd_send_backward_{nvtx_add_label_micro_batch_id}")
+                        send_backward(input_tensor_grad, recv_tensor_shapes, config)
+                        # args.simu_micro_batch_ids["send_backward"] += 1 if not parallel_state.is_pipeline_first_stage else 0
+                        nvtx.range_pop()
             else:
-                input_tensor = send_backward_recv_forward(
-                    input_tensor_grad, recv_tensor_shapes, config
-                )
+                nvtx_add_label_micro_batch_id = None
+                if not parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+                    # args.simu_micro_batch_ids["send_backward"] += 1
+                    # record_name = str(args.simu_rank) + ":steady:send_backward:" + str(args.simu_micro_batch_ids["send_backward"])
+                    # args.simu_stage_operations_trace.append(record_name)
+                    cmd_send = CMD(
+                        rank_id=args.simu_rank,
+                        mg_state=args.simu_state,
+                        name_cmd="send_backward",
+                        use_cuda=True,
+                        stage_operations_trace_dict=args.stage_operations_trace,
+                        micro_batch_ids_dict=args.simu_micro_batch_ids,
+                        stage_id=args.simu_stage_id,
+                        simu_start=args.simu_start,
+                        trace_start=args.trace_start,
+                        group_kind="pp",
+                        input__shape=input_tensor_grad[0].shape,
+                        input__dtype=config.pipeline_dtype,
+                        current_iter=args.current_iter,
+                        args=args
+                    )
+                    cmd_recv = CMD(
+                        rank_id=args.simu_rank,
+                        mg_state=args.simu_state,
+                        name_cmd="recv_forward",
+                        use_cuda=True,
+                        stage_operations_trace_dict=args.stage_operations_trace,
+                        micro_batch_ids_dict=args.simu_micro_batch_ids,
+                        stage_id=args.simu_stage_id,
+                        simu_start=args.simu_start,
+                        trace_start=args.trace_start,
+                        group_kind="pp",
+                        input__shape=recv_tensor_shapes[0],
+                        input__dtype=config.pipeline_dtype,
+                        current_iter=args.current_iter,
+                        args=args
+                    )
+                    # args.simu_micro_batch_ids["recv_forward"] += 1
+                    # record_name = str(args.simu_rank) + ":steady:recv_forward:" + str(args.simu_micro_batch_ids["recv_forward"])
+                    # args.simu_stage_operations_trace.append(record_name)
+                    assert isinstance(input_tensor_grad,list) and len(input_tensor_grad) == 1 and isinstance(recv_tensor_shapes,list) and len(recv_tensor_shapes) == 1
 
+                    nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["send_backward"]) + "_" + str(args.simu_micro_batch_ids["recv_forward"])
+                    with cmd_send:
+                        nvtx.range_push(f"{args.simu_rank}_sd_send_bwd_recv_fwd_{nvtx_add_label_micro_batch_id}")
+                        input_tensor = send_backward_recv_forward(
+                            input_tensor_grad, recv_tensor_shapes, config
+                        )
+                        nvtx.range_pop()
+                    cmd_recv.no_trace_update(cmd_send.duration, cmd_send.time_stamp) # 传入duration更新
+                else:
+                    input_tensor = send_backward_recv_forward(
+                        input_tensor_grad, recv_tensor_shapes, config
+                    )
+    ''' ------------------------------------------- steady state -----------------------------------------'''
+    
+    ''' ------------------------------------------- cooldown state -----------------------------------------'''
     # Run cooldown backward passes.
+    args.simu_state = "cooldown"
     if not forward_only:
         for i in range(num_warmup_microbatches):
 
@@ -1372,36 +1700,160 @@ def forward_backward_pipelining_without_interleaving(
             # async grad reduction in first pipeline stage. Other
             # pipeline stages do grad reduction during pipeline
             # bubble.
+            # 最后一个批次
             if i == num_warmup_microbatches - 1:
+                # overlap-reduce未启用(该情况未分桶，本身也不会启动grad同步)，或为first stage，允许启动梯度同步
                 if config.grad_sync_func is None or rank == 0:
                     enable_grad_sync()
 
             input_tensor = input_tensors.pop(0)
             output_tensor = output_tensors.pop(0)
 
-            output_tensor_grad = recv_backward(send_tensor_shapes, config)
+            ''' 1. recv_backward '''
+            nvtx_add_label_micro_batch_id = None
+            if not parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                # args.simu_micro_batch_ids["recv_backward"] += 1
+                # record_name = str(args.simu_rank) + ":cooldown:recv_backward:" + str(args.simu_micro_batch_ids["recv_backward"])
+                # args.simu_stage_operations_trace.append(record_name)
+                cmd = CMD(
+                    rank_id=args.simu_rank,
+                    mg_state=args.simu_state,
+                    name_cmd="recv_backward",
+                    use_cuda=True,
+                    stage_operations_trace_dict=args.stage_operations_trace,
+                    micro_batch_ids_dict=args.simu_micro_batch_ids,
+                    stage_id=args.simu_stage_id,
+                    simu_start=args.simu_start,
+                    trace_start=args.trace_start,
+                    group_kind="pp",
+                    input__shape=send_tensor_shapes[0],
+                    input__dtype=config.pipeline_dtype,
+                    current_iter=args.current_iter,
+                    args=args
+                )
+                assert isinstance(send_tensor_shapes,list) and len(send_tensor_shapes) == 1
 
-            input_tensor_grad = backward_step(
-                input_tensor, output_tensor, output_tensor_grad, model_type, config
+                nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["recv_backward"])
+                with cmd:
+                    nvtx.range_push(f"{args.simu_rank}_co_recv_backward_{nvtx_add_label_micro_batch_id}")
+                    output_tensor_grad = recv_backward(send_tensor_shapes, config)
+                    # args.simu_micro_batch_ids["recv_backward"] += 1 if not parallel_state.is_pipeline_first_stage else 0
+                    nvtx.range_pop()
+            else:
+                output_tensor_grad = recv_backward(send_tensor_shapes, config)
+
+            ''' 2. backward_step '''
+            # args.simu_micro_batch_ids["backward_step"] += 1
+            # record_name = str(args.simu_rank) + ":cooldown:backward_step:" + str(args.simu_micro_batch_ids["backward_step"])
+            # args.simu_stage_operations_trace.append(record_name)
+            cmd = CMD(
+                rank_id=args.simu_rank,
+                mg_state=args.simu_state,
+                name_cmd="backward_step",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.simu_stage_id,
+                simu_start=args.simu_start,
+                trace_start=args.trace_start,
+                current_iter=args.current_iter,
+                args=args
             )
+            CMD.set_current_cmd(cmd)
+            # token = current_cmd_var.set(cmd)
+            nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["backward_step"])
+            with cmd:
+                nvtx.range_push(f"{args.simu_rank}_co_backward_step_{nvtx_add_label_micro_batch_id}")
+                input_tensor_grad = backward_step(
+                    input_tensor, output_tensor, output_tensor_grad, model_type, config
+                )
+                nvtx.range_pop()
+            # print(f"rank:{args.simu_rank}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
 
-            send_backward(input_tensor_grad, recv_tensor_shapes, config)
+            assert input_tensor_grad is not None, "input_tensor_grad of backward_step is None"
+            # print(f"test part | input_tensor_grad:{input_tensor_grad}")
+            if isinstance(input_tensor_grad, list):
+                # print(f"test | input_tensor_grad[0]:{input_tensor_grad[0]}")
+                if input_tensor_grad[0] is not None:
+                    input__shape = input_tensor_grad[0].shape
+                    assert len(input_tensor_grad) == 1
+            else:
+                input__shape = input_tensor_grad.shape
 
+            ''' 3. send_backward '''
+            nvtx_add_label_micro_batch_id = None
+            if not parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+                # args.simu_micro_batch_ids["send_backward"] += 1
+                # record_name = str(args.simu_rank) + ":cooldown:send_backward:" + str(args.simu_micro_batch_ids["send_backward"])
+                # args.simu_stage_operations_trace.append(record_name)
+                cmd = CMD(
+                    rank_id=args.simu_rank,
+                    mg_state=args.simu_state,
+                    name_cmd="send_backward",
+                    use_cuda=True,
+                    stage_operations_trace_dict=args.stage_operations_trace,
+                    micro_batch_ids_dict=args.simu_micro_batch_ids,
+                    stage_id=args.simu_stage_id,
+                    simu_start=args.simu_start,
+                    trace_start=args.trace_start,
+                    group_kind="pp",
+                    input__shape=input__shape,
+                    input__dtype=config.pipeline_dtype,
+                    current_iter=args.current_iter,
+                    args=args
+                )
+                assert isinstance(input_tensor_grad,list) and len(input_tensor_grad) == 1
+
+                nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["send_backward"])
+                with cmd: 
+                    nvtx.range_push(f"{args.simu_rank}_co_send_backward_{nvtx_add_label_micro_batch_id}")
+                    send_backward(input_tensor_grad, recv_tensor_shapes, config)
+                    # args.simu_micro_batch_ids["send_backward"] += 1 if not parallel_state.is_pipeline_first_stage else 0
+                    nvtx.range_pop()
+        
+        # 已完成所有micro-batches的处理
         # Launch any remaining grad reductions.
         if no_sync_context is not None:
+            nvtx.range_push(f"{args.simu_rank}_launch_ramianing_grad_sync_func")
             enable_grad_sync()
             if config.grad_sync_func is not None:
                 config.grad_sync_func(model.parameters())
+            nvtx.range_pop()
+    ''' ------------------------------------------- cooldown state -----------------------------------------'''
+    args.simu_state = "finalize"
+    if config.timers is not None:
+        config.timers('forward-backward').stop()
 
     if config.finalize_model_grads_func is not None and not forward_only:
         # Finalize model grads (perform full grad all-reduce / reduce-scatter for
         # data parallelism, layernorm all-reduce for sequence parallelism, and
         # embedding all-reduce for pipeline parallelism).
-        config.finalize_model_grads_func(
-            [model], total_num_tokens if config.calculate_per_token_loss else None
-        )
 
-    if config.timers is not None:
-        config.timers('forward-backward').stop()
+        # TODO: 加入非overlap-reudce的 allreduce. overlap情况这里是否要主动生成分桶信息？
+        # if not args.overlap_grad_reduce:
+        #     # grad allreduce
+        #     # args.simu_micro_batch_ids["dp_allreduce"] += 1
+        #     # record_name = str(args.simu_rank) + ":finalize:dp_allreduce:" + str(args.simu_micro_batch_ids["dp_allreduce"])
+        #     # args.simu_stage_operations_trace.append(record_name)
+        #     cmd = CMD(
+        #         rank_id=args.simu_rank,
+        #         mg_state=args.simu_state,
+        #         name_cmd="dp_allreduce",
+        #         use_cuda=True,
+        #         stage_operations_trace_dict=args.stage_operations_trace,
+        #         micro_batch_ids_dict=args.simu_micro_batch_ids,
+        #         stage_id=args.simu_stage_id,
+        #         simu_start=args.simu_start
+        #     )
+
+        # embedding allreduce
+        # args.simu_micro_batch_ids["dp_allreduce"] += 1
+        # record_name = str(args.simu_rank) + ":finalize:dp_allreduce:" + str(args.simu_micro_batch_ids["dp_allreduce"])
+        # args.simu_stage_operations_trace.append(record_name)
+
+        nvtx.range_push(f"{args.simu_rank}_finalize_model_grads_func")
+        config.finalize_model_grads_func([model], args)
+        nvtx.range_pop()
+
 
     return forward_data_store

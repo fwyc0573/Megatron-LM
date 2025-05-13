@@ -18,6 +18,8 @@ from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import make_tp_sharded_tensor_for_checkpoint
 
+import torch.cuda.nvtx as nvtx
+from megatron.profiler.cmd import CMD, current_cmd_var
 
 class GPTModel(LanguageModule):
     """GPT Transformer language model.
@@ -147,7 +149,8 @@ class GPTModel(LanguageModule):
 
         assert len(input_tensor) == 1, 'input_tensor should only be length 1 for gpt/bert'
         self.decoder.set_input_tensor(input_tensor[0])
-
+        
+    # @CMD.get_trace_decorator()
     def forward(
         self,
         input_ids: Tensor,
@@ -172,7 +175,9 @@ class GPTModel(LanguageModule):
         if decoder_input is not None:
             pass
         elif self.pre_process:
+            nvtx.range_push(f"first_stage_embedding_input_fwd")
             decoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids)
+            nvtx.range_pop()
         else:
             # intermediate stage of pipeline
             # decoder will get hidden_states from encoder.input_tensor
@@ -181,12 +186,15 @@ class GPTModel(LanguageModule):
         # Rotary positional embeddings (embedding is None for PP intermediate devices)
         rotary_pos_emb = None
         if self.position_embedding_type == 'rope':
+            # nvtx.range_push(f"rotary_pos_emb")
             rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
                 inference_params, self.decoder, decoder_input, self.config
             )
             rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
+            # nvtx.range_pop()
 
         # Run decoder.
+        nvtx.range_push(f"decoder_fwd")
         hidden_states = self.decoder(
             hidden_states=decoder_input,
             attention_mask=attention_mask,
@@ -195,6 +203,7 @@ class GPTModel(LanguageModule):
             packed_seq_params=packed_seq_params,
             **(extra_block_kwargs or {}),
         )
+        nvtx.range_pop()
 
         if not self.post_process:
             return hidden_states
@@ -203,13 +212,18 @@ class GPTModel(LanguageModule):
         output_weight = None
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()
+
+        nvtx.range_push(f"embedding_ouput_fwd")
         logits, _ = self.output_layer(hidden_states, weight=output_weight)
+        nvtx.range_pop()
 
         if labels is None:
             # [s b h] => [b s h]
             return logits.transpose(0, 1).contiguous()
 
+        nvtx.range_push(f"vocab_parallel_cross_entropy_fwd")
         loss = self.compute_language_model_loss(labels, logits)
+        nvtx.range_pop()
 
         return loss
 

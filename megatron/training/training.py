@@ -17,6 +17,9 @@ import time
 # The earliest we can measure the start time.
 _TRAIN_START_TIME = time.time()
 import torch
+import random
+import numpy as np
+
 
 from megatron.core import mpu, tensor_parallel
 from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model_config, StragglerDetector
@@ -35,7 +38,12 @@ from megatron.training.optimizer_param_scheduler import OptimizerParamScheduler
 from megatron.legacy.data.data_samplers import build_pretraining_data_loader
 from megatron.core.transformer.moe.moe_utils import track_moe_metrics
 from megatron.core.pipeline_parallel import get_forward_backward_func
-from .async_utils import maybe_finalize_async_save
+
+from megatron.core import parallel_state
+from megatron.profiler.cmd import CMD, write_list_to_file
+import torch.cuda.nvtx as nvtx
+import torch.distributed as dist
+
 from .utils import (
     calc_params_l2_norm,
     check_adlr_autoresume_termination,
@@ -43,9 +51,7 @@ from .utils import (
     print_rank_0,
     print_rank_last,
     report_memory,
-    unwrap_model,
-    append_to_progress_log,
-)
+    unwrap_model)
 from .global_vars import (
     get_args,
     get_signal_handler,
@@ -105,6 +111,20 @@ def num_floating_point_operations(args, batch_size):
     )
 
 
+def append_to_progress_log(string):
+    args = get_args()
+    if args.save is None:
+        return
+    progress_log_filename = os.path.join(args.save, "progress.txt")
+    torch.distributed.barrier()
+    if torch.distributed.get_rank() == 0:
+        with open(progress_log_filename, 'a') as f:
+            job_id = os.getenv('SLURM_JOB_ID', '')
+            num_gpus = args.world_size
+            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\tJob ID: {job_id}\t"
+                    f"# GPUs: {num_gpus}\t{string}\n")
+
+
 def get_start_time_from_progress_log():
     """
     Gets start time of earliest job with same world size. Also returns the number
@@ -149,7 +169,15 @@ def get_start_time_from_progress_log():
     return datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S'), \
         start_num_floating_point_operations
 
-
+def set_seed(seed):
+    # TODO-YC: will it affect the performance?
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # 如果使用多GPU
+    
+    
 def pretrain(train_valid_test_dataset_provider,
              model_provider,
              model_type,
@@ -185,7 +213,8 @@ def pretrain(train_valid_test_dataset_provider,
         args_defaults: a dictionary from argument-name to argument-value. It
             to set already parse arguments.
     """
-
+    # args = get_args()
+    # args_defaults = {'tokenizer_type':args.tokenizer_type}
     # Initalize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(extra_args_provider=extra_args_provider,
                         args_defaults=args_defaults)
@@ -193,6 +222,19 @@ def pretrain(train_valid_test_dataset_provider,
     args = get_args()
     timers = get_timers()
 
+    # YC: seed set
+    set_seed(args.seed)
+
+
+    # 设定模拟开始为false
+    args.simu_start = False
+    # args.simu_micro_batch_ids = {"recv_forward":-1, "forward_step":-1, "send_forward":-1, "recv_backward":-1,
+    #                               "backward_step":-1, "send_backward":-1, "tp_load_batch_broadcast":-1, "dp_allreduce":-1, "tp_allreduce":-1}
+
+    args.simu_stage_id = parallel_state.get_pipeline_model_parallel_rank()
+    args.simu_rank = str(torch.distributed.get_rank())
+    args.global_model_params_dict = {}
+    
     if args.log_progress:
         append_to_progress_log("Starting job")
 
@@ -213,7 +255,7 @@ def pretrain(train_valid_test_dataset_provider,
         time.time() - _TRAIN_START_TIME))
     print_datetime('after megatron is initialized')
 
-    args = get_args()
+    # args = get_args()
     timers = get_timers()
 
     one_logger = get_one_logger()
@@ -221,6 +263,292 @@ def pretrain(train_valid_test_dataset_provider,
         one_logger.log_metrics({
             'train_iterations_warmup': 5
         })
+
+
+    """ iter-rank start, profile submodel of each rank. 
+    for wrank in range(args.fake_world_size):
+        补充所有参数**scaling_kwargs: first_process, last_process, tp_rank, dp_rank, pp_rank,local_rank
+
+        FWD和BWD涉及4个关键参数: input_tensor, input_tensor_grad, output_tensor, output_tensor_grad, 对应fwd, bwd, sned/recv grad/activation
+    """
+    # from megatron.profiler.easy_timer import CUDATimer
+    from megatron.profiler.utils import (
+        sim_backward_step,
+        deallocate_output_tensor,
+        sim_forward_step,
+        get_attr_wrapped_model
+        )
+        # first_or_last_stage_fake_get_batch,
+        # sim_loss_func,
+        # get_input_tensor_shape,
+        # get_input_tensor,
+    def add_extra_args_kwargs(rank_instance=None):
+        args.is_pre_process = rank_instance.is_pre_process() if rank_instance is not None else None
+        args.is_post_process = rank_instance.is_post_process() if rank_instance is not None else None
+        args.pp_rank = rank_instance._get_pp_local_rank() if rank_instance is not None else None
+        args.dp_rank = rank_instance._get_dp_local_rank() if rank_instance is not None else None
+        args.tp_rank = rank_instance._get_tp_local_rank() if rank_instance is not None else None
+        args.is_rank_in_embedding_group = rank_instance.is_rank_in_embedding_group() if rank_instance is not None else None
+        args.simu_start = False
+        args.stage_operations_trace = {}
+        args.simu_micro_batch_ids = {
+            "recv_forward": -1, "forward_step": -1, "send_forward": -1, "recv_backward": -1,
+            "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
+            "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1
+        }
+    if args.is_scaling_mode:
+        from megatron.profiler.rank_manager import RankManager
+        from megatron.profiler.parallel_group_manager import MPUInfo, ParallelGroupManager
+        manager = ParallelGroupManager(local_size=args.fake_local_rank, world_size=args.fake_world_size, pp_size=args.fake_pp, tp_size=args.fake_tp)
+        mpu_info: MPUInfo = manager.get_mpu_info()
+        all_groups = manager.get_all_groups()
+        rank_manager = RankManager(args, all_groups)
+        rank_instances: dict = rank_manager.get_rank_zoos()
+        print(f"mpu_info:{mpu_info}")
+
+        # profile_timer = CUDATimer()
+        warm_up_iter = 10 # args.train_iters
+        args.iteration=0
+        CMD.set_current_profile_sign(True)
+        
+        for rank_id, rank_instance in rank_instances.items():
+            add_extra_args_kwargs(rank_instance)
+
+            # 这里占用了大量的内存，但实际上只有tp_rank=0的才涉及next(data_iterator)?
+            args.iteration=0
+            train_data_iterator, _, _= build_train_valid_test_data_iterators(
+                    train_valid_test_dataset_provider)
+        
+            # get model and optimizer
+            model, optimizer, opt_param_scheduler = setup_model_and_optimizer(model_provider, model_type)
+            config = get_model_config(model[0])
+
+            for model_chunk in model:
+                model_chunk.zero_grad_buffer()
+            optimizer.zero_grad()
+
+            # forward_data_store = []
+
+            # warm up
+            # simu_start为False时，上下文管理器不trace；current_cmd为None时，装饰器不trace；
+            if args.simu_start == False:
+                for _ in range(warm_up_iter):
+                    output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
+                    output_tensor = output_tensor.contiguous()
+                    output_tensor_grad = [torch.randn_like(output_tensor)]
+                    deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
+                    # TODO:确认这儿，装饰器已写了，上下文管理器没有，能否正常追踪？
+                    input_tensor_grad = sim_backward_step(rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config)
+                    optimizer.step()
+                    for model_chunk in model:
+                        model_chunk.zero_grad_buffer()
+                    optimizer.zero_grad()
+                    args.iteration += 1
+
+                # profile_timer只有在warm_up_sign为False才进行测量和记录
+                # profile_timer.warm_up_sign = False
+                args.simu_start = True
+                del output_tensor,input_tensor,output_tensor_grad, input_tensor_grad
+                # forward_data_store.clear()
+                print(f"rank_id = {rank_id}, finish warm up ...")
+                args.iteration = 0
+            
+
+            # TODO: if we finish warmup, why we not clean the param in optimizer for each iter ?(follow training step func()?) 
+
+            # Set grad to zero.
+            for model_chunk in model:
+                model_chunk.zero_grad_buffer()
+            optimizer.zero_grad()
+
+            nvtx.range_push(f"rank:{rank_id}, complete iteration")
+            nvtx.range_push(f"rank:{rank_id}, model_fwd_step")
+      
+            # get_batch / FWD (loss_func:dp_allreudce)
+            output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
+            # TODO: 为解决"counter-productive to free a view of another tensor."，是否有其他计算影响？
+            output_tensor = output_tensor.contiguous()
+            print(f"rank_id = {rank_id}, finish FWD profile ...")
+            
+            nvtx.range_pop()
+
+            # BWD
+            # 生成模拟的 output_tensor_grad(recv grad)
+            output_tensor_grad = [torch.randn_like(output_tensor)]
+            deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
+            # with profile_timer(rank_id, "BWD"):
+
+            cmd = CMD(
+            rank_id=rank_id,
+            mg_state=None,
+            name_cmd="backward_step",
+            use_cuda=True,
+            stage_operations_trace_dict=args.stage_operations_trace,
+            micro_batch_ids_dict=args.simu_micro_batch_ids,
+            stage_id=args.pp_rank,
+            simu_start=args.simu_start,
+            description=None, 
+            trace_start=args.trace_start,
+            current_iter=args.trace_start,
+            args=args
+            )
+            CMD.set_current_cmd(cmd)
+            with cmd:
+                nvtx.range_push(f"rank:{rank_id}, model_bwd_step")
+                start_event = torch.cuda.Event(enable_timing=True)
+                stop_event = torch.cuda.Event(enable_timing=True)
+                start_event.record()
+                input_tensor_grad = sim_backward_step(rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config)
+                stop_event.record()
+                torch.cuda.synchronize()
+                duration = start_event.elapsed_time(stop_event)
+                nvtx.range_pop()
+                if args.simu_start == True:
+                    # print(f"rank:{rank_id},bwd time: {duration}")
+                    print(f"rank:{rank_id}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
+                    print(f"rank:{rank_id}, finish BWD profile ...")
+
+            # dp_allreduce
+            pos_p_t = (args.pp_rank,args.tp_rank)
+            used_dtype = torch.float16 if args.fp16 or args.bf16 else torch.float32
+            cmd = CMD(
+            rank_id=rank_id,
+            mg_state=None,
+            name_cmd="dp_allreduce",
+            use_cuda=True,
+            stage_operations_trace_dict=args.stage_operations_trace,
+            micro_batch_ids_dict=args.simu_micro_batch_ids,
+            stage_id=args.pp_rank,
+            simu_start=args.simu_start,
+            description=None, 
+            group_kind="dp",
+            trace_start=args.trace_start,
+            current_iter=args.trace_start,
+            args=args,
+            input__shape=[args.global_model_params_dict[pos_p_t]["elem_sum"]], 
+            input__dtype=used_dtype,
+            )
+            cmd.no_trace_update(0,0)
+
+
+            # ep_allreduce
+            if (args.is_rank_in_embedding_group and args.fake_pp > 1):
+                ep_input__shape = None
+                ep_input__dtype = None
+                if args.is_pre_process:
+                    model_module = model[0]
+                elif args.is_post_process:
+                    model_module = model[-1]
+                else:  # We do not support the interleaved schedule for T5 yet.
+                    model_module = model[0]
+                model_module = get_attr_wrapped_model(model_module, 'pre_process', return_model_obj=True)
+                if model_module.share_embeddings_and_output_weights:
+                    weight = model_module.shared_embedding_or_output_weight()
+                    grad = weight.main_grad
+                    ep_input__shape = grad.shape
+                    ep_input__dtype = grad.dtype
+
+                cmd = CMD(
+                rank_id=rank_id,
+                mg_state=None,
+                name_cmd="ep_allreduce",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.pp_rank,
+                simu_start=args.simu_start,
+                description=None,
+                group_kind="ep",
+                trace_start=args.trace_start,
+                current_iter=args.trace_start,
+                args=args,
+                input__shape=ep_input__shape, 
+                input__dtype=ep_input__dtype,
+                )
+                cmd.no_trace_update(0,0)
+
+
+            # optimizer.step()
+            # with profile_timer(rank_id, "OPTIM_STEP"):
+            cmd = CMD(
+            rank_id=rank_id,
+            mg_state=None,
+            name_cmd="optimizer_step",
+            use_cuda=True,
+            stage_operations_trace_dict=args.stage_operations_trace,
+            micro_batch_ids_dict=args.simu_micro_batch_ids,
+            stage_id=args.pp_rank,
+            simu_start=args.simu_start,
+            description=None, 
+            trace_start=args.trace_start,
+            current_iter=args.trace_start,
+            args=args
+            )
+            with cmd:
+                nvtx.range_push(f"rank:{rank_id}, optimizer_step")
+                params = optimizer.get_parameters()  # 获取所有参数
+                total_param_count = sum(param.numel() for param in params)  # 计算参数总量
+                grads_for_norm = optimizer.get_main_grads_for_grad_norm()  # 获取所有梯度
+                total_grad_count = sum(grad.numel() for grad in grads_for_norm)  # 计算梯度总量
+
+                start_event = torch.cuda.Event(enable_timing=True)
+                stop_event = torch.cuda.Event(enable_timing=True)
+
+                print(f"Finish warmup and Optimizer structure is {optimizer}")
+                # torch.cuda.synchronize()
+                # optimizer.zero_grad()
+                start_event.record()
+
+                optimizer.step()
+
+                stop_event.record()
+                torch.cuda.synchronize()
+                duration = start_event.elapsed_time(stop_event)
+                nvtx.range_pop()
+                if args.simu_start == True:
+                    print(f"rank:{rank_id},optimizer_step time: {duration}, total_param_count: {total_param_count}, total_grad_count: {total_grad_count}")
+            print(f"rank:{rank_id}, finish optimizer.step profile ...")
+            del params,total_param_count,grads_for_norm,total_grad_count
+
+            nvtx.range_pop()
+            # profile_timer.warm_up_sign = True
+
+            # release GPU memory
+            allocated_memory_before = torch.cuda.memory_allocated()
+            reserved_memory_before = torch.cuda.memory_reserved()
+            print(f"rank:{rank_id}, Before memory release - Allocated: {allocated_memory_before}, Reserved: {reserved_memory_before}")
+            
+            # name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_numl{args.num_layers}_\
+            #     bs{args.micro_batch_size}_{args.main_tokenizer_type}"
+            
+            name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
+            write_list_to_file(rank_id, args.stage_operations_trace[rank_id], file_path="profiler_log", name_args=name_args)
+            print(f"rank:{rank_id}, trace log has been written to txt...")
+
+            del input_tensor
+            del output_tensor
+            del output_tensor_grad
+            del input_tensor_grad
+            # del forward_data_store
+            del config #, reserved_memory_before, allocated_memory_before
+            # del tokens, labels, loss_mask, attention_mask, position_ids
+            del model, optimizer, opt_param_scheduler, train_data_iterator
+            torch.cuda.empty_cache()
+            gc.collect()
+            print(f"rank:{rank_id}, finish release GPU memory ...")
+
+            # 输出释放内存后的GPU内存使用情况
+            allocated_memory_after = torch.cuda.memory_allocated()
+            reserved_memory_after = torch.cuda.memory_reserved()
+            print(f"rank:{rank_id}, After memory release - Allocated: {allocated_memory_after}, Reserved: {reserved_memory_after}")
+            # del allocated_memory_after, reserved_memory_after
+
+        # profile_timer.cuda_time_output()
+        return
+    
+    else:
+        # 用于初始化参数
+        add_extra_args_kwargs()
 
     # Model, optimizer, and learning rate.
     timers('model-and-optimizer-setup', log_level=0).start(barrier=True)
@@ -253,13 +581,11 @@ def pretrain(train_valid_test_dataset_provider,
     timers('train/valid/test-data-iterators-setup').stop()
     print_datetime('after dataloaders are built')
 
-    # Context used for persisting some state between checkpoint saves.
-    checkpointing_context = {}
-
     # Print setup timing.
     print_rank_0('done with setup ...')
     timers.log(['model-and-optimizer-setup',
                 'train/valid/test-data-iterators-setup'], barrier=True)
+
 
     if not args.skip_train:
         print_rank_0('training ...')
@@ -275,33 +601,12 @@ def pretrain(train_valid_test_dataset_provider,
                 forward_step_func,
                 model, optimizer, opt_param_scheduler,
                 train_data_iterator, valid_data_iterator,
-                process_non_loss_data_func, config, checkpointing_context)
+                process_non_loss_data_func, config)
 
         print_datetime('after training is done')
-
-        if args.save and iteration != 0 and iteration % args.save_interval != 0:
-            save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
-                            num_floating_point_operations_so_far, checkpointing_context)
     else:
         print_rank_0('skipping training (--skip-train is on) ...')
-
         iteration = args.iteration
-
-    if args.do_valid:
-        prefix = f'iteration {iteration} on validation set'
-        evaluate_and_print_results(prefix, forward_step_func,
-                                   valid_data_iterator, model,
-                                   iteration, process_non_loss_data_func, config,
-                                   verbose=True, write_to_tensorboard=not args.skip_train)
-
-    if args.do_test:
-        prefix = f'iteration {iteration} on test set'
-        evaluate_and_print_results(prefix, forward_step_func,
-                                   test_data_iterator, model,
-                                   iteration, process_non_loss_data_func, config,
-                                   verbose=True, write_to_tensorboard=not args.skip_train)
-
-    maybe_finalize_async_save(blocking=True)
 
 
 
@@ -358,8 +663,13 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
             this_model.model_type = model_type
             model.append(this_model)
     else:
-        pre_process = mpu.is_pipeline_first_stage()
-        post_process = mpu.is_pipeline_last_stage()
+        # 需要指定pre_process和post_process，并且要及时释放GPU内存
+        if not args.is_scaling_mode:
+            pre_process = mpu.is_pipeline_first_stage()
+            post_process = mpu.is_pipeline_last_stage()
+        else:
+            pre_process = args.is_pre_process
+            post_process = args.is_post_process
         add_encoder = True
         add_decoder = True
         if model_type == ModelType.encoder_and_decoder:
@@ -398,13 +708,39 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
             tensor_parallel.set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
     # Print number of parameters.
-    if mpu.get_data_parallel_rank() == 0:
-        print(' > number of parameters on (tensor, pipeline) '
-              'model parallel rank ({}, {}): {}'.format(
-            mpu.get_tensor_model_parallel_rank(),
-            mpu.get_pipeline_model_parallel_rank(),
-            sum([sum([p.nelement() for p in model_module.parameters()])
-                 for model_module in model])), flush=True)
+    if not args.is_scaling_mode:
+        if mpu.get_data_parallel_rank() == 0:
+            # print(' > number of parameters on (tensor, pipeline) '
+            #     'model parallel rank ({}, {}): {}'.format(
+            #     mpu.get_tensor_model_parallel_rank(),
+            #     mpu.get_pipeline_model_parallel_rank(),
+            #     sum([sum([p.nelement() for p in model_module.parameters()])
+            #         for model_module in model])), flush=True)
+            total_params = sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+
+            print(' > number of parameters on (tensor, pipeline) '
+                'model parallel rank ({}, {}): {}'.format(
+                mpu.get_tensor_model_parallel_rank(),
+                mpu.get_pipeline_model_parallel_rank(),
+                total_params), flush=True)
+            
+            pos_p_t = (mpu.get_pipeline_model_parallel_rank(),mpu.get_tensor_model_parallel_rank())
+            if pos_p_t not in args.global_model_params_dict:
+                args.global_model_params_dict[pos_p_t] = {}
+            args.global_model_params_dict[pos_p_t] = {"elem_sum": total_params,"dtype_list": None}
+    else:
+        if args.dp_rank == 0:
+            total_params = sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+            print(' > number of parameters on (tensor, pipeline) '
+                'model parallel rank ({}, {}): {}'.format(
+                args.tp_rank,
+                args.pp_rank,
+                total_params), flush=True)
+            
+            pos_p_t = (args.pp_rank,args.tp_rank)
+            if pos_p_t not in args.global_model_params_dict:
+                args.global_model_params_dict[pos_p_t] = {}
+            args.global_model_params_dict[pos_p_t] = {"elem_sum": total_params,"dtype_list": None}
 
     # GPU allocation.
     for model_module in model:
@@ -414,6 +750,7 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     if args.fp16 or args.bf16:
         model = [Float16Module(model_module, args) for model_module in model]
 
+    # if not args.is_scaling_mode:
     if wrap_with_ddp:
         config = get_model_config(model[0])
         ddp_config = DistributedDataParallelConfig(
@@ -423,14 +760,14 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
             check_for_nan_in_grad=args.check_for_nan_in_loss_and_grad,
             bucket_size=args.ddp_bucket_size)
         model = [DDP(config,
-                     ddp_config,
-                     model_chunk,
-                     data_parallel_group=mpu.get_data_parallel_group(with_context_parallel=True),
-                     expert_data_parallel_group=mpu.get_data_modulo_expert_parallel_group(),
-                     # Turn off bucketing for model_chunk 2 onwards, since communication for these
-                     # model chunks is overlapped with compute anyway.
-                     disable_bucketing=(model_chunk_idx > 0))
-                 for (model_chunk_idx, model_chunk) in enumerate(model)]
+                    ddp_config,
+                    model_chunk,
+                    data_parallel_group=mpu.get_data_parallel_group(with_context_parallel=True),
+                    expert_data_parallel_group=mpu.get_data_modulo_expert_parallel_group(),
+                    # Turn off bucketing for model_chunk 2 onwards, since communication for these
+                    # model chunks is overlapped with compute anyway.
+                    disable_bucketing=(model_chunk_idx > 0))
+                for (model_chunk_idx, model_chunk) in enumerate(model)]
 
         # Broadcast params from data parallel src rank to other data parallel ranks.
         if args.data_parallel_random_init:
@@ -546,7 +883,14 @@ def train_step(forward_step_func, data_iterator,
     optimizer.zero_grad()
 
     # Forward pass.
+    # print(f"args.pipeline_model_parallel_size = {args.pipeline_model_parallel_size}")
     forward_backward_func = get_forward_backward_func()
+
+    # temp add
+    start_event = torch.cuda.Event(enable_timing=True)
+    end_event = torch.cuda.Event(enable_timing=True)
+    start_event.record()
+    nvtx.range_push("fwd_bwd_func")
     losses_reduced = forward_backward_func(
         forward_step_func=forward_step_func,
         data_iterator=data_iterator,
@@ -556,6 +900,10 @@ def train_step(forward_step_func, data_iterator,
         micro_batch_size=args.micro_batch_size,
         decoder_seq_length=args.decoder_seq_length,
         forward_only=False)
+    nvtx.range_pop()
+    end_event.record()
+    torch.cuda.synchronize()
+    elapsed_fb_time = start_event.elapsed_time(end_event)
 
     # Empty unused memory.
     if args.empty_unused_memory_level >= 1:
@@ -564,17 +912,54 @@ def train_step(forward_step_func, data_iterator,
     # Vision gradients.
     if getattr(args, 'vision_pretraining', False) and args.vision_pretraining_type == "dino":
         unwrapped_model = unwrap_model(model[0])
-        unwrapped_model.cancel_gradients_last_layer(args.curr_iteration)
+        unwrapped_model.cancel_gradients_last_layer(args.current_iter)
 
     # Update parameters.
+    cmd = CMD(
+        rank_id=args.simu_rank,
+        mg_state=args.simu_state,
+        name_cmd="optimizer_step",
+        use_cuda=True,
+        stage_operations_trace_dict=args.stage_operations_trace,
+        micro_batch_ids_dict=args.simu_micro_batch_ids,
+        stage_id=args.simu_stage_id,
+        simu_start=args.simu_start,
+        trace_start=args.trace_start,
+        current_iter=args.current_iter,
+        args=args
+    )
     timers('optimizer', log_level=1).start(barrier=args.barrier_with_L1_time)
-    update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
-    timers('optimizer').stop()
 
+    # params = optimizer.get_parameters()  # 获取所有参数
+    # total_param_count = sum(param.numel() for param in params)  # 计算参数总量
+    # grads_for_norm = optimizer.get_main_grads_for_grad_norm()  # 获取所有梯度
+    # total_grad_count = sum(grad.numel() for grad in grads_for_norm)  # 计算梯度总量
+
+    with cmd:
+        nvtx.range_push("param optim")
+        print(f"Optimizer type: {type(optimizer).__name__}")
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        start_event.record()
+        update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
+        end_event.record()
+        torch.cuda.synchronize()
+        elapsed_optim_time_ms = start_event.elapsed_time(end_event)
+        nvtx.range_pop()
+        print(f"rank_id: {args.simu_rank}, optim_step time: {elapsed_optim_time_ms}")
+        # print(f"rank_id: {args.simu_rank}, total_parm_count: {total_param_count}, total_grad_count: {total_grad_count}")
+    timers('optimizer').stop()
+    # args.simu_micro_batch_ids["optimizer_step"] += 1
+    # cmd = CMD(args.simu_rank, "finalize", "optimizer_step", args.simu_micro_batch_ids["optimizer_step"])
+    # args.stage_operations_trace[args.simu_rank].append(str(cmd))
+    elapsed_sum = elapsed_optim_time_ms + elapsed_fb_time
+    print(f"rank_id: {args.simu_rank}, sum(1f1b+optim) time: {elapsed_sum}")
+
+    nvtx.range_push("afet parm optim")
     # Vision momentum.
     if getattr(args, 'vision_pretraining', False) and args.vision_pretraining_type == "dino":
         unwrapped_model = unwrap_model(model[0])
-        unwrapped_model.update_momentum(args.curr_iteration)
+        unwrapped_model.update_momentum(args.current_iter)
 
     # Update learning rate.
     if update_successful:
@@ -589,27 +974,32 @@ def train_step(forward_step_func, data_iterator,
     # Empty unused memory.
     if args.empty_unused_memory_level >= 2:
         torch.cuda.empty_cache()
+    nvtx.range_pop()
 
     if mpu.is_pipeline_last_stage(ignore_virtual=True):
-        # Average loss across microbatches.
-        loss_reduced = {}
-        for key in losses_reduced[0].keys():
-            numerator = 0
-            denominator = 0
-            for x in losses_reduced:
-                val = x[key]
-                # there is one dict per microbatch. in new reporting, we average
-                # over the total number of tokens across the global batch.
-                if isinstance(val, tuple) or isinstance(val, list):
-                    numerator += val[0]
-                    denominator += val[1]
-                else:
-                    # legacy behavior. we average over the number of microbatches,
-                    # and so the denominator is 1.
-                    numerator += val
-                    denominator += 1
-            loss_reduced[key] = numerator / denominator
-        return loss_reduced, skipped_iter, grad_norm, num_zeros_in_grad
+        # cmd = CMD(
+        #     rank_id=args.simu_rank,
+        #     mg_state=args.simu_state,
+        #     name_cmd="calcu_loss",
+        #     use_cuda=True,
+        #     stage_operations_trace_dict=args.stage_operations_trace,
+        #     micro_batch_ids_dict=args.simu_micro_batch_ids,
+        #     stage_id=args.simu_stage_id,
+        #     simu_start=args.simu_start,
+        #     description="Average loss across microbatches(in last stage)",
+        #     trace_start=args.trace_start,
+        #     current_iter=args.current_iter,
+        #     args=args
+        # )
+        # with cmd:
+        #     # Average loss across microbatches.
+        #     loss_reduced = {}
+        #     for key in losses_reduced[0]:
+        #         losses_reduced_for_key = [x[key] for x in losses_reduced]
+        #         loss_reduced[key] = sum(losses_reduced_for_key) / len(losses_reduced_for_key)
+        # return loss_reduced, skipped_iter, grad_norm, num_zeros_in_grad
+        return None, None, None, None
+    
     return {}, skipped_iter, grad_norm, num_zeros_in_grad
 
 
@@ -871,8 +1261,8 @@ def compute_throughputs_and_append_to_progress_log(iteration,
             elapsed_time * 10**12 * args.world_size)
 
     tokens_so_far = args.consumed_train_samples * args.seq_length
-    saved_ckpt_prefix = 'Saving async checkpoint' if args.async_save else 'Saved checkpoint'
-    append_to_progress_log(f"{saved_ckpt_prefix}\tIteration: {iteration}\t"
+
+    append_to_progress_log(f"Saved checkpoint\tIteration: {iteration}\t"
                            f"Job throughput: {job_throughput:.1f} TFLOP/s/GPU\t"
                            f"Cumulative throughput: {cumulative_throughput:.1f} TFLOP/s/GPU\t"
                            f"Floating-point operations: {num_floating_point_operations_so_far:.2e}\t"
@@ -880,13 +1270,13 @@ def compute_throughputs_and_append_to_progress_log(iteration,
 
 
 def save_checkpoint_and_time(iteration, model, optimizer, opt_param_scheduler,
-                             num_floating_point_operations_so_far, checkpointing_context):
+                             num_floating_point_operations_so_far):
     args = get_args()
     timers = get_timers()
     # Extra barrier is added to make sure all ranks report the max time.
     timers('save-checkpoint', log_level=0).start(barrier=True)
     save_checkpoint(iteration, model, optimizer, opt_param_scheduler,
-                    num_floating_point_operations_so_far, checkpointing_context)
+                    num_floating_point_operations_so_far)
     timers('save-checkpoint').stop(barrier=True)
     timers.log(['save-checkpoint'])
 
@@ -897,13 +1287,13 @@ def save_checkpoint_and_time(iteration, model, optimizer, opt_param_scheduler,
 
 def train(forward_step_func, model, optimizer, opt_param_scheduler,
           train_data_iterator, valid_data_iterator,
-          process_non_loss_data_func, config, checkpointing_context):
+          process_non_loss_data_func, config):
     """Train the model function."""
     args = get_args()
     timers = get_timers()
 
     # Write args to tensorboard
-    write_args_to_tensorboard()
+    # write_args_to_tensorboard()
 
     # Turn on training mode which enables dropout.
     for model_module in model:
@@ -998,14 +1388,29 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                 'validation_iterations_time_msecs_avg': validation_iterations_time_msecs_avg
             })
 
+    args.simu_start = True
+    args.stage_operations_trace = {}
     while iteration < args.train_iters:
-        if args.profile and \
-           iteration == args.profile_step_start and \
-           torch.distributed.get_rank() in args.profile_ranks:
-            torch.cuda.cudart().cudaProfilerStart()
-            torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
+        # if args.profile and \
+        #    iteration == args.profile_step_start and \
+        #    torch.distributed.get_rank() in args.profile_ranks:
+        #     torch.cuda.cudart().cudaProfilerStart()
+        #     torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
-        maybe_finalize_async_save(False)
+        # if iteration == args.train_iters-1:
+        #     break
+
+        torch.cuda.synchronize()
+        dist.barrier()
+
+        # 每个iter RESET batch id记录和非trace iter的cmd dict
+        args.simu_micro_batch_ids = {
+            "recv_forward": -1, "forward_step": -1, "send_forward": -1, "recv_backward": -1,
+            "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
+            "tp_allreduce": -1, "optimizer_step": -1, "loss_func": -1, 'get_batch': -1, "ep_allreduce": -1
+        }
+        if iteration < args.trace_start:
+            args.stage_operations_trace = {}
 
         # Update number of microbatches first without consistency check to decide if a
         # checkpoint should be saved. If the number of microbatches is different
@@ -1017,12 +1422,12 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                 "number of microbatches should be increasing due to batch size rampup"
             save_checkpoint_and_time(iteration, model, optimizer,
                                      opt_param_scheduler,
-                                     num_floating_point_operations_so_far,
-                                     checkpointing_context)
+                                     num_floating_point_operations_so_far)
         num_microbatches = get_num_microbatches()
         update_num_microbatches(args.consumed_train_samples, consistency_check=True)
 
-        args.curr_iteration = iteration
+        args.current_iter = iteration
+        nvtx.range_push("iteration:"+str(iteration))
         loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = \
             train_step(forward_step_func,
                        train_data_iterator,
@@ -1030,6 +1435,9 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                        optimizer,
                        opt_param_scheduler,
                        config)
+        nvtx.range_pop()
+
+        nvtx.range_push("after iteration")
         iteration += 1
         batch_size = mpu.get_data_parallel_world_size() * \
                      args.micro_batch_size * \
@@ -1039,153 +1447,34 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         num_floating_point_operations_so_far += num_fp_ops
         total_flops += num_fp_ops
 
-        # Logging.
-        loss_scale = optimizer.get_loss_scale().item()
-        params_norm = None
-        if args.log_params_norm:
-            params_norm = calc_params_l2_norm(model)
-
-        if iteration % args.log_interval == 0:
-            track_e2e_metrics()
-
-        learning_rate = None
-        decoupled_learning_rate = None
-        for param_group in optimizer.param_groups:
-            if param_group['is_decoupled_lr']:
-                decoupled_learning_rate = param_group['lr']
-            else:
-                learning_rate = param_group['lr']
-        report_memory_flag = training_log(loss_dict, total_loss_dict,
-                                          learning_rate,
-                                          decoupled_learning_rate,
-                                          iteration, loss_scale,
-                                          report_memory_flag, skipped_iter,
-                                          grad_norm, params_norm, num_zeros_in_grad)
-        # StragglerDetector
-        if iteration % args.log_interval == 0 and args.log_straggler:
-            stimer.report(total_flops, args.log_interval)
-            total_flops = 0.0
-
-        if args.check_weight_hash_across_dp_replicas_interval is not None and \
-                iteration % args.check_weight_hash_across_dp_replicas_interval == 0:
-            if args.use_distributed_optimizer and args.overlap_param_gather:
-                optimizer.disable_pre_hook()
-            assert check_param_hashes_across_dp_replicas(model), \
-                "Parameter hashes not matching across DP replicas"
-            torch.distributed.barrier()
-            print_rank_0(f">>> Weight hashes match after {iteration} iterations...")
-            if args.use_distributed_optimizer and args.overlap_param_gather:
-                optimizer.enable_pre_hook()
-
-        # Autoresume
-        if args.adlr_autoresume and \
-           (iteration % args.adlr_autoresume_interval == 0):
-            check_adlr_autoresume_termination(iteration, model, optimizer,
-                                              opt_param_scheduler)
-
-        # Evaluation
-        if args.eval_interval and iteration % args.eval_interval == 0 and \
-           args.do_valid:
-            timers('interval-time').stop()
-            if args.use_distributed_optimizer and args.overlap_param_gather:
-                optimizer.disable_pre_hook()
-            if args.manual_gc and args.manual_gc_eval:
-                # Collect all objects.
-                gc.collect()
-            prefix = 'iteration {}'.format(iteration)
-            timers('eval-time', log_level=0).start(barrier=True)
-            evaluate_and_print_results(prefix, forward_step_func,
-                                       valid_data_iterator, model,
-                                       iteration, process_non_loss_data_func,
-                                       config, False)
-            eval_duration += timers('eval-time').elapsed()
-            eval_iterations += args.eval_iters
-            timers('eval-time').stop()
-            if args.manual_gc and args.manual_gc_eval:
-                # Collect only the objects created and used in evaluation.
-                gc.collect(generation=0)
-            if args.use_distributed_optimizer and args.overlap_param_gather:
-                optimizer.enable_pre_hook()
-            timers('interval-time', log_level=0).start(barrier=True)
-
-        # Checkpointing
-        saved_checkpoint = False
-        if args.exit_signal_handler:
-            signal_handler = get_signal_handler()
-            if any(signal_handler.signals_received()):
-                save_checkpoint_and_time(iteration, model, optimizer,
-                                         opt_param_scheduler,
-                                         num_floating_point_operations_so_far,
-                                         checkpointing_context)
-                print_datetime('exiting program after receiving SIGTERM.')
-                exit = True
-                break
-
-        if args.save and args.save_interval and \
-           iteration % args.save_interval == 0:
-            timers('interval-time').stop()
-            save_checkpoint_and_time(iteration, model, optimizer,
-                                     opt_param_scheduler,
-                                     num_floating_point_operations_so_far,
-                                     checkpointing_context)
-            saved_checkpoint = True
-            timers('interval-time', log_level=0).start(barrier=True)
-
-        # Exiting based on duration
-        if args.exit_duration_in_mins:
-            train_time = (time.time() - _TRAIN_START_TIME) / 60.0
-            done_cuda = torch.tensor(
-                [train_time > args.exit_duration_in_mins],
-                dtype=torch.int, device='cuda')
-            torch.distributed.all_reduce(
-                done_cuda, op=torch.distributed.ReduceOp.MAX)
-            done = done_cuda.item()
-            if done:
-                if not saved_checkpoint:
-                    save_checkpoint_and_time(iteration, model, optimizer,
-                                             opt_param_scheduler,
-                                             num_floating_point_operations_so_far,
-                                             checkpointing_context)
-                print_datetime('exiting program after {} minutes'.format(train_time))
-                exit = True
-                break
-
-        # Exiting based on iterations
-        if args.exit_interval and iteration % args.exit_interval == 0:
-            if args.save and not saved_checkpoint:
-                save_checkpoint_and_time(iteration, model, optimizer,
-                                         opt_param_scheduler,
-                                         num_floating_point_operations_so_far,
-                                         checkpointing_context)
-            torch.distributed.barrier()
-            print_datetime('exiting program at iteration {}'.format(iteration))
-            exit = True
-            break
-
-        if args.profile and \
-           iteration == args.profile_step_end and \
-           torch.distributed.get_rank() in args.profile_ranks:
-            torch.cuda.cudart().cudaProfilerStop()
-
         if args.manual_gc:
             if args.manual_gc_interval != 0 and iteration % args.manual_gc_interval == 0:
                 gc.collect()
+        nvtx.range_pop()
 
-    track_e2e_metrics()
+    # 将cmd写入txt
+    # torch.cuda.synchronize()
+    # dist.barrier()
+    if args.do_trace:
+        # 请帮助我完善该部分name_args，该name_args用于命名log文件
+        # name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_{args.main_tokenizer_type}"
+        # args.micro_batch_size args.main_tokenizer_type
+        name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
+        write_list_to_file(args.simu_rank, args.stage_operations_trace[args.simu_rank], name_args=name_args)
+        print(f"rank:{args.simu_rank}, trace log has been written to txt...")
+    # track_e2e_metrics()
 
-    # Flush TensorBoard and WandB writers.
-    writer = get_tensorboard_writer()
-    if writer:
-        writer.flush()
-    wandb_writer = get_wandb_writer()
-    if wandb_writer:
-        wandb_writer.finish()
+    # # Flush TensorBoard and WandB writers.
+    # writer = get_tensorboard_writer()
+    # if writer:
+    #     writer.flush()
+    # wandb_writer = get_wandb_writer()
+    # if wandb_writer:
+    #     wandb_writer.finish()
 
     # Close out pre-hooks if using distributed optimizer and overlapped param gather.
     if args.use_distributed_optimizer and args.overlap_param_gather:
         optimizer.disable_pre_hook()
-
-    maybe_finalize_async_save(True)
 
     # If any exit conditions (signal handler, duration, iterations) have been reached, exit.
     if exit:
@@ -1252,15 +1541,8 @@ def evaluate(forward_step_func,
                 # Reduce across processes.
                 for loss_dict in loss_dicts:
                     for key in loss_dict:
-                        if key not in total_loss_dict:
-                            total_loss_dict[key] = torch.tensor([0.0, 0.0], dtype=torch.float).cuda()
-                        val = loss_dict[key]
-                        if isinstance(val, tuple) or isinstance(val, list):
-                            total_loss_dict[key][0] += val[0]
-                            total_loss_dict[key][1] += val[1]
-                        else:
-                            total_loss_dict[key][0] += val
-                            total_loss_dict[key][1] += 1
+                        total_loss_dict[key] = total_loss_dict.get(
+                            key, torch.tensor([0.0], dtype=torch.float, device='cuda')) + loss_dict[key]
 
             args.consumed_valid_samples += eval_batch_size
 
@@ -1294,8 +1576,7 @@ def evaluate(forward_step_func,
         model_module.train()
 
     for key in total_loss_dict:
-        numerator, denominator = total_loss_dict[key]
-        total_loss_dict[key] = numerator / denominator
+        total_loss_dict[key] /= args.eval_iters * eval_num_microbatches
 
     timers('evaluate').stop()
     timers.log(['evaluate'])
@@ -1413,7 +1694,11 @@ def build_train_valid_test_data_loaders(
     is_distributed = getattr(build_train_valid_test_datasets_provider, "is_distributed", False)
 
     # Construct the data pipeline
-    if is_distributed or mpu.get_tensor_model_parallel_rank() == 0:
+    if not args.is_scaling_mode:
+        tp_rank = mpu.get_tensor_model_parallel_rank()
+    else:
+        tp_rank = args.tp_rank
+    if is_distributed or tp_rank == 0:
 
         # Build datasets.
         train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
@@ -1438,11 +1723,16 @@ def build_train_valid_test_data_loaders(
     else:
         flags = torch.tensor([0, 0, 0], dtype=torch.long, device='cuda')
 
-    torch.distributed.broadcast(flags, 0)
+    if not args.is_scaling_mode:
+        torch.distributed.broadcast(flags, 0)
 
-    args.do_train = getattr(args, "do_train", False) or flags[0].item()
-    args.do_valid = getattr(args, "do_valid", False) or flags[1].item()
-    args.do_test = getattr(args, "do_test", False) or flags[2].item()
+        args.do_train = getattr(args, "do_train", False) or flags[0].item()
+        args.do_valid = getattr(args, "do_valid", False) or flags[1].item()
+        args.do_test = getattr(args, "do_test", False) or flags[2].item()
+    else:
+        args.do_train = True
+        args.do_valid = False
+        args.do_test = False
 
     return train_dataloader, valid_dataloader, test_dataloader
 
@@ -1479,14 +1769,18 @@ def build_train_valid_test_data_iterators(
     else:
         train_data_iterator = None
 
-    if valid_dataloader is not None:
-        valid_data_iterator = _get_iterator(dl_type, valid_dataloader)
-    else:
-        valid_data_iterator = None
+    if not args.is_scaling_mode:
+        if valid_dataloader is not None:
+            valid_data_iterator = _get_iterator(dl_type, valid_dataloader)
+        else:
+            valid_data_iterator = None
 
-    if test_dataloader is not None:
-        test_data_iterator = _get_iterator(dl_type, test_dataloader)
-    else:
-        test_data_iterator = None
+        if test_dataloader is not None:
+            test_data_iterator = _get_iterator(dl_type, test_dataloader)
+        else:
+            test_data_iterator = None
 
-    return train_data_iterator, valid_data_iterator, test_data_iterator
+        return train_data_iterator, valid_data_iterator, test_data_iterator
+    
+    else:
+        return train_data_iterator, None, None

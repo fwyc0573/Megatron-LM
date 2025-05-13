@@ -61,13 +61,16 @@ class DistributedDataParallel(MegatronModule):
 
         self.ddp_config = ddp_config
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-            logger.info(f'Setting up DistributedDataParallel with config {self.ddp_config}')
+            logger.info(
+                f'Setting up DistributedDataParallel with {type(self.ddp_config).__name__}: {self.ddp_config}'
+            )
 
         # Turn off bucketing if we are on a pipeline stage that is not the first (since
         # data-parallel communication on these stages is not on the critical path), or if
         # disable_bucketing is True (e.g., we might not want to break up model parameters
         # into buckets for model chunks after the first in the interleaved schedule).
         self.bucket_size = self.ddp_config.bucket_size
+        # 除了first stage以外，没有必要进行bucketing
         if parallel_state.get_pipeline_model_parallel_rank() > 0:
             self.bucket_size = None
         if disable_bucketing:
@@ -93,7 +96,7 @@ class DistributedDataParallel(MegatronModule):
                 expert_parallel_params.append(param)
 
         def allocate_buffers_for_parameters(
-            input_params, data_parallel_group, gradient_scaling_factor,
+            input_params, data_parallel_group, gradient_scaling_factor=1.0,
         ):
             param_and_grad_dtype_to_params = {}
 
@@ -111,7 +114,15 @@ class DistributedDataParallel(MegatronModule):
 
             # Allocate the grad buffers and map the grads.
             buffers = []
+            import torch.distributed as dist
+            rank_id = dist.get_rank()
+            # print(f"rank_id: {rank_id} | allocate_buffers_for_parameters | len(param_and_grad_dtype_to_params):{len(param_and_grad_dtype_to_params)}")
+
             for (param_dtype, grad_dtype), params in param_and_grad_dtype_to_params.items():
+                # print(f"rank_id: {rank_id} | allocate_buffers_for_parameters | param_dtype: {param_dtype}, grad_dtype: {grad_dtype}, bucket_size: {self.bucket_size}")
+                # for param in params:
+                    # print(f"rank_id: {rank_id} | allocate_buffers_for_parameters | param tensor size: {param.size()}")
+                
                 buffers.append(
                     ParamAndGradBuffer(
                         self.ddp_config,
@@ -129,22 +140,20 @@ class DistributedDataParallel(MegatronModule):
 
             return buffers
 
-        if config.calculate_per_token_loss:
-            gradient_scaling_factor = 1.0
-        else:
-            data_parallel_world_size = torch.distributed.get_world_size(data_parallel_group)
-            gradient_scaling_factor = 1.0 / data_parallel_world_size
+        data_parallel_world_size = torch.distributed.get_world_size(data_parallel_group)
 
         # Allocate the param+grad buffers for dense params' grads.
         self.buffers = allocate_buffers_for_parameters(
-            dense_params, data_parallel_group, gradient_scaling_factor=gradient_scaling_factor,
+            dense_params,
+            data_parallel_group,
+            gradient_scaling_factor=1.0 / data_parallel_world_size,
         )
 
         # Allocate separate param+grad buffers for expert parallel params' grads.
         self.expert_parallel_buffers = allocate_buffers_for_parameters(
             expert_parallel_params,
             expert_data_parallel_group,
-            gradient_scaling_factor=gradient_scaling_factor,
+            gradient_scaling_factor=1.0 / data_parallel_world_size,
         )
 
         # Delete references to weight_tensor if they exist since we don't want two parameter copies
@@ -229,11 +238,6 @@ class DistributedDataParallel(MegatronModule):
         """
         for buffer in self.buffers + self.expert_parallel_buffers:
             buffer.start_grad_sync()
-
-    def scale_gradients(self, scaling_factor: float) -> None:
-        """Scale all gradients inside the buffers by `scaling_factor`."""
-        for buffer in self.buffers + self.expert_parallel_buffers:
-            buffer.scale_gradients(scaling_factor)
 
     def finish_grad_sync(self):
         """

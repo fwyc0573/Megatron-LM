@@ -43,6 +43,9 @@ def parse_args(extra_args_provider=None, ignore_unknown_args=False):
     parser = _add_transformer_engine_args(parser)
     parser = _add_retro_args(parser)
     parser = _add_experimental_args(parser)
+    parser = _add_trace_args(parser)
+    parser = _add_fake_args(parser)
+
 
     # Custom arguments.
     if extra_args_provider is not None:
@@ -60,11 +63,16 @@ def parse_args(extra_args_provider=None, ignore_unknown_args=False):
         assert args.yaml_cfg and args.use_mcore_models, "To use yaml, mcore must be enabled"
         args = load_yaml(args.yaml_cfg)
 
-
     # Args from environment
+    # if not args.is_scaling_mode:
+    #     args.rank = int(os.getenv('RANK', '0'))
+    #     args.world_size = int(os.getenv("WORLD_SIZE", '1'))
+    # else:
+    #     args.rank = args.fake_wrank
+    #     args.world_size = args.fake_world_size
     args.rank = int(os.getenv('RANK', '0'))
     args.world_size = int(os.getenv("WORLD_SIZE", '1'))
-
+    
     return args
 
 
@@ -149,16 +157,19 @@ def validate_args(args, defaults={}):
     load_retro_args(args)
 
     # Tensor model parallel size.
-    args.tensor_model_parallel_size = min(
-        args.tensor_model_parallel_size, args.world_size)
+    # args.tensor_model_parallel_size = min(
+    #     args.tensor_model_parallel_size, args.world_size)
     assert args.world_size % args.tensor_model_parallel_size == 0, 'world size'\
         ' ({}) is not divisible by tensor model parallel size ({})'.format(
             args.world_size, args.tensor_model_parallel_size)
 
     # Pipeline model parallel size.
-    args.pipeline_model_parallel_size = min(
-        args.pipeline_model_parallel_size,
-        (args.world_size // args.tensor_model_parallel_size))
+    # args.pipeline_model_parallel_size = min(
+    #     args.pipeline_model_parallel_size,
+    #     (args.world_size // args.tensor_model_parallel_size))
+    assert args.world_size % args.pipeline_model_parallel_size == 0, 'world size'\
+        ' ({}) is not divisible by pipeline model parallel size ({})'.format(
+            args.world_size, args.pipeline_model_parallel_size)
     args.transformer_pipeline_model_parallel_size = (
         args.pipeline_model_parallel_size - 1
         if args.standalone_embedding_stage else
@@ -294,9 +305,6 @@ def validate_args(args, defaults={}):
 
     if args.dataloader_type is None:
         args.dataloader_type = 'single'
-
-    # data
-    assert args.num_dataset_builder_threads > 0
 
     # Consumed tokens.
     args.consumed_train_samples = 0
@@ -498,6 +506,9 @@ def validate_args(args, defaults={}):
     # MoE Spec check
     if args.num_experts is not None:
         assert args.spec is None, "Model Spec must be None when using MoEs"
+        if args.tensor_model_parallel_size > 1:
+            assert args.sequence_parallel, \
+                "When using MoE and tensor parallelism, sequence parallelism must be used."
 
     # Expert parallelism check
     if args.expert_model_parallel_size  > 1:
@@ -510,12 +521,6 @@ def validate_args(args, defaults={}):
     # Distributed checkpointing checks
     if args.use_dist_ckpt and not args.use_mcore_models:
         raise RuntimeError('--use-dist-ckpt only support Megatron Core, please add --use-mcore-models.')
-
-    # Data blend checks
-    assert args.mock_data + \
-           bool(args.data_path) + \
-           any([args.train_data_path, args.valid_data_path, args.test_data_path]) \
-           == 1, "A single data source must be provided"
 
     if args.use_tp_pp_dp_mapping:
         assert args.context_parallel_size * args.expert_model_parallel_size <= 1, \
@@ -551,11 +556,16 @@ def core_transformer_config_from_args(args, config_class=None):
     # Config class.
     config_class = config_class or TransformerConfig
 
+    # print("Config class fields:", [f.name for f in dataclasses.fields(config_class)])
+    # print("Args attributes:", vars(args))
+
     # Translate args to core transformer configuration
     kw_args = {}
     for f in dataclasses.fields(config_class):
         if hasattr(args, f.name):
             kw_args[f.name] = getattr(args, f.name)
+    # print("Generated kw_args:", kw_args)
+
     kw_args['persist_layer_norm'] = not args.no_persist_layer_norm
     kw_args['layernorm_zero_centered_gamma'] = args.apply_layernorm_1p
     kw_args['layernorm_epsilon'] = args.norm_epsilon
@@ -587,6 +597,11 @@ def core_transformer_config_from_args(args, config_class=None):
         kw_args['num_query_groups'] = args.num_query_groups
     else:
         kw_args['num_query_groups'] = None
+
+    # kw_args['is_scaling_mode'] = args.is_scaling_mode
+    # kw_args['fake_pp'] = args.fake_pp
+    # kw_args['fake_dp'] = args.fake_dp
+    # kw_args['fake_tp'] = args.fake_tp
 
     # Return config.
     return config_class(**kw_args)
@@ -988,7 +1003,7 @@ def _add_training_args(parser):
                        ' overlap of Tensor parallel communication and GEMM kernels.')
     group.add_argument('--tp-comm-overlap-cfg', type=str, default=None,
                        help='Config file when tp_comm_overlap is enabled.')
-    group.add_argument('--disable-tp-comm-overlap-ag', action='store_false',
+    group.add_argument('--disable-tp-comm-overlap-ag', action='store_false', 
                        help=('Disables the All-Gather overlap with GEMM by '
                              'pipelining the GEMM and All-Gather.'),
                        dest='tp_comm_overlap_ag')
@@ -1015,9 +1030,6 @@ def _add_training_args(parser):
                        '0=off, 1=moderate, 2=aggressive.')
     group.add_argument('--check-weight-hash-across-dp-replicas-interval', type=int, default=None,
                        help='Interval to check weight hashes are same across DP replicas. If not specified, weight hashes not checked.')
-    group.add_argument('--calculate-per-token-loss', action='store_true',
-                       help=('Scale cross entropy loss by the number of non-padded tokens in the '
-                             'global batch, versus the default behavior of assuming all tokens are non-padded.'))
 
     # deprecated
     group.add_argument('--checkpoint-activations', action='store_true',
@@ -1079,7 +1091,9 @@ def _add_training_args(parser):
                        help='Single pass vs multiple pass data loader')
     group.add_argument('--no-async-tensor-model-parallel-allreduce',
                        action='store_false',
-                       help='DEPRECATED. This flag is ignored.',
+                       help='Disable asynchronous execution of '
+                       'tensor-model-parallel all-reduce with weight '
+                       'gradient compuation of a column-linear layer.',
                        dest='async_tensor_model_parallel_allreduce')
     group.add_argument('--no-persist-layer-norm', action='store_true',
                        help='Disable using persistent fused layer norm kernel. '
@@ -1243,16 +1257,7 @@ def _add_checkpointing_args(parser):
                        help='Apply full save parallelization across DP for'
                             ' distributed checkpoints. Depending on ckpt format'
                             ' might increase number of files in the checkpoint.')
-    group.add_argument('--async-save', action='store_true', default=None,
-                       help='Apply async checkpointing save. Currently works only with'
-                            '`torch_dist` distributed checkpoint format.')
-    group.add_argument('--ckpt-fully-parallel-load', action='store_true',
-                       help='Apply full load parallelization across DP for'
-                            ' distributed checkpoints.')
-    group.add_argument('--ckpt-assume-constant-structure', action='store_true',
-                       help='If the model and optimizer state dict structure is'
-                            'constant throughout a *single training job*, it allows for'
-                            'different checkpointing performance optimizations.')
+
     return parser
 
 
@@ -1296,7 +1301,8 @@ def _add_mixed_precision_args(parser):
 
 def _add_distributed_args(parser):
     group = parser.add_argument_group(title='distributed')
-
+    group.add_argument('--main-tokenizer-type', type=str, default='LLaMaSentencePieceTokenizer',
+                       help='tokenizer type.')
     group.add_argument('--tensor-model-parallel-size', type=int, default=1,
                        help='Degree of tensor model parallelism.')
     group.add_argument('--pipeline-model-parallel-size', type=int, default=1,
@@ -1464,8 +1470,7 @@ def _add_data_args(parser):
     group.add_argument('--no-create-attention-mask-in-dataloader', action='store_false',
                        help='If set, do not create attention_masks in dataloader.',
                        dest='create_attention_mask_in_dataloader')
-    group.add_argument('--num-dataset-builder-threads', type=int, default=1,
-                       help='Number of parallel threads per rank for dataset builder')
+
     return parser
 
 
@@ -1629,23 +1634,14 @@ def _add_moe_args(parser):
                        help='Scaling coefficient for the z-loss: a starting value of 1e-3 is recommended.')
     group.add_argument('--moe-input-jitter-eps', type=float, default=None,
                        help='Add noise to the input tensor by applying jitter with a specified epsilon value.')
+    group.add_argument('--moe-token-dropping', action='store_true',
+                       help='This feature involves selectively dropping and padding tokens for each expert to achieve a specified capacity, similar to GShard, Switch-Transformer, and DeepSpeed-MoE. Note: Currently unsupported.')
     group.add_argument('--moe-token-dispatcher-type', type=str,
                        choices=['allgather', 'alltoall'],
                        default='allgather',
                        help='.')
     group.add_argument('--moe-per-layer-logging', action='store_true',
                        help='Enable per-layer logging for MoE, currently supports auxiliary loss and z loss.')
-    # Token dropping arguments
-    group.add_argument('--moe-expert-capacity-factor', type=float, default=None,
-                       help='The capacity factor for each expert, None means no token will be dropped.')
-    group.add_argument('--moe-pad-expert-input-to-capacity', action='store_true',
-                       help='Pads the input for each expert to match the expert capacity length, effective only after the --moe-expert-capacity-factor is set.')
-    group.add_argument('--moe-token-drop-policy', type=str, default='probs', choices=['probs', 'position'],
-                       help='The policy to drop tokens. Can be either "probs" or "position". If "probs", the tokens with the lowest probabilities will be dropped. If "position", tokens at the end of each batch will be dropped.')
-    group.add_argument('--moe-layer-recompute', action='store_true',
-                       help='Enable checkpointing for moe_layer, should be used when memory is not sufficient.')
-    group.add_argument('--moe-extended-tp', action='store_true',
-                       help='Alternative to expert parallelism, all experts are sharded across TPXEP domain.')
 
     return parser
 
@@ -1662,4 +1658,42 @@ def _add_experimental_args(parser):
     group.add_argument('--yaml-cfg', type=str, default=None,
                        help = 'Config file to add additional arguments')
 
+    return parser
+
+
+def _add_trace_args(parser):
+    group = parser.add_argument_group(title='trace')
+    # 添加 --trace-start 参数
+    group.add_argument('--do-trace', type=bool, default=True,
+                       help='Trace or not')
+    group.add_argument('--trace-start', type=int, default=0,
+                       help='The iteration to start tracing.')
+    # 添加 --nsight-start 参数
+    group.add_argument('--nsight-start', type=int, default=0,
+                       help='The iteration to start Nsight Systems profiling.')
+
+    return parser
+
+
+def _add_fake_args(parser):
+    group = parser.add_argument_group(title='fake')
+    # group.add_argument('--is-scaling-mode', type=bool, default=False,
+    #                 help='The iteration to start tracing.')
+    group.add_argument('--is-scaling-mode', action='store_true',
+                       help='The iteration to start tracing.')
+    group.add_argument('--fake-world-size', type=int, default=0,
+                       help='The iteration to start tracing.')
+    group.add_argument('--fake-wrank', type=int, default=0,
+                       help='The iteration to start tracing.')
+    group.add_argument('--fake-gpus-per-node', type=int, default=0,
+                       help='The iteration to start tracing.')
+    group.add_argument('--fake-local-rank', type=int, default=0,
+                       help='The iteration to start tracing.')
+    group.add_argument('--fake-pp', type=int, default=0,
+                       help='The iteration to start tracing.')
+    group.add_argument('--fake-dp', type=int, default=0,
+                       help='The iteration to start tracing.')
+    group.add_argument('--fake-tp', type=int, default=0,
+                       help='The iteration to start tracing.')
+    
     return parser

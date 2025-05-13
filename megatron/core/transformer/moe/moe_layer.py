@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 import torch
 
-from megatron.core import parallel_state, tensor_parallel
+from megatron.core import parallel_state
 from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.moe.experts import GroupedMLP, SequentialMLP
@@ -28,21 +28,46 @@ class BaseMoELayer(MegatronModule, ABC):
         self.config = config
         self.expert_parallel_size = parallel_state.get_expert_model_parallel_world_size()
         assert self.expert_parallel_size > 0, "Expected non-negative expert parallel size"
-
-        if self.config.moe_extended_tp:
-            self.num_local_experts = self.config.num_moe_experts
-            local_expert_indices_offset = 0
-        else:
-            assert self.config.num_moe_experts % self.expert_parallel_size == 0
-            self.num_local_experts = self.config.num_moe_experts // self.expert_parallel_size
-            local_expert_indices_offset = (
-                parallel_state.get_expert_model_parallel_rank() * self.num_local_experts
-            )
-
+        assert self.config.num_moe_experts % self.expert_parallel_size == 0
+        self.num_local_experts = self.config.num_moe_experts // self.expert_parallel_size
+        local_expert_indices_offset = (
+            parallel_state.get_expert_model_parallel_rank() * self.num_local_experts
+        )
         self.local_expert_indices = [
             local_expert_indices_offset + i for i in range(self.num_local_experts)
         ]
         assert all(map(lambda x: x < self.config.num_moe_experts, self.local_expert_indices))
+        
+        # 添加详细的并行信息日志
+        global_rank = torch.distributed.get_rank()
+        world_size = torch.distributed.get_world_size()
+        
+        # 获取各种并行维度的rank和size
+        tp_rank = parallel_state.get_tensor_model_parallel_rank()
+        tp_size = parallel_state.get_tensor_model_parallel_world_size()
+        
+        pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+        pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+        
+        dp_rank = parallel_state.get_data_parallel_rank()
+        dp_size = parallel_state.get_data_parallel_world_size()
+        
+        ep_rank = parallel_state.get_expert_model_parallel_rank()
+        ep_size = self.expert_parallel_size
+        
+        # 获取当前层的编号
+        layer_str = f"Layer {layer_number}" if layer_number is not None else "Layer Unknown"
+        
+        # 计算每个EP rank负责的专家范围
+        experts_start = local_expert_indices_offset
+        experts_end = experts_start + self.num_local_experts - 1
+        
+        # 打印详细的并行配置和专家分配信息
+        print(f"[{layer_str}] Rank {global_rank}/{world_size} (TP={tp_rank}/{tp_size}, "
+              f"PP={pp_rank}/{pp_size}, DP={dp_rank}/{dp_size}, EP={ep_rank}/{ep_size}): "
+              f"Responsible for {self.num_local_experts} local experts [ID {experts_start}-{experts_end}] "
+              f"out of {self.config.num_moe_experts} total experts")
+        
         self.router = None
         self.experts = None
         self.token_dispatcher = None
@@ -87,32 +112,13 @@ class MoELayer(BaseMoELayer):
             raise ValueError(
                 f"Unsupported token dispatcher type: {config.moe_token_dispatcher_type}"
             )
-        self.moe_layer_recompute = config.moe_layer_recompute
 
     def forward(self, hidden_states: torch.Tensor):
-        if (
-            self.training
-            and self.config.tensor_model_parallel_size > 1
-            and not self.config.sequence_parallel
-        ):
-            raise ValueError(
-                "During training, performance may degrade if MoE and tensor parallelism"
-                "are enabled without also enabling sequence parallelism."
-            )
-
         # process MoE
-        def custom_forward(hidden_states):
-            probs, indices = self.router(hidden_states)
-            (dispatched_input, tokens_per_expert) = self.token_dispatcher.token_permutation(
-                hidden_states, probs, indices
-            )
-            expert_output, mlp_bias = self.experts(dispatched_input, tokens_per_expert)
-            output, mlp_bias = self.token_dispatcher.token_unpermutation(expert_output, mlp_bias)
-            return output, mlp_bias
-
-        if self.moe_layer_recompute:
-            output, mlp_bias = tensor_parallel.checkpoint(custom_forward, False, hidden_states)
-        else:
-            output, mlp_bias = custom_forward(hidden_states)
-
+        scores, indices = self.router(hidden_states)
+        (dispatched_input, tokens_per_expert) = self.token_dispatcher.token_permutation(
+            hidden_states, scores, indices
+        )
+        expert_output, mlp_bias = self.experts(dispatched_input, tokens_per_expert)
+        output, mlp_bias = self.token_dispatcher.token_unpermutation(expert_output, mlp_bias)
         return output, mlp_bias

@@ -33,8 +33,8 @@ class LanguageModule(MegatronModule):
         """
         # [b s] => [s b]
         labels = labels.transpose(0, 1).contiguous()
-        loss = tensor_parallel.vocab_parallel_cross_entropy(logits.float(), labels)
-
+        loss = tensor_parallel.vocab_parallel_cross_entropy(logits.float(), labels, config=self.config)
+        
         # [s b] => [b, s]
         loss = loss.transpose(0, 1).contiguous()
         return loss
@@ -64,11 +64,13 @@ class LanguageModule(MegatronModule):
             return
 
         if self.pre_process and not self.post_process:
-            assert parallel_state.is_pipeline_first_stage()
+            if not self.config.is_scaling_mode:
+                assert parallel_state.is_pipeline_first_stage()
             self.shared_embedding_or_output_weight().shared_embedding = True
 
         if self.post_process and not self.pre_process:
-            assert not parallel_state.is_pipeline_first_stage()
+            if not self.config.is_scaling_mode:
+                assert not parallel_state.is_pipeline_first_stage()
             # set word_embeddings weights to 0 here, then copy first
             # stage's weights using all_reduce below.
             self.output_layer.weight.data.fill_(0)
@@ -91,12 +93,21 @@ class LanguageModule(MegatronModule):
         # Ensure that first and last stages have the same initial parameter
         # values.
         if torch.distributed.is_initialized():
-            if parallel_state.is_rank_in_embedding_group():
+            if not self.config.is_scaling_mode:
+                is_rank_in_embedding_group = parallel_state.is_rank_in_embedding_group()
+            else:
+                is_rank_in_embedding_group = self.config.is_rank_in_embedding_group
+
+            if is_rank_in_embedding_group:
                 weight = self.shared_embedding_or_output_weight()
                 weight.data = weight.data.cuda()
+
+                import torch.cuda.nvtx as nvtx
+                nvtx.range_push(f"init_voca_embedding_allreduce")
                 torch.distributed.all_reduce(
                     weight.data, group=parallel_state.get_embedding_group()
                 )
+                nvtx.range_pop()
 
         elif not getattr(LanguageModule, "embedding_warning_printed", False):
             logging.getLogger(__name__).warning(
@@ -191,7 +202,9 @@ class LanguageModule(MegatronModule):
             0,
             parallel_state.get_data_parallel_rank(with_context_parallel=True),
         )
-
+        print(f"last_stage_word_emb_replica_id:{last_stage_word_emb_replica_id}")
+        raise 0
+        
         sharded_state_dict[output_layer_weight_key] = make_tp_sharded_tensor_for_checkpoint(
             tensor=tensor,
             key=first_stage_word_emb_key,

@@ -166,7 +166,7 @@ class BlendedDataset(torch.utils.data.Dataset):
                 log_single_rank(
                     logger,
                     logging.WARNING,
-                    f"Unable to save the {type(self).__name__} indexes because path_to_cache is None",
+                    "Unable to save the blending indexes because path_to_cache is None",
                 )
 
             t_end = time.time()

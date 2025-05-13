@@ -1,9 +1,8 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 """General utilities."""
-import os
+
 import sys
-from datetime import datetime
 
 import torch
 
@@ -27,8 +26,47 @@ from megatron.core.tensor_parallel import param_is_not_tensor_parallel_duplicate
 from megatron.legacy.model import Float16Module
 from megatron.legacy.model.module import param_is_not_shared
 
+import torch.cuda.nvtx as nvtx
+from megatron.profiler.cmd import CMD, current_cmd_var
 
 ALL_MODULE_WRAPPER_CLASSNAMES = (DDP, Float16Module)
+
+
+# def get_model_paras_info(model):
+#         if mpu.get_data_parallel_rank() == 0:
+#             print(' > number of parameters on (tensor, pipeline) '
+#                 'model parallel rank ({}, {}): {}'.format(
+#                 mpu.get_tensor_model_parallel_rank(),
+#                 mpu.get_pipeline_model_parallel_rank(),
+#                 sum([sum([p.nelement() for p in model_module.parameters()])
+#                     for model_module in model])), flush=True)
+
+def get_attr_wrapped_model(model, attr, allow_none=True, return_model_obj=False):
+    """Get an attribute from a wrapped model.
+    If return_model_obj is true, return the object that has the 'attr' attribute;
+    otherwise, return the attribute directly."""
+    if isinstance(model, list):
+        raise RuntimeError("_get_attr_wrapped_model given a list of models")
+
+    if allow_none:
+        def condition(model, attr):
+            return not hasattr(model, attr)
+
+    else:
+
+        def condition(model, attr):
+            return getattr(model, attr, None) is None
+
+    while condition(model, attr):
+        if not hasattr(model, "module"):
+            raise RuntimeError(f"_get_attr_wrapped_model couldn't find attribute {attr}")
+
+        model = model.module
+
+    if return_model_obj:
+        return model
+    return getattr(model, attr)
+
 
 
 def unwrap_model(model, module_instances=ALL_MODULE_WRAPPER_CLASSNAMES):
@@ -94,12 +132,31 @@ def calc_params_l2_norm(model):
     return norm_2.item() ** 0.5
 
 
+@CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='dp', comm_func='allreduce')
+def allreduce(
+    input_: torch.Tensor,
+    group = None,
+    async_op: bool = False,
+    func: str = None
+):
+
+    # 假设进行了allreduce
+    torch.distributed.all_reduce(input_, group=group, async_op=async_op)
+
+    return input_
+
+
 def average_losses_across_data_parallel_group(losses):
     """Reduce a tensor of losses across all GPUs."""
     averaged_losses = torch.cat(
         [loss.clone().detach().view(1) for loss in losses])
-    torch.distributed.all_reduce(averaged_losses,
-                                 group=mpu.get_data_parallel_group())
+    
+    # torch.distributed.all_reduce(averaged_losses,
+    #                              group=mpu.get_data_parallel_group())
+    # print(f"averaged_losses.shape: {averaged_losses.shape}, averaged_losses:{averaged_losses}")
+    # raise 0
+    _ = allreduce(input_=averaged_losses, group=mpu.get_data_parallel_group(), func='loss_func')
+
     averaged_losses = averaged_losses / \
         torch.distributed.get_world_size(group=mpu.get_data_parallel_group())
 
@@ -274,37 +331,23 @@ def print_rank_last(message):
         print(message, flush=True)
 
 
-def append_to_progress_log(string, barrier=True):
-    """ Append given string to progress log. """
-    args = get_args()
-    if args.save is None:
-        return
-    progress_log_filename = os.path.join(args.save, "progress.txt")
-    if barrier:
-        torch.distributed.barrier()
-    if torch.distributed.get_rank() == 0:
-        with open(progress_log_filename, 'a') as f:
-            job_id = os.getenv('SLURM_JOB_ID', '')
-            num_gpus = args.world_size
-            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\tJob ID: {job_id}\t"
-                    f"# GPUs: {num_gpus}\t{string}\n")
-
-
 def get_batch_on_this_tp_rank(data_iterator):
 
-    args = get_args()
+    args = get_args() # load_batch_broadcast
+    # if args.simu_start:
+    #     args.simu_micro_batch_ids["load_batch_broadcast"] += 1
 
-    def _broadcast(item):
-       if item is not None:
-           torch.distributed.broadcast(item, mpu.get_tensor_model_parallel_src_rank(), group=mpu.get_tensor_model_parallel_group())
+    @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='broadcast')
+    def _broadcast(input_, func=None):
+       if input_ is not None:
+           torch.distributed.broadcast(input_, mpu.get_tensor_model_parallel_src_rank(), group=mpu.get_tensor_model_parallel_group())
 
     if mpu.get_tensor_model_parallel_rank() == 0:
-
+       nvtx.range_push("tprank0_get_batch_next_iterator")
        if data_iterator is not None:
            data = next(data_iterator)
        else:
            data = None
-
        batch = {
            'tokens': data["tokens"].cuda(non_blocking = True),
            'labels': data["labels"].cuda(non_blocking = True),
@@ -313,25 +356,31 @@ def get_batch_on_this_tp_rank(data_iterator):
            'position_ids': data["position_ids"].cuda(non_blocking = True)
        }
 
-       if args.pipeline_model_parallel_size == 1:
-           _broadcast(batch['tokens'])
-           _broadcast(batch['labels'])
-           _broadcast(batch['loss_mask'])
-           _broadcast(batch['attention_mask'])
-           _broadcast(batch['position_ids'])
+       nvtx.range_pop()
 
+       if args.pipeline_model_parallel_size == 1:
+            _broadcast(batch['tokens'],func="tokens")
+            _broadcast(batch['labels'],func="labels")
+            _broadcast(batch['loss_mask'],func="loss_mask")
+            _broadcast(batch['attention_mask'],func="attention_mask")
+            _broadcast(batch['position_ids'],func="position_ids")
        elif mpu.is_pipeline_first_stage():
-           _broadcast(batch['tokens'])
-           _broadcast(batch['attention_mask'])
-           _broadcast(batch['position_ids'])
+            nvtx.range_push("tprank0_first_stage")
+            _broadcast(batch['tokens'],func="tokens")
+            _broadcast(batch['attention_mask'],func="attention_mask")
+            _broadcast(batch['position_ids'],func="position_ids")
+            nvtx.range_pop()
 
        elif mpu.is_pipeline_last_stage():
-           _broadcast(batch['labels'])
-           _broadcast(batch['loss_mask'])
-           _broadcast(batch['attention_mask'])
+            nvtx.range_push("tprank0_last_stage")
+            _broadcast(batch['labels'],func="labels")
+            _broadcast(batch['loss_mask'],func="loss_mask")
+            _broadcast(batch['attention_mask'],func="attention_mask")
+            nvtx.range_pop()
 
     else:
-
+       nvtx.range_push("not_tprank0_memcpy")
+       # load_batch_memcpy
        tokens=torch.empty((args.micro_batch_size,args.seq_length), dtype = torch.int64 , device = torch.cuda.current_device())
        labels=torch.empty((args.micro_batch_size,args.seq_length), dtype = torch.int64 , device = torch.cuda.current_device())
        loss_mask=torch.empty((args.micro_batch_size,args.seq_length), dtype = torch.float32 , device = torch.cuda.current_device())
@@ -342,30 +391,36 @@ def get_batch_on_this_tp_rank(data_iterator):
        else:
            attention_mask=None
        position_ids=torch.empty((args.micro_batch_size,args.seq_length), dtype = torch.int64 , device = torch.cuda.current_device())
+       nvtx.range_pop()
 
        if args.pipeline_model_parallel_size == 1:
-           _broadcast(tokens)
-           _broadcast(labels)
-           _broadcast(loss_mask)
-           _broadcast(attention_mask)
-           _broadcast(position_ids)
- 
+            _broadcast(tokens,func="tokens")
+            _broadcast(labels,func="labels")
+            _broadcast(loss_mask,func="loss_mask")
+            _broadcast(attention_mask,func="attention_mask")
+            _broadcast(position_ids,func="position_ids")
        elif mpu.is_pipeline_first_stage():
-           labels=None
-           loss_mask=None
-   
-           _broadcast(tokens)
-           _broadcast(attention_mask)
-           _broadcast(position_ids)
+            nvtx.range_push("not_tprank0_first_stage")
+            labels = None
+            loss_mask = None
+            
+            _broadcast(tokens,func="tokens")
+            _broadcast(attention_mask,func="attention_mask")
+            _broadcast(position_ids,func="position_ids")
+
+            nvtx.range_pop()
 
        elif mpu.is_pipeline_last_stage():
-           tokens=None
-           position_ids=None
-    
-           _broadcast(labels)
-           _broadcast(loss_mask)
-           _broadcast(attention_mask)
- 
+            nvtx.range_push("not_tprank0_last_stage")
+            tokens = None
+            position_ids = None
+            
+            _broadcast(labels,func="labels")
+            _broadcast(loss_mask,func="loss_mask")
+            _broadcast(attention_mask,func="attention_mask")
+
+            nvtx.range_pop()
+
        batch = {
            'tokens': tokens,
            'labels': labels,

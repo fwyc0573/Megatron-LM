@@ -86,9 +86,10 @@ from megatron.core.datasets.gpt_dataset import GPTDatasetConfig, MockGPTDataset
 
 def get_train_data_iterator():
     config = GPTDatasetConfig(
-        random_seed=0, 
-        sequence_length=64, 
-        blend=None, 
+        random_seed = 0, 
+        sequence_length = 64, 
+        blend=[], 
+        mock=True, 
         reset_position_ids=False, 
         reset_attention_mask=False, 
         eod_mask_loss=False, 
