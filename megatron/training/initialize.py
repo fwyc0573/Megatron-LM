@@ -290,7 +290,8 @@ def _initialize_distributed():
         if mpu.model_parallel_is_initialized():
             print("model parallel is already initialized")
         else:
-            # TODO: 让这里的值变成一个定值（肯定不能使用传入的参数...）？
+            # TODO-YC: maybe we need add sim-scaling mode args check here? it seems that only real args were checked in the initialize_model_parallel function
+            # in fact, comm. group only need to be overriden in corresponding func？for example, allreduce api func.
             mpu.initialize_model_parallel(
                 args.tensor_model_parallel_size,
                 args.pipeline_model_parallel_size,
@@ -382,6 +383,7 @@ def _warmup_jit_function():
     else:
         dtype = torch.float32
 
+    # todo-yc: warmup process would be affected by training parallel setting. fix it.
     # Warmup fused bias+gelu
     bias = torch.rand(
         args.ffn_hidden_size // args.tensor_model_parallel_size,

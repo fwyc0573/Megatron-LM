@@ -295,7 +295,7 @@ class RankGenerator(object):
         return ranks
 
 
-def initialize_model_parallel(
+def x   (
     tensor_model_parallel_size: int = 1,
     pipeline_model_parallel_size: int = 1,
     virtual_pipeline_model_parallel_size: Optional[int] = None,

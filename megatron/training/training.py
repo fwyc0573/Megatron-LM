@@ -231,6 +231,7 @@ def pretrain(train_valid_test_dataset_provider,
     # args.simu_micro_batch_ids = {"recv_forward":-1, "forward_step":-1, "send_forward":-1, "recv_backward":-1,
     #                               "backward_step":-1, "send_backward":-1, "tp_load_batch_broadcast":-1, "dp_allreduce":-1, "tp_allreduce":-1}
 
+    # todo-yc: maybe the value of vars here are equal to '0'? check it.
     args.simu_stage_id = parallel_state.get_pipeline_model_parallel_rank()
     args.simu_rank = str(torch.distributed.get_rank())
     args.global_model_params_dict = {}
@@ -548,7 +549,13 @@ def pretrain(train_valid_test_dataset_provider,
     
     else:
         # 用于初始化参数
+        # todo-yc: a little bit of confusing here. real running mode also call this function? why? what's the difference? rank instance seems the key point here
+        # for real running mode ranks here, it get the corresponding parallel rank index；
+        # but for sim-scaling mode, it seems that sequentially get the parallel rank index in loop
         add_extra_args_kwargs()
+
+    # ------------- up to here, the process get ranks' parallel index (e.g., pp/tp/dp local rank index) ---------------
+
 
     # Model, optimizer, and learning rate.
     timers('model-and-optimizer-setup', log_level=0).start(barrier=True)
