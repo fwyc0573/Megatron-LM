@@ -19,6 +19,7 @@ def build_pretraining_data_loader(dataset, consumed_samples):
     args = get_args()
 
     # Megatron sampler
+    # YC: default single
     if args.dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataset),

@@ -58,8 +58,16 @@ def _get_param_groups(
         for name, param in model_chunk.named_parameters():
             if not param.requires_grad:
                 continue
+            
 
+            # 该行代码利用了一个约定：对于 MoE 中采用 Expert Parallelism 的参数，会给它们设置一个特殊的属性（如 allreduce=False）来区别于常规的、
+            # 需要进行全局数据并行 all-reduce 的参数。通过检查这个属性的存在与否及其值，可以判断参数是否为 Expert Parallelism 参数。
+
+            # DistributedDataParallel 类在初始化时就会根据这个 allreduce 属性将参数分到 dense_params 和 expert_parallel_params，
+            # 并为它们分配不同的 ParamAndGradBuffer 和数据并行组。
             is_expert_parallel = not getattr(param, 'allreduce', True)
+
+
 
             if no_weight_decay_cond is not None:
                 no_wd = no_weight_decay_cond(name, param)
@@ -309,6 +317,9 @@ def get_megatron_optimizer(
     dense_param_groups = list(filter(lambda g: not g['is_expert_parallel'], param_groups))
     moe_param_groups = list(filter(lambda g: g['is_expert_parallel'], param_groups))
 
+
+    # TODO-YC: it matters.
+    
     # Create optimizers.
     model_parallel_rank = torch.distributed.get_rank(mpu.get_model_parallel_group())
     optimizers = [

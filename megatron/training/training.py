@@ -266,6 +266,10 @@ def pretrain(train_valid_test_dataset_provider,
         })
 
 
+    # TODO-YC: abvoed operations are all called in the first process which mean only call one time in sim. scaling mode (rank0, i.e., the only one gpu device); But... is it a correct method?
+
+
+
     """ iter-rank start, profile submodel of each rank. 
     for wrank in range(args.fake_world_size):
         补充所有参数**scaling_kwargs: first_process, last_process, tp_rank, dp_rank, pp_rank,local_rank
@@ -550,12 +554,12 @@ def pretrain(train_valid_test_dataset_provider,
     else:
         # 用于初始化参数
         # todo-yc: a little bit of confusing here. real running mode also call this function? why? what's the difference? rank instance seems the key point here
-        # for real running mode ranks here, it get the corresponding parallel rank index；
+        # for real running mode ranks here, it finish the init definition? but why we need None value?
         # but for sim-scaling mode, it seems that sequentially get the parallel rank index in loop
         add_extra_args_kwargs()
 
-    # ------------- up to here, the process get ranks' parallel index (e.g., pp/tp/dp local rank index) ---------------
-
+    # ------------- up to here, the process get ranks' parallel index = None? (e.g., pp/tp/dp local rank index) ---------------
+    # following steps used for real running mode
 
     # Model, optimizer, and learning rate.
     timers('model-and-optimizer-setup', log_level=0).start(barrier=True)
@@ -710,6 +714,7 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     # Only parameters that are already tensor model parallel have these
     # attributes set for them. We should make sure the default attributes
     # are set for all params so the optimizer can use them.
+    # TODO-YC: we should compare the runing mode with sim scaling mode here.
     for model_module in model:
         for param in model_module.parameters():
             tensor_parallel.set_defaults_if_not_set_tensor_model_parallel_attributes(param)
@@ -738,6 +743,7 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
     else:
         if args.dp_rank == 0:
             total_params = sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+            # TODO-YC: we need compare here.
             print(' > number of parameters on (tensor, pipeline) '
                 'model parallel rank ({}, {}): {}'.format(
                 args.tp_rank,
@@ -778,6 +784,8 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
 
         # Broadcast params from data parallel src rank to other data parallel ranks.
         if args.data_parallel_random_init:
+            # YC: check it here
+            raise 0
             for model_module in model:
                 model_module.broadcast_params()
 

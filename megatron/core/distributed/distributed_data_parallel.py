@@ -114,8 +114,8 @@ class DistributedDataParallel(MegatronModule):
 
             # Allocate the grad buffers and map the grads.
             buffers = []
-            import torch.distributed as dist
-            rank_id = dist.get_rank()
+            # import torch.distributed as dist
+            # rank_id = dist.get_rank()
             # print(f"rank_id: {rank_id} | allocate_buffers_for_parameters | len(param_and_grad_dtype_to_params):{len(param_and_grad_dtype_to_params)}")
 
             for (param_dtype, grad_dtype), params in param_and_grad_dtype_to_params.items():

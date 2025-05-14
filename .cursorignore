@@ -16,7 +16,8 @@ logs
 *.nsys-trace
 .github/
 
-data/
+output_prefix_gpt2/
+output_prefix_llama/
 data_cache/
 tests/
 log/

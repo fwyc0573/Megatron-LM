@@ -295,7 +295,7 @@ class RankGenerator(object):
         return ranks
 
 
-def x   (
+def initialize_model_parallel(
     tensor_model_parallel_size: int = 1,
     pipeline_model_parallel_size: int = 1,
     virtual_pipeline_model_parallel_size: Optional[int] = None,
@@ -694,6 +694,8 @@ def x   (
     # This isn't really "parallel state" but there isn't another good place to
     # put this. If we end up with a more generic initialization of megatron-core
     # we could stick it there
+
+    # TODO-yc: would it affect the scaling sim. mode?
     _set_global_memory_buffer()
 
 
