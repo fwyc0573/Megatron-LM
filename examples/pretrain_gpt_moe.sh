@@ -8,13 +8,13 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+# export CUDA_VISIBLE_DEVICES=4,5,6,7
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
 # Distributed training variables
 NNODES=1
-GPUS_PER_NODE=4
+GPUS_PER_NODE=8
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
 NODE_RANK=0
@@ -22,7 +22,7 @@ MASTER_PORT=6000
 MASTER_ADDR="localhost" #"localhost"
 
 
-# Parallelism variables 
+# Parallelism variables
 PP=4
 TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
@@ -40,7 +40,7 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
 # size variables
-MODEL_SIZE=6.7 # "tiny" 6.7
+MODEL_SIZE=6.7 # "tiny"
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
@@ -61,8 +61,8 @@ TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
 
 
-MAX_SEQ_LEN=1024 # 4096 2048 1024
-MAX_POSITION_EMBEDDINGS=1024 # 4096 2048 1024
+MAX_SEQ_LEN=256 # 4096 2048
+MAX_POSITION_EMBEDDINGS=256 # 4096 2048
 
 # 检查trace_iter_num是否在合理的范围内
 if [ $TRACE_ITER_NUM -gt $((TRAIN_ITERS - 1)) ]; then
@@ -80,9 +80,9 @@ FAKE_WORLD_SIZE=4
 FAKE_WRANK=0
 FAKE_GPUS_PER_NODE=4
 FAKE_LOCAL_RANK=0
-# IS_SCALING_MODE=Falsef
-FAKE_PP=4
-FAKE_TP=1
+# IS_SCALING_MODE=False
+FAKE_PP=2
+FAKE_TP=2
 FAKE_DP=$((FAKE_WORLD_SIZE / FAKE_PP / FAKE_TP))
 if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
     echo "Error: FAKE_DP must be an integer."
@@ -113,26 +113,26 @@ fi
 
 
 
-# EP=2  # 专家并行度
-# NUM_EXPERTS=6  # 专家总数（必须是EP的倍数）
+EP=2  # 专家并行度
+NUM_EXPERTS=6  # 专家总数（必须是EP的倍数）
 
-# # 确保专家数量能被EP整除
-# if [ "$((NUM_EXPERTS % EP))" -ne "0" ]; then
-#     echo "Error: NUM_EXPERTS must be divisible by EP"
-#     exit 1
-# fi
+# 确保专家数量能被EP整除
+if [ "$((NUM_EXPERTS % EP))" -ne "0" ]; then
+    echo "Error: NUM_EXPERTS must be divisible by EP"
+    exit 1
+fi
 
-# MOE_ARGS="
-#     --num-experts $NUM_EXPERTS \
-#     --expert-model-parallel-size $EP \
-#     --moe-router-load-balancing-type aux_loss \
-#     --moe-router-topk 2 \
-#     --moe-aux-loss-coeff 1e-2 \
-#     --moe-token-dispatcher-type alltoall \
-#     --disable-bias-linear
-#     --moe-grouped-gemm \
-#     --bf16 
-# "
+MOE_ARGS="
+    --num-experts $NUM_EXPERTS \
+    --expert-model-parallel-size $EP \
+    --moe-router-load-balancing-type aux_loss \
+    --moe-router-topk 2 \
+    --moe-aux-loss-coeff 1e-2 \
+    --moe-token-dispatcher-type alltoall \
+    --disable-bias-linear
+    --moe-grouped-gemm \
+    --bf16 
+"
     # 以下参数需要捆绑使用只使用, --moe-token-dispatcher-type默认是allgather，且可正常使用
     # --moe-token-dispatcher-type alltoall \
     # --disable-bias-linear
@@ -161,10 +161,10 @@ GPT_ARGS="
     --min-lr 1.0e-5 \
     --weight-decay 1e-2 \
     --lr-warmup-fraction .01 \
-    --clip-grad 1.0 \
+    --clip-grad 1.0
 "
     # --fp16
-    # --mock-data
+
 
 # CHECKPOINT_PATH=<Specify path>
 # BASE_PATH=/research/d1/gds/ytyang/yichengfeng/Megatron-LM
@@ -176,7 +176,7 @@ DATA_ARGS="
     --vocab-file $VOCAB_FILE \
     --merge-file $MERGE_FILE \
     --split 949,50,1 \
-    --vocab-size 3200 
+    --vocab-size 600 
 "
 # --vocab-size 3200
 
@@ -196,6 +196,7 @@ OUTPUT_ARGS="
 # nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas  --force-overwrite=true  -x true -o optimzer_find_test \
 torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/pretrain_llama.py \
     $GPT_ARGS \
+    $MOE_ARGS \
     $DATA_ARGS \
     $OUTPUT_ARGS \
     $SIM_ARGS \
