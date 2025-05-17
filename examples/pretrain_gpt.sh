@@ -91,7 +91,6 @@ fi
 
 #        --is-scaling-mode \
 SIM_ARGS=" \
-       --is-scaling-mode \
        --fake-world-size $FAKE_WORLD_SIZE \
        --fake-wrank $FAKE_WRANK \
        --fake-gpus-per-node $FAKE_GPUS_PER_NODE \
