@@ -49,41 +49,7 @@ def condition_init_method(config, init_method):
     return init_method if config.perform_initialization else (lambda w: None)
 
 
-class TENorm:
-    """
-    A conditional wrapper to initialize an instance of Transformer-Engine's
-    `LayerNorm` or `RMSNorm` based on input
-    """
-
-    # TODO should we ditch normalization config and just use spec to choose LayerNorm vs RMSNorm?
-    def __new__(
-        cls, config: TransformerConfig, hidden_size: int, eps: float = 1e-5,
-    ):
-        if config.normalization == "LayerNorm":
-            instance = te.pytorch.LayerNorm(
-                hidden_size=hidden_size,
-                eps=eps,
-                sequence_parallel=config.sequence_parallel,
-                zero_centered_gamma=config.layernorm_zero_centered_gamma,
-                **_get_extra_te_kwargs(config),
-            )
-        elif config.normalization == "RMSNorm":
-            assert hasattr(
-                te.pytorch, "RMSNorm"
-            ), "Transformer-Engine >= v0.11 required to use this feature"
-            instance = te.pytorch.RMSNorm(
-                hidden_size=hidden_size,
-                eps=eps,
-                sequence_parallel=config.sequence_parallel,
-                zero_centered_gamma=config.layernorm_zero_centered_gamma,
-                **_get_extra_te_kwargs(config),
-            )
-        else:
-            raise Exception('Only LayerNorm and RMSNorm are curently supported')
-
-        return instance
-
-
+：
 class TELinear(te.pytorch.Linear):
     """
     Wrapper for the Transformer-Engine's `Linear` layer.
@@ -122,7 +88,25 @@ class TELinear(te.pytorch.Linear):
             )
 
         extra_kwargs = _get_extra_te_kwargs(config)
-        extra_fake_kwargs = _get_extra_fk_kwargs(config)
+        # extra_fake_kwargs = _get_extra_fk_kwargs(config)
+
+        # Determine actual tp_group and tp_size for te.pytorch.Linear
+        # sequence_parallel and get_rng_state_tracker will be passed directly as they are
+        # or determined by their own logic that should be aware of scaling_mode implicitly
+        # via parallel_state.
+        if self.config.is_scaling_mode:
+            actual_tp_group = None
+            actual_tp_size = self.config.fake_tp
+            # sequence_parallel for te.pytorch.Linear will use self.config.sequence_parallel.
+            # If in scaling mode tp_group is None, te.pytorch.Linear might ignore sequence_parallel
+            # or sequence_parallel might be set to False by Megatron's config for scaling mode.
+            # For now, assume self.config.sequence_parallel reflects the desired state.
+            actual_sequence_parallel = self.config.sequence_parallel # Or False if it must be disabled when tp_group is None
+        else:
+            actual_tp_group = get_tensor_model_parallel_group(check_initialized=False)
+            actual_tp_size = self.config.tensor_model_parallel_size
+            actual_sequence_parallel = self.config.sequence_parallel
+
 
         if _te_version >= packaging.version.Version("0.8.0"):
             if self.config.tp_comm_overlap:
@@ -152,10 +136,10 @@ class TELinear(te.pytorch.Linear):
         super().__init__(
             in_features=input_size,
             out_features=output_size,
-            sequence_parallel=self.config.sequence_parallel,
+            sequence_parallel=actual_sequence_parallel,
             fuse_wgrad_accumulation=self.config.gradient_accumulation_fusion,
-            tp_group=get_tensor_model_parallel_group(check_initialized=False),
-            tp_size=self.config.tensor_model_parallel_size,
+            tp_group=actual_tp_group,
+            tp_size=actual_tp_size,
             get_rng_state_tracker=get_cuda_rng_tracker
             if get_cuda_rng_tracker().is_initialized()
             else None,
@@ -164,8 +148,13 @@ class TELinear(te.pytorch.Linear):
             return_bias=self.te_return_bias,
             parallel_mode=parallel_mode,
             **extra_kwargs,
-            **extra_fake_kwargs,
         )
+
+        # Added fix for tp_group_initialized:
+        if self.config.is_scaling_mode:
+            if actual_tp_group is None and actual_tp_size > 1:
+                self.set_tensor_parallel_group(None)
+
 
     def forward(self, x):
         _is_first_microbatch = (
@@ -224,7 +213,21 @@ class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
         self.is_first_microbatch = True
         self.disable_parameter_transpose_cache = self.config.disable_parameter_transpose_cache
         extra_kwargs = _get_extra_te_kwargs(config)
-        extra_fake_kwargs = _get_extra_fk_kwargs(config)
+        # extra_fake_kwargs = _get_extra_fk_kwargs(config)
+
+
+        if self.config.is_scaling_mode:
+            actual_tp_group = None
+            actual_tp_size = self.config.fake_tp
+            # In scaling mode, sequence_parallel might also behave differently or be effectively disabled
+            # if tp_group is None. For now, we use the config's sequence_parallel value.
+            # Consider if config.sequence_parallel should also be conditional for TE.
+            # actual_sequence_parallel = False # Or consult how sequence parallel should behave with fake_tp
+        else:
+            actual_tp_group = get_tensor_model_parallel_group(check_initialized=False)
+            actual_tp_size = self.config.tensor_model_parallel_size
+            # actual_sequence_parallel = self.config.sequence_parallel
+        print(f"actual_tp_group: {actual_tp_group}, actual_tp_size: {actual_tp_size}")
         
         # Only Transformer-Engine version >= 0.11.0 supports `RMSNorm`
         if _te_version >= packaging.version.Version("0.11.0"):
@@ -260,16 +263,15 @@ class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
                     ), "Buffer name should be set to configure communication overlap settings"
                     extra_kwargs["ub_name"] = tp_comm_buffer_name
 
-        # 合并 extra_kwargs 和 extra_fake_kwargs
-        # combined_kwargs = {**extra_kwargs, **extra_fake_kwargs}
+
         super().__init__(
             in_features=input_size,
             out_features=output_size,
             eps=self.config.layernorm_epsilon,
             sequence_parallel=self.config.sequence_parallel,
             fuse_wgrad_accumulation=self.config.gradient_accumulation_fusion,
-            tp_group=get_tensor_model_parallel_group(check_initialized=False),
-            tp_size=self.config.tensor_model_parallel_size,
+            tp_group=actual_tp_group,
+            tp_size=actual_tp_size,
             get_rng_state_tracker=get_cuda_rng_tracker
             if get_cuda_rng_tracker().is_initialized()
             else None,
@@ -279,9 +281,21 @@ class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
             parallel_mode="column",
             return_layernorm_output=False,
             zero_centered_gamma=self.config.layernorm_zero_centered_gamma,
-            **extra_kwargs,
-            **extra_fake_kwargs,
+            **extra_kwargs
         )
+        # Added fix:
+        # If in scaling mode, and the actual_tp_group was None and actual_tp_size > 1,
+        # then te.pytorch.LayerNormLinear.__init__ would *not* have called
+        # self.set_tensor_parallel_group. We must call it here to ensure
+        # self.tp_group_initialized is True.
+        if self.config.is_scaling_mode:
+            if actual_tp_group is None and actual_tp_size > 1:
+                # This call is on `self` (the TELayerNormColumnParallelLinear instance),
+                # and it will invoke the set_tensor_parallel_group method from TransformerEngineBaseModule.
+                self.set_tensor_parallel_group(None) 
+            # If actual_tp_size == 1 (and actual_tp_group is None), the super().__init__()
+            # would have already called set_tensor_parallel_group(None).
+
 
     def forward(self, x):
         _is_first_microbatch = (
@@ -471,8 +485,23 @@ class TEDotProductAttention(te.pytorch.DotProductAttention):
             ), f"Transformer-Engine version ({str(_te_version)}) must be >= 1.2.0 to support sliding window attention."
             extra_kwargs['window_size'] = config.window_size
 
-        extra_fake_kwargs = _get_extra_fk_kwargs(config)
+        # extra_fake_kwargs = _get_extra_fk_kwargs(config)
         
+        # Determine actual tp_group, tp_size for te.pytorch.DotProductAttention
+        if self.config.is_scaling_mode:
+            actual_tp_group = None
+            actual_tp_size = self.config.fake_tp
+            # sequence_parallel for te.pytorch.DotProductAttention:
+            # If tp_group is None, sequence_parallel might be ignored by TE or lead to issues.
+            # For scaling mode, it's safer to assume sequence_parallel is False or use config value
+            # if it's correctly set for scaling (e.g. to False if tp_size > 1 simulated).
+            actual_sequence_parallel = False # Or self.config.sequence_parallel if appropriate
+        else: # Normal mode
+            actual_tp_group = get_tensor_model_parallel_group(check_initialized=False)
+            actual_tp_size = self.config.tensor_model_parallel_size
+            actual_sequence_parallel = self.config.sequence_parallel
+        
+
         super().__init__(
             num_attention_heads=self.config.num_attention_heads,
             kv_channels=self.config.kv_channels,
@@ -480,16 +509,20 @@ class TEDotProductAttention(te.pytorch.DotProductAttention):
             if attention_dropout is None
             else attention_dropout,
             attn_mask_type=attn_mask_type.name,
-            sequence_parallel=self.config.sequence_parallel,
-            tp_size=self.config.tensor_model_parallel_size,
+            sequence_parallel=actual_sequence_parallel,
+            tp_size=actual_tp_size,
             get_rng_state_tracker=get_cuda_rng_tracker
             if get_cuda_rng_tracker().is_initialized()
             else None,
-            tp_group=get_tensor_model_parallel_group(check_initialized=False),
+            tp_group=actual_tp_group,
             layer_number=layer_number,
             **extra_kwargs,
-            **extra_fake_kwargs,
         )
+        # TEDotProductAttention does not use TransformerEngineBaseModule's set_tensor_parallel_group
+        # and thus doesn't have the 'tp_group_initialized' issue in the same way.
+        # Its tp_size and tp_group are used directly by its internal attention mechanisms
+        # or passed to them. The main thing is to pass the correct tp_size.
+
 
     def forward(
         self,

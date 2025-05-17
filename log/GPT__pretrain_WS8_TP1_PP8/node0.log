@@ -1,31 +1,12 @@
-[2025-05-13 16:44:06,156] torch.distributed.run: [WARNING] 
-[2025-05-13 16:44:06,156] torch.distributed.run: [WARNING] *****************************************
-[2025-05-13 16:44:06,156] torch.distributed.run: [WARNING] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
-[2025-05-13 16:44:06,156] torch.distributed.run: [WARNING] *****************************************
-Traceback (most recent call last):
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
-    pretrain(train_valid_test_datasets_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
-    initialize_megatron(extra_args_provider=extra_args_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 88, in initialize_megatron
-    finish_mpu_init()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 65, in finish_mpu_init
-    _initialize_distributed()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 294, in _initialize_distributed
-    mpu.initialize_model_parallel(
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/core/parallel_state.py", line 434, in initialize_model_parallel
-    raise RuntimeError(
-RuntimeError: data_parallel_size (1) is not divisible by expert_model_parallel_size 
-using world size: 8, data-parallel size: 1, context-parallel size: 1 tensor-model-parallel size: 1, pipeline-model-parallel size: 8 
+using world size: 1, data-parallel size: 1, context-parallel size: 1 tensor-model-parallel size: 1, pipeline-model-parallel size: 1 
 WARNING: Setting args.overlap_p2p_comm to False since non-interleaved schedule does not support overlapping p2p communication
-accumulate and all-reduce gradients in fp32 for bfloat16 data type.
-using torch.bfloat16 for parameters ...
+using torch.float32 for parameters ...
 ------------------------ arguments ------------------------
-  accumulate_allreduce_grads_in_fp32 .............. True
+  accumulate_allreduce_grads_in_fp32 .............. False
   adam_beta1 ...................................... 0.9
   adam_beta2 ...................................... 0.999
   adam_eps ........................................ 1e-08
-  add_bias_linear ................................. False
+  add_bias_linear ................................. True
   add_position_embedding .......................... True
   add_qkv_bias .................................... False
   adlr_autoresume ................................. False
@@ -42,9 +23,9 @@ using torch.bfloat16 for parameters ...
   bert_binary_head ................................ True
   bert_embedder_type .............................. megatron
   bert_load ....................................... None
-  bf16 ............................................ True
+  bf16 ............................................ False
   bias_dropout_fusion ............................. True
-  bias_gelu_fusion ................................ False
+  bias_gelu_fusion ................................ True
   bias_swiglu_fusion .............................. True
   biencoder_projection_dim ........................ 0
   biencoder_shared_query_context_model ............ False
@@ -63,7 +44,7 @@ using torch.bfloat16 for parameters ...
   data_cache_path ................................. None
   data_parallel_random_init ....................... False
   data_parallel_size .............................. 1
-  data_path ....................................... ['/research/d1/gds/ytyang/yichengfeng/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document']
+  data_path ....................................... ['/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document']
   data_per_class_fraction ......................... 1.0
   data_sharding ................................... True
   dataloader_type ................................. single
@@ -93,7 +74,7 @@ using torch.bfloat16 for parameters ...
   empty_unused_memory_level ....................... 0
   enable_one_logger ............................... False
   encoder_num_layers .............................. 40
-  encoder_seq_length .............................. 256
+  encoder_seq_length .............................. 1024
   end_weight_decay ................................ 0.01
   eod_mask_loss ................................... False
   eval_interval ................................... 1000
@@ -103,15 +84,15 @@ using torch.bfloat16 for parameters ...
   exit_interval ................................... None
   exit_on_missing_checkpoint ...................... False
   exit_signal_handler ............................. False
-  expert_model_parallel_size ...................... 2
+  expert_model_parallel_size ...................... 1
   fake_dp ......................................... 1
-  fake_gpus_per_node .............................. 4
+  fake_gpus_per_node .............................. 8
   fake_local_rank ................................. 0
-  fake_pp ......................................... 2
-  fake_tp ......................................... 2
-  fake_world_size ................................. 4
+  fake_pp ......................................... 8
+  fake_tp ......................................... 1
+  fake_world_size ................................. 8
   fake_wrank ...................................... 0
-  ffn_hidden_size ................................. 20480
+  ffn_hidden_size ................................. 30720
   finetune ........................................ False
   fp16 ............................................ False
   fp16_lm_cross_entropy ........................... False
@@ -127,7 +108,7 @@ using torch.bfloat16 for parameters ...
   group_query_attention ........................... False
   head_lr_mult .................................... 1.0
   hidden_dropout .................................. 0.1
-  hidden_size ..................................... 5120
+  hidden_size ..................................... 7680
   hysteresis ...................................... 2
   ict_head_size ................................... None
   ict_load ........................................ None
@@ -139,7 +120,7 @@ using torch.bfloat16 for parameters ...
   init_method_std ................................. 0.02
   init_method_xavier_uniform ...................... False
   initial_loss_scale .............................. 4294967296
-  is_scaling_mode ................................. False
+  is_scaling_mode ................................. True
   iter_per_epoch .................................. 1250
   kv_channels ..................................... 160
   lazy_mpu_init ................................... None
@@ -177,21 +158,21 @@ using torch.bfloat16 for parameters ...
   mask_prob ....................................... 0.15
   mask_type ....................................... random
   masked_softmax_fusion ........................... True
-  max_position_embeddings ......................... 256
+  max_position_embeddings ......................... 1024
   max_tokens_to_oom ............................... 12000
-  merge_file ...................................... /research/d1/gds/ytyang/yichengfeng/Megatron-LM/data/output_prefix_gpt2/gpt2-merges.txt
+  merge_file ...................................... /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/gpt2-merges.txt
   micro_batch_size ................................ 1
   min_loss_scale .................................. 1.0
   min_lr .......................................... 1e-05
   mmap_bin_files .................................. True
   mock_data ....................................... False
-  moe_aux_loss_coeff .............................. 0.01
-  moe_grouped_gemm ................................ True
+  moe_aux_loss_coeff .............................. 0.0
+  moe_grouped_gemm ................................ False
   moe_input_jitter_eps ............................ None
   moe_per_layer_logging ........................... False
   moe_router_load_balancing_type .................. aux_loss
   moe_router_topk ................................. 2
-  moe_token_dispatcher_type ....................... alltoall
+  moe_token_dispatcher_type ....................... allgather
   moe_token_dropping .............................. False
   moe_z_loss_coeff ................................ None
   nccl_communicator_config_path ................... None
@@ -203,10 +184,10 @@ using torch.bfloat16 for parameters ...
   norm_epsilon .................................... 1e-05
   normalization ................................... LayerNorm
   nsight_start .................................... 10
-  num_attention_heads ............................. 32
+  num_attention_heads ............................. 48
   num_channels .................................... 3
   num_classes ..................................... 1000
-  num_experts ..................................... 6
+  num_experts ..................................... None
   num_layers ...................................... 40
   num_layers_per_virtual_pipeline_stage ........... None
   num_query_groups ................................ 1
@@ -222,10 +203,10 @@ using torch.bfloat16 for parameters ...
   overlap_p2p_comm ................................ False
   overlap_param_gather ............................ False
   override_opt_param_scheduler .................... False
-  params_dtype .................................... torch.bfloat16
+  params_dtype .................................... torch.float32
   patch_dim ....................................... 16
   perform_initialization .......................... True
-  pipeline_model_parallel_size .................... 8
+  pipeline_model_parallel_size .................... 1
   pipeline_model_parallel_split_rank .............. None
   position_embedding_type ......................... learned_absolute
   pretrained_checkpoint ........................... None
@@ -263,7 +244,7 @@ using torch.bfloat16 for parameters ...
   save_interval ................................... 1000
   scatter_gather_tensors_in_pipeline .............. True
   seed ............................................ 1234
-  seq_length ...................................... 256
+  seq_length ...................................... 1024
   sequence_parallel ............................... False
   sgd_momentum .................................... 0.9
   short_seq_prob .................................. 0.1
@@ -302,7 +283,7 @@ using torch.bfloat16 for parameters ...
   train_iters ..................................... 10
   train_samples ................................... None
   transformer_impl ................................ transformer_engine
-  transformer_pipeline_model_parallel_size ........ 8
+  transformer_pipeline_model_parallel_size ........ 1
   untie_embeddings_and_output_weights ............. False
   use_checkpoint_args ............................. False
   use_checkpoint_opt_param_scheduler .............. False
@@ -322,119 +303,284 @@ using torch.bfloat16 for parameters ...
   vision_pretraining .............................. False
   vision_pretraining_type ......................... classify
   vocab_extra_ids ................................. 0
-  vocab_file ...................................... /research/d1/gds/ytyang/yichengfeng/Megatron-LM/data/output_prefix_gpt2/gpt2-vocab.json
-  vocab_size ...................................... 600
+  vocab_file ...................................... /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/gpt2-vocab.json
+  vocab_size ...................................... 3200
   wandb_exp_name .................................. 
   wandb_project ................................... 
   wandb_save_dir .................................. 
   weight_decay .................................... 0.01
   weight_decay_incr_style ......................... constant
-  world_size ...................................... 8
+  world_size ...................................... 1
   yaml_cfg ........................................ None
 -------------------- end of arguments ---------------------
 setting number of micro-batches to constant 1
 > building GPT2BPETokenizer tokenizer ...
-Traceback (most recent call last):
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
-    pretrain(train_valid_test_datasets_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
-    initialize_megatron(extra_args_provider=extra_args_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 88, in initialize_megatron
-    finish_mpu_init()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 65, in finish_mpu_init
-    _initialize_distributed()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 294, in _initialize_distributed
-    mpu.initialize_model_parallel(
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/core/parallel_state.py", line 434, in initialize_model_parallel
-    raise RuntimeError(
-RuntimeError: data_parallel_size (1) is not divisible by expert_model_parallel_size 
-Traceback (most recent call last):
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
-    pretrain(train_valid_test_datasets_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
-    initialize_megatron(extra_args_provider=extra_args_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 88, in initialize_megatron
-    finish_mpu_init()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 65, in finish_mpu_init
-    _initialize_distributed()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 294, in _initialize_distributed
-    mpu.initialize_model_parallel(
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/core/parallel_state.py", line 434, in initialize_model_parallel
-    raise RuntimeError(
-RuntimeError: data_parallel_size (1) is not divisible by expert_model_parallel_size 
-Traceback (most recent call last):
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
-    pretrain(train_valid_test_datasets_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
-    initialize_megatron(extra_args_provider=extra_args_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 88, in initialize_megatron
-    finish_mpu_init()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 65, in finish_mpu_init
-    _initialize_distributed()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 294, in _initialize_distributed
-    mpu.initialize_model_parallel(
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/core/parallel_state.py", line 434, in initialize_model_parallel
-    raise RuntimeError(
-RuntimeError: data_parallel_size (1) is not divisible by expert_model_parallel_size 
-Traceback (most recent call last):
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
-    pretrain(train_valid_test_datasets_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
-Traceback (most recent call last):
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
-    initialize_megatron(extra_args_provider=extra_args_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 88, in initialize_megatron
-    pretrain(train_valid_test_datasets_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
-    initialize_megatron(extra_args_provider=extra_args_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 88, in initialize_megatron
-    finish_mpu_init()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 65, in finish_mpu_init
-    _initialize_distributed()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 294, in _initialize_distributed
-    finish_mpu_init()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 65, in finish_mpu_init
-    mpu.initialize_model_parallel(
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/core/parallel_state.py", line 434, in initialize_model_parallel
-    raise RuntimeError(
-RuntimeError: data_parallel_size (1) is not divisible by expert_model_parallel_size 
-    _initialize_distributed()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 294, in _initialize_distributed
-    mpu.initialize_model_parallel(
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/core/parallel_state.py", line 434, in initialize_model_parallel
-    raise RuntimeError(
-RuntimeError: data_parallel_size (1) is not divisible by expert_model_parallel_size 
  > padded vocab (size: 50257) with 47 dummy tokens (new size: 50304)
 > initializing torch distributed ...
+finish init EP group: {0: [0]}
+> initialized tensor model parallel with size 1
+> initialized pipeline model parallel with size 1
+> setting random seeds to 1234 ...
+> compiling dataset index builder ...
+make: Entering directory '/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/core/datasets'
+make: Nothing to be done for 'default'.
+make: Leaving directory '/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/core/datasets'
+>>> done with dataset index builder. Compilation time: 0.083 seconds
+WARNING: constraints for invoking optimized fused softmax kernel are not met. We default back to unfused kernel invocations.
+> compiling and loading fused kernels ...
+NCCL version 2.18.6+cuda12.1
+>>> done with compiling and loading fused kernels. Compilation time: 0.899 seconds
+/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/initialize.py:416: UserWarning: nvfuser integration in TorchScript is deprecated. (Triggered internally at /opt/conda/conda-bld/pytorch_1702400412039/work/torch/csrc/jit/codegen/cuda/interface.cpp:235.)
+  output = bias_gelu(bias, input)
+time to initialize megatron (seconds): 2.085
+[after megatron is initialized] datetime: 2025-05-17 16:22:35 
+mpu_info:MPUInfo:
+	dp_size=1
+	tp_size=1
+	pp_size=8
+	mp_size=8
+	world_size=8
+	dp_groups=[[0], [1], [2], [3], [4], [5], [6], [7]]
+	pp_groups=[[0, 1, 2, 3, 4, 5, 6, 7]]
+	tp_groups=[[0], [1], [2], [3], [4], [5], [6], [7]]
+	mp_groups=[[0, 1, 2, 3, 4, 5, 6, 7]]
+	ep_groups=[[0, 7]]
+	pep_groups=[[0]]
+> building train, validation, and test datasets ...
+ > datasets target sizes (minimum size):
+    train:      10
+    validation: 1
+    test:       1
+INFO:megatron.core.datasets.blended_megatron_dataset_config:mock = False
+INFO:megatron.core.datasets.blended_megatron_dataset_config:Let split_matrix = [(0, 0.949), (0.949, 0.999), (0.999, 1.0)]
+> building train, validation, and test datasets for GPT ...
+WARNING:megatron.core.datasets.blended_megatron_dataset_builder:Building dataset splits with cls=GPTDataset, sizes=(10, 1, 1), and config=GPTDatasetConfig(random_seed=1234, sequence_length=1024, blend=(['/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document'], None), blend_per_split=[None, None, None], split='949,50,1', split_matrix=[(0, 0.949), (0.949, 0.999), (0.999, 1.0)], path_to_cache=None, mmap_bin_files=True, mock=False, tokenizer=<megatron.training.tokenizer.tokenizer._GPT2BPETokenizer object at 0x7f4370b07dc0>, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=True)
+INFO:megatron.core.datasets.indexed_dataset:Load the _IndexReader from /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document.idx
+INFO:megatron.core.datasets.indexed_dataset:	Extract the sequence lengths
+INFO:megatron.core.datasets.indexed_dataset:	Extract the sequence pointers
+INFO:megatron.core.datasets.indexed_dataset:	Extract the document indices
+INFO:megatron.core.datasets.indexed_dataset:> total number of sequences: 79000
+INFO:megatron.core.datasets.indexed_dataset:> total number of documents: 79000
+INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset train indices
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 216822
+INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset valid indices
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 11579
+INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset test indices
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 368
+> finished creating GPT datasets ...
+building GPT model ...
+args.is_scaling_mode:True
+use mcore models, use_te = True
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 3933642240
+INFO:megatron.core.distributed.distributed_data_parallel:Setting up DistributedDataParallel with DistributedDataParallelConfig: DistributedDataParallelConfig(grad_reduce_in_fp32=False, overlap_grad_reduce=False, use_distributed_optimizer=False, check_for_nan_in_grad=True, bucket_size=None)
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
+INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3933642240 elements):
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    embedding.word_embeddings.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    embedding.position_embeddings.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
+INFO:megatron.core.optimizer:Setting up optimizer with OptimizerConfig: OptimizerConfig(optimizer='adam', lr=0.00015, min_lr=1e-05, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.01, fp16=False, bf16=False, params_dtype=torch.float32, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.999, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=False, overlap_grad_reduce=False, overlap_param_gather=False, clip_grad=1.0, log_num_zeros_in_grad=False, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x7f4370b07d90>)
+> learning rate decay style: cosine
+rank_id = 0, finish warm up ...
+rank_id = 0, input_tensor_shapes: []
+rank:0,cuda fwd time: 85.8691177368164
+rank:0, fwd_subop num: 1, fwd_subop: ['trace_src_func=_reduce,duration=0.03,timestamp=20060193582.05,input__shape=[1, 1024, 7680],input__dtype=torch.float32,func_name=embedding_fwd,group=tp,comm_func=allreduce']
+rank_id = 0, finish FWD profile ...
+rank:0, bwd_subop num: 0, bwd_subop: []
+rank:0, finish BWD profile ...
+Finish warmup and Optimizer structure is <megatron.core.optimizer.optimizer.FP32Optimizer object at 0x7f435f69de80>
+rank:0,optimizer_step time: 106.28710174560547, total_param_count: 3933642240, total_grad_count: 0
+rank:0, finish optimizer.step profile ...
+rank:0, Before memory release - Allocated: 63018725888, Reserved: 70743228416
+rank:0, trace log has been written to txt...
+rank:0, finish release GPU memory ...
+rank:0, After memory release - Allocated: 31502924800, Reserved: 31704743936
+> building train, validation, and test datasets ...
+ > datasets target sizes (minimum size):
+    train:      10
+    validation: 1
+    test:       1
+INFO:megatron.core.datasets.blended_megatron_dataset_config:mock = False
+INFO:megatron.core.datasets.blended_megatron_dataset_config:Let split_matrix = [(0, 0.949), (0.949, 0.999), (0.999, 1.0)]
+> building train, validation, and test datasets for GPT ...
+WARNING:megatron.core.datasets.blended_megatron_dataset_builder:Building dataset splits with cls=GPTDataset, sizes=(10, 1, 1), and config=GPTDatasetConfig(random_seed=1234, sequence_length=1024, blend=(['/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document'], None), blend_per_split=[None, None, None], split='949,50,1', split_matrix=[(0, 0.949), (0.949, 0.999), (0.999, 1.0)], path_to_cache=None, mmap_bin_files=True, mock=False, tokenizer=<megatron.training.tokenizer.tokenizer._GPT2BPETokenizer object at 0x7f4370b07dc0>, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=True)
+INFO:megatron.core.datasets.indexed_dataset:Load the _IndexReader from /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document.idx
+INFO:megatron.core.datasets.indexed_dataset:	Extract the sequence lengths
+INFO:megatron.core.datasets.indexed_dataset:	Extract the sequence pointers
+INFO:megatron.core.datasets.indexed_dataset:	Extract the document indices
+INFO:megatron.core.datasets.indexed_dataset:> total number of sequences: 79000
+INFO:megatron.core.datasets.indexed_dataset:> total number of documents: 79000
+INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset train indices
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 216822
+INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset valid indices
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 11579
+INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset test indices
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 368
+> finished creating GPT datasets ...
+building GPT model ...
+args.is_scaling_mode:True
+use mcore models, use_te = True
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 1): 3539443200
+INFO:megatron.core.distributed.distributed_data_parallel:Setting up DistributedDataParallel with DistributedDataParallelConfig: DistributedDataParallelConfig(grad_reduce_in_fp32=False, overlap_grad_reduce=False, use_distributed_optimizer=False, check_for_nan_in_grad=True, bucket_size=None)
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
+INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3539443200 elements):
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
+INFO:megatron.core.optimizer:Setting up optimizer with OptimizerConfig: OptimizerConfig(optimizer='adam', lr=0.00015, min_lr=1e-05, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.01, fp16=False, bf16=False, params_dtype=torch.float32, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.999, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=False, overlap_grad_reduce=False, overlap_param_gather=False, clip_grad=1.0, log_num_zeros_in_grad=False, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x7f4370b07d90>)
+> learning rate decay style: cosine
 Traceback (most recent call last):
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
+  File "/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/pretrain_llama.py", line 320, in <module>
     pretrain(train_valid_test_datasets_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
-    initialize_megatron(extra_args_provider=extra_args_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 88, in initialize_megatron
-    finish_mpu_init()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 65, in finish_mpu_init
-    _initialize_distributed()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 294, in _initialize_distributed
-    mpu.initialize_model_parallel(
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/core/parallel_state.py", line 434, in initialize_model_parallel
-    raise RuntimeError(
-RuntimeError: data_parallel_size (1) is not divisible by expert_model_parallel_size 
-Traceback (most recent call last):
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py", line 318, in <module>
-    pretrain(train_valid_test_datasets_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/training.py", line 219, in pretrain
-    initialize_megatron(extra_args_provider=extra_args_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 88, in initialize_megatron
-    finish_mpu_init()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 65, in finish_mpu_init
-    _initialize_distributed()
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/training/initialize.py", line 294, in _initialize_distributed
-    mpu.initialize_model_parallel(
-  File "/research/d1/gds/ytyang/yichengfeng/Megatron-LM/megatron/core/parallel_state.py", line 434, in initialize_model_parallel
-    raise RuntimeError(
-RuntimeError: data_parallel_size (1) is not divisible by expert_model_parallel_size 
-[2025-05-13 16:44:26,310] torch.distributed.elastic.multiprocessing.api: [ERROR] failed (exitcode: 1) local_rank: 0 (pid: 2510806) of binary: /research/d1/gds/ytyang/anaconda3/envs/myenv_yc/bin/python
+  File "/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/training.py", line 349, in pretrain
+    optimizer.step()
+  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/utils/_contextlib.py", line 115, in decorate_context
+    return func(*args, **kwargs)
+  File "/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/core/optimizer/optimizer.py", line 795, in step
+    success = self.step_with_ready_grads()
+  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/utils/_contextlib.py", line 115, in decorate_context
+    return func(*args, **kwargs)
+  File "/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/core/optimizer/optimizer.py", line 759, in step_with_ready_grads
+    self.optimizer.step()
+  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/optim/optimizer.py", line 373, in wrapper
+    out = func(*args, **kwargs)
+  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/apex/optimizers/fused_adam.py", line 175, in step
+    state['exp_avg_sq'] = torch.zeros_like(p.data).float()
+torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 676.00 MiB. GPU 0 has a total capacty of 79.33 GiB of which 348.81 MiB is free. Including non-PyTorch memory, this process has 78.98 GiB memory in use. Of the allocated memory 78.02 GiB is allocated by PyTorch, and 192.56 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
+[2025-05-17 16:22:58,656] torch.distributed.elastic.multiprocessing.api: [ERROR] failed (exitcode: 1) local_rank: 0 (pid: 314019) of binary: /research/d1/gds/ytyang/anaconda3/envs/myenv_yc/bin/python
 Traceback (most recent call last):
   File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/bin/torchrun", line 33, in <module>
     sys.exit(load_entry_point('torch==2.1.2', 'console_scripts', 'torchrun')())
@@ -450,65 +596,17 @@ Traceback (most recent call last):
     raise ChildFailedError(
 torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
 ============================================================
-/research/d1/gds/ytyang/yichengfeng/Megatron-LM/pretrain_llama.py FAILED
+/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/pretrain_llama.py FAILED
 ------------------------------------------------------------
 Failures:
-[1]:
-  time      : 2025-05-13_16:44:26
-  host      : proj186
-  rank      : 1 (local_rank: 1)
-  exitcode  : 1 (pid: 2510807)
-  error_file: <N/A>
-  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
-[2]:
-  time      : 2025-05-13_16:44:26
-  host      : proj186
-  rank      : 2 (local_rank: 2)
-  exitcode  : 1 (pid: 2510808)
-  error_file: <N/A>
-  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
-[3]:
-  time      : 2025-05-13_16:44:26
-  host      : proj186
-  rank      : 3 (local_rank: 3)
-  exitcode  : 1 (pid: 2510809)
-  error_file: <N/A>
-  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
-[4]:
-  time      : 2025-05-13_16:44:26
-  host      : proj186
-  rank      : 4 (local_rank: 4)
-  exitcode  : 1 (pid: 2510810)
-  error_file: <N/A>
-  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
-[5]:
-  time      : 2025-05-13_16:44:26
-  host      : proj186
-  rank      : 5 (local_rank: 5)
-  exitcode  : 1 (pid: 2510811)
-  error_file: <N/A>
-  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
-[6]:
-  time      : 2025-05-13_16:44:26
-  host      : proj186
-  rank      : 6 (local_rank: 6)
-  exitcode  : 1 (pid: 2510812)
-  error_file: <N/A>
-  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
-[7]:
-  time      : 2025-05-13_16:44:26
-  host      : proj186
-  rank      : 7 (local_rank: 7)
-  exitcode  : 1 (pid: 2510813)
-  error_file: <N/A>
-  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+  <NO_OTHER_FAILURES>
 ------------------------------------------------------------
 Root Cause (first observed failure):
 [0]:
-  time      : 2025-05-13_16:44:26
+  time      : 2025-05-17_16:22:58
   host      : proj186
   rank      : 0 (local_rank: 0)
-  exitcode  : 1 (pid: 2510806)
+  exitcode  : 1 (pid: 314019)
   error_file: <N/A>
   traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
 ============================================================

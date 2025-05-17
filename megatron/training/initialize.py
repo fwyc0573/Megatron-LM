@@ -329,10 +329,11 @@ def _set_random_seed(seed_, data_parallel_random_init=False):
     """Set random seed for reproducability."""
     if seed_ is not None and seed_ > 0:
         # Ensure that different pipeline MP stages get different seeds.
-        seed = seed_ + (100 * mpu.get_pipeline_model_parallel_rank())
-        # Ensure different data parallel ranks get different seeds
-        if data_parallel_random_init:
-            seed = seed + (10 * mpu.get_data_parallel_rank())
+        # seed = seed_ + (100 * mpu.get_pipeline_model_parallel_rank())
+        # # Ensure different data parallel ranks get different seeds
+        # if data_parallel_random_init:
+        #     seed = seed + (10 * mpu.get_data_parallel_rank())
+        seed = seed_
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -386,9 +387,15 @@ def _warmup_jit_function():
         dtype = torch.float32
 
     # todo-yc: warmup process would be affected by training parallel setting. fix it.
+    if args.is_scaling_mode:
+        tp_size = args.fake_tp
+    else:
+        tp_size = args.tensor_model_parallel_size
+
+
     # Warmup fused bias+gelu
     bias = torch.rand(
-        args.ffn_hidden_size // args.tensor_model_parallel_size,
+        args.ffn_hidden_size // tp_size,
         dtype=dtype,
         device="cuda",
     )
@@ -396,7 +403,7 @@ def _warmup_jit_function():
         (
             args.seq_length,
             args.micro_batch_size,
-            args.ffn_hidden_size // args.tensor_model_parallel_size,
+            args.ffn_hidden_size // tp_size,
         ),
         dtype=dtype,
         device="cuda",
@@ -411,7 +418,8 @@ def _warmup_jit_function():
 
     # Warmup fused bias+dropout+add
     if args.sequence_parallel:
-        seq_length = args.seq_length // mpu.get_tensor_model_parallel_world_size()
+        # seq_length = args.seq_length // mpu.get_tensor_model_parallel_world_size()
+        seq_length = args.seq_length // tp_size
     else:
         seq_length = args.seq_length
     input = torch.rand(

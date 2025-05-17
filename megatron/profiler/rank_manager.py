@@ -53,6 +53,9 @@ class RankZoo:
                f"tp_groups={self.tp_groups}, mp_groups={self.mp_groups}), " \
                f"ep_groups={self.ep_groups}, pep_groups={self.pep_groups})"
 
+    def _get_dp_groups(self):
+        return self.dp_groups
+
     def _get_dp_group_size(self):
         return len(self.dp_groups)
 
@@ -92,6 +95,10 @@ class RankZoo:
     def _get_dp_local_rank(self):
         """ Get the stage id in the dp group"""
         return self.dp_groups.index(self.world_rank)
+
+    def _get_mp_local_rank(self):
+        """ Get the stage id in the mp group"""
+        return self.mp_groups.index(self.world_rank)
 
     def _convert_pp_world_to_local_rank(self, pp_world_rank):
         if pp_world_rank in self.pp_groups:

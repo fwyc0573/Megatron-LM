@@ -293,6 +293,8 @@ def pretrain(train_valid_test_dataset_provider,
         args.pp_rank = rank_instance._get_pp_local_rank() if rank_instance is not None else None
         args.dp_rank = rank_instance._get_dp_local_rank() if rank_instance is not None else None
         args.tp_rank = rank_instance._get_tp_local_rank() if rank_instance is not None else None
+        args.mp_rank = rank_instance._get_mp_local_rank() if rank_instance is not None else None
+        args.dp_groups= rank_instance._get_dp_groups() if rank_instance is not None else None
         args.is_rank_in_embedding_group = rank_instance.is_rank_in_embedding_group() if rank_instance is not None else None
         args.simu_start = False
         args.stage_operations_trace = {}
@@ -325,7 +327,7 @@ def pretrain(train_valid_test_dataset_provider,
                     train_valid_test_dataset_provider)
         
             # get model and optimizer
-            model, optimizer, opt_param_scheduler = setup_model_and_optimizer(model_provider, model_type)
+            model, optimizer, opt_param_scheduler = setup_model_and_optimizer(model_provider, model_type, args=args)
             config = get_model_config(model[0])
 
             for model_chunk in model:
@@ -564,7 +566,7 @@ def pretrain(train_valid_test_dataset_provider,
     # Model, optimizer, and learning rate.
     timers('model-and-optimizer-setup', log_level=0).start(barrier=True)
     model, optimizer, opt_param_scheduler = setup_model_and_optimizer(
-        model_provider, model_type)
+        model_provider, model_type, args=args)
 
     timers('model-and-optimizer-setup').stop()
     print_datetime('after model, optimizer, and learning rate '
@@ -846,7 +848,8 @@ def setup_model_and_optimizer(model_provider_func,
                               model_type,
                               no_wd_decay_cond=None,
                               scale_lr_cond=None,
-                              lr_mult=1.0):
+                              lr_mult=1.0,
+                              args=None):
     """Setup model and optimizer."""
     args = get_args()
     timers = get_timers()
@@ -861,7 +864,7 @@ def setup_model_and_optimizer(model_provider_func,
     config = OptimizerConfig(**kwargs)
     config.timers = timers
     optimizer = get_megatron_optimizer(config, model, no_wd_decay_cond,
-                                       scale_lr_cond, lr_mult)
+                                       scale_lr_cond, lr_mult, args)
     opt_param_scheduler = get_optimizer_param_scheduler(optimizer)
 
     if args.load is not None or args.pretrained_checkpoint is not None:

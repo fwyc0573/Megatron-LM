@@ -63,6 +63,8 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
 
     def add_extra_config_kwargs():
         # fake args for profile
+        # TODO-YC: Why we need two sets params, i.e., args and config?
+        
         config.is_scaling_mode = args.is_scaling_mode
         config.fake_pp = args.fake_pp
         config.fake_dp = args.fake_dp

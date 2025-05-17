@@ -19,7 +19,7 @@ from .optimizer import (
     MegatronOptimizer,
 )
 from .optimizer_config import OptimizerConfig
-
+from typing import Any
 logger = getLogger(__name__)
 
 
@@ -266,6 +266,7 @@ def get_megatron_optimizer(
     no_weight_decay_cond: Optional[Callable] = None,
     scale_lr_cond: Optional[Callable] = None,
     lr_mult: float = 1.0,
+    args: Optional[Any] = None,
 ) -> MegatronOptimizer:
     """Retrieve the Megatron optimizer for model chunks.
 
@@ -321,7 +322,13 @@ def get_megatron_optimizer(
     # TODO-YC: it matters.
     
     # Create optimizers.
-    model_parallel_rank = torch.distributed.get_rank(mpu.get_model_parallel_group())
+    if args.is_scaling_mode:
+        model_parallel_rank = args.mp_rank
+        dp_group = args.dp_groups
+    else:
+        model_parallel_rank = torch.distributed.get_rank(mpu.get_model_parallel_group())
+        dp_group = mpu.get_data_parallel_group(with_context_parallel=True) # 非distribute情况下不影响？
+
     optimizers = [
         _get_megatron_optimizer_based_on_param_groups(
             config,

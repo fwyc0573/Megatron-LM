@@ -17,6 +17,12 @@ def build_pretraining_data_loader(dataset, consumed_samples):
     if dataset is None:
         return None
     args = get_args()
+    if args.is_scaling_mode:
+        data_parallel_rank = args.dp_rank
+        data_parallel_size = args.fake_dp
+    else:
+        data_parallel_rank = mpu.get_data_parallel_rank()
+        data_parallel_size = mpu.get_data_parallel_world_size()
 
     # Megatron sampler
     # YC: default single
@@ -25,16 +31,16 @@ def build_pretraining_data_loader(dataset, consumed_samples):
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=args.micro_batch_size,
-            data_parallel_rank=mpu.get_data_parallel_rank(),
-            data_parallel_size=mpu.get_data_parallel_world_size())
+            data_parallel_rank=data_parallel_rank,
+            data_parallel_size=data_parallel_size)
     elif args.dataloader_type == 'cyclic':
         batch_sampler = MegatronPretrainingRandomSampler(
             dataset,
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=args.micro_batch_size,
-            data_parallel_rank=mpu.get_data_parallel_rank(),
-            data_parallel_size=mpu.get_data_parallel_world_size(),
+            data_parallel_rank=data_parallel_rank,
+            data_parallel_size=data_parallel_size,
             data_sharding=args.data_sharding)
     elif args.dataloader_type == "external":
         # External dataloaders are passed through. User is expected to provide a
