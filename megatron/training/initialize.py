@@ -92,41 +92,6 @@ def initialize_megatron(
         # Autoresume.
         _init_autoresume()
 
-        # print()
-        # # test rank group info
-        # current_rank = torch.distributed.get_rank()
-        # print(f"current_rank: {current_rank}")
-
-        # pp_rank = mpu.get_pipeline_model_parallel_rank()
-        # print(f"pp_rank: {pp_rank}")
-
-        # pp_global_ranks = mpu._PIPELINE_GLOBAL_RANKS
-        # print(f"pp_global_ranks: {pp_global_ranks}")
-
-        # pp_next_rank = mpu.get_pipeline_model_parallel_next_rank()
-        # print(f"pp_next_rank: {pp_next_rank}")
-
-        # pp_last_rank = mpu.get_pipeline_model_parallel_last_rank()
-        # print(f"pp_last_rank: {pp_last_rank}")
-
-        # tp_rank = mpu.get_tensor_model_parallel_rank()
-        # print(f"tp_rank: {tp_rank}")
-
-        # tp_src_rank = mpu.get_tensor_model_parallel_src_rank()
-        # print(f"tp_src_rank: {tp_src_rank}")
-
-        # tp_global_ranks = mpu._TENSOR_MODEL_PARALLEL_GLOBAL_RANKS
-        # print(f"tp_global_ranks: {tp_global_ranks}")
-
-        # dp_rank = mpu.get_data_parallel_rank()
-        # print(f"dp_rank: {dp_rank}")
-
-        # dp_global_rank = mpu._DATA_PARALLEL_GLOBAL_RANKS
-        # print(f"dp_src_rank: {dp_global_rank}")
-        # print()
-
-        # raise 0
-    
         # Compile dependencies.
         _compile_dependencies()
 

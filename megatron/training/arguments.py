@@ -1695,5 +1695,6 @@ def _add_fake_args(parser):
                        help='The iteration to start tracing.')
     group.add_argument('--fake-tp', type=int, default=0,
                        help='The iteration to start tracing.')
-    
+    group.add_argument('--fake-current-rank-id', type=int, default=0,
+                       help='The iteration to start tracing.')
     return parser

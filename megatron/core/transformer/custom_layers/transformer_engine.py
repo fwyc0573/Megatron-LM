@@ -48,8 +48,41 @@ def _get_extra_fk_kwargs(config: TransformerConfig):
 def condition_init_method(config, init_method):
     return init_method if config.perform_initialization else (lambda w: None)
 
+class TENorm:
+    """
+    A conditional wrapper to initialize an instance of Transformer-Engine's
+    `LayerNorm` or `RMSNorm` based on input
+    """
 
-：
+    # TODO should we ditch normalization config and just use spec to choose LayerNorm vs RMSNorm?
+    def __new__(
+        cls, config: TransformerConfig, hidden_size: int, eps: float = 1e-5,
+    ):
+        if config.normalization == "LayerNorm":
+            instance = te.pytorch.LayerNorm(
+                hidden_size=hidden_size,
+                eps=eps,
+                sequence_parallel=config.sequence_parallel,
+                zero_centered_gamma=config.layernorm_zero_centered_gamma,
+                **_get_extra_te_kwargs(config),
+            )
+        elif config.normalization == "RMSNorm":
+            assert hasattr(
+                te.pytorch, "RMSNorm"
+            ), "Transformer-Engine >= v0.11 required to use this feature"
+            instance = te.pytorch.RMSNorm(
+                hidden_size=hidden_size,
+                eps=eps,
+                sequence_parallel=config.sequence_parallel,
+                zero_centered_gamma=config.layernorm_zero_centered_gamma,
+                **_get_extra_te_kwargs(config),
+            )
+        else:
+            raise Exception('Only LayerNorm and RMSNorm are curently supported')
+
+        return instance
+
+
 class TELinear(te.pytorch.Linear):
     """
     Wrapper for the Transformer-Engine's `Linear` layer.

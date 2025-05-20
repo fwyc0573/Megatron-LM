@@ -303,7 +303,15 @@ def pretrain(train_valid_test_dataset_provider,
             "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
             "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1
         }
+
     if args.is_scaling_mode:
+        if not hasattr(args, 'fake_current_rank_id') or args.fake_current_rank_id is None:
+            print_rank_0("ERROR: In scaling mode, --fake-current-rank-id must be provided via command line.")
+            sys.exit(1)
+        if args.fake_current_rank_id < 0 or args.fake_current_rank_id >= args.fake_world_size:
+            print_rank_0(f"ERROR: fake_current_rank_id {args.fake_current_rank_id} is out of range for fake_world_size {args.fake_world_size}.")
+            sys.exit(1)
+
         from megatron.profiler.rank_manager import RankManager
         from megatron.profiler.parallel_group_manager import MPUInfo, ParallelGroupManager
         manager = ParallelGroupManager(local_size=args.fake_local_rank, world_size=args.fake_world_size, pp_size=args.fake_pp, tp_size=args.fake_tp)
@@ -313,244 +321,252 @@ def pretrain(train_valid_test_dataset_provider,
         rank_instances: dict = rank_manager.get_rank_zoos()
         print(f"mpu_info:{mpu_info}")
 
+        current_fake_rank_id_int = args.fake_current_rank_id
+        if current_fake_rank_id_int not in rank_instances:
+            print_rank_0(f"ERROR: Rank ID {current_fake_rank_id_int} not found in rank_manager. Available: {list(rank_instances.keys())}")
+            sys.exit(1)
+        rank_instance = rank_instances[current_fake_rank_id_int]
+        rank_id = current_fake_rank_id_int
+        print_rank_0(f"===> Megatron-LM Single GPU Simulation: Processing Fake Rank {rank_id} <===")
+
+
         # profile_timer = CUDATimer()
         warm_up_iter = 10 # args.train_iters
         args.iteration=0
         CMD.set_current_profile_sign(True)
         
-        for rank_id, rank_instance in rank_instances.items():
-            add_extra_args_kwargs(rank_instance)
+        # for rank_id, rank_instance in rank_instances.items():
+        add_extra_args_kwargs(rank_instance)
 
-            # 这里占用了大量的内存，但实际上只有tp_rank=0的才涉及next(data_iterator)?
-            args.iteration=0
-            train_data_iterator, _, _= build_train_valid_test_data_iterators(
-                    train_valid_test_dataset_provider)
-        
-            # get model and optimizer
-            model, optimizer, opt_param_scheduler = setup_model_and_optimizer(model_provider, model_type, args=args)
-            config = get_model_config(model[0])
+        # 这里占用了大量的内存，但实际上只有tp_rank=0的才涉及next(data_iterator)?
+        args.iteration=0
+        train_data_iterator, _, _= build_train_valid_test_data_iterators(
+                train_valid_test_dataset_provider)
+    
+        # get model and optimizer
+        model, optimizer, opt_param_scheduler = setup_model_and_optimizer(model_provider, model_type, args=args)
+        config = get_model_config(model[0])
 
-            for model_chunk in model:
-                model_chunk.zero_grad_buffer()
-            optimizer.zero_grad()
+        for model_chunk in model:
+            model_chunk.zero_grad_buffer()
+        optimizer.zero_grad()
 
-            # forward_data_store = []
+        # forward_data_store = []
 
-            # warm up
-            # simu_start为False时，上下文管理器不trace；current_cmd为None时，装饰器不trace；
-            if args.simu_start == False:
-                for _ in range(warm_up_iter):
-                    output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
-                    output_tensor = output_tensor.contiguous()
-                    output_tensor_grad = [torch.randn_like(output_tensor)]
-                    deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
-                    # TODO:确认这儿，装饰器已写了，上下文管理器没有，能否正常追踪？
-                    input_tensor_grad = sim_backward_step(rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config)
-                    optimizer.step()
-                    for model_chunk in model:
-                        model_chunk.zero_grad_buffer()
-                    optimizer.zero_grad()
-                    args.iteration += 1
-
-                # profile_timer只有在warm_up_sign为False才进行测量和记录
-                # profile_timer.warm_up_sign = False
-                args.simu_start = True
-                del output_tensor,input_tensor,output_tensor_grad, input_tensor_grad
-                # forward_data_store.clear()
-                print(f"rank_id = {rank_id}, finish warm up ...")
-                args.iteration = 0
-            
-
-            # TODO: if we finish warmup, why we not clean the param in optimizer for each iter ?(follow training step func()?) 
-
-            # Set grad to zero.
-            for model_chunk in model:
-                model_chunk.zero_grad_buffer()
-            optimizer.zero_grad()
-
-            nvtx.range_push(f"rank:{rank_id}, complete iteration")
-            nvtx.range_push(f"rank:{rank_id}, model_fwd_step")
-      
-            # get_batch / FWD (loss_func:dp_allreudce)
-            output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
-            # TODO: 为解决"counter-productive to free a view of another tensor."，是否有其他计算影响？
-            output_tensor = output_tensor.contiguous()
-            print(f"rank_id = {rank_id}, finish FWD profile ...")
-            
-            nvtx.range_pop()
-
-            # BWD
-            # 生成模拟的 output_tensor_grad(recv grad)
-            output_tensor_grad = [torch.randn_like(output_tensor)]
-            deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
-            # with profile_timer(rank_id, "BWD"):
-
-            cmd = CMD(
-            rank_id=rank_id,
-            mg_state=None,
-            name_cmd="backward_step",
-            use_cuda=True,
-            stage_operations_trace_dict=args.stage_operations_trace,
-            micro_batch_ids_dict=args.simu_micro_batch_ids,
-            stage_id=args.pp_rank,
-            simu_start=args.simu_start,
-            description=None, 
-            trace_start=args.trace_start,
-            current_iter=args.trace_start,
-            args=args
-            )
-            CMD.set_current_cmd(cmd)
-            with cmd:
-                nvtx.range_push(f"rank:{rank_id}, model_bwd_step")
-                start_event = torch.cuda.Event(enable_timing=True)
-                stop_event = torch.cuda.Event(enable_timing=True)
-                start_event.record()
+        # warm up
+        # simu_start为False时，上下文管理器不trace；current_cmd为None时，装饰器不trace；
+        if args.simu_start == False:
+            for _ in range(warm_up_iter):
+                output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
+                output_tensor = output_tensor.contiguous()
+                output_tensor_grad = [torch.randn_like(output_tensor)]
+                deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
+                # TODO:确认这儿，装饰器已写了，上下文管理器没有，能否正常追踪？
                 input_tensor_grad = sim_backward_step(rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config)
-                stop_event.record()
-                torch.cuda.synchronize()
-                duration = start_event.elapsed_time(stop_event)
-                nvtx.range_pop()
-                if args.simu_start == True:
-                    # print(f"rank:{rank_id},bwd time: {duration}")
-                    print(f"rank:{rank_id}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
-                    print(f"rank:{rank_id}, finish BWD profile ...")
+                optimizer.step()
+                for model_chunk in model:
+                    model_chunk.zero_grad_buffer()
+                optimizer.zero_grad()
+                args.iteration += 1
 
-            # dp_allreduce
-            pos_p_t = (args.pp_rank,args.tp_rank)
-            used_dtype = torch.float16 if args.fp16 or args.bf16 else torch.float32
+            # profile_timer只有在warm_up_sign为False才进行测量和记录
+            # profile_timer.warm_up_sign = False
+            args.simu_start = True
+            del output_tensor,input_tensor,output_tensor_grad, input_tensor_grad
+            # forward_data_store.clear()
+            print(f"rank_id = {rank_id}, finish warm up ...")
+            args.iteration = 0
+        
+
+        # TODO: if we finish warmup, why we not clean the param in optimizer for each iter ?(follow training step func()?) 
+
+        # Set grad to zero.
+        for model_chunk in model:
+            model_chunk.zero_grad_buffer()
+        optimizer.zero_grad()
+
+        nvtx.range_push(f"rank:{rank_id}, complete iteration")
+        nvtx.range_push(f"rank:{rank_id}, model_fwd_step")
+    
+        # get_batch / FWD (loss_func:dp_allreudce)
+        output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
+        # TODO: 为解决"counter-productive to free a view of another tensor."，是否有其他计算影响？
+        output_tensor = output_tensor.contiguous()
+        print(f"rank_id = {rank_id}, finish FWD profile ...")
+        
+        nvtx.range_pop()
+
+        # BWD
+        # 生成模拟的 output_tensor_grad(recv grad)
+        output_tensor_grad = [torch.randn_like(output_tensor)]
+        deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
+        # with profile_timer(rank_id, "BWD"):
+
+        cmd = CMD(
+        rank_id=rank_id,
+        mg_state=None,
+        name_cmd="backward_step",
+        use_cuda=True,
+        stage_operations_trace_dict=args.stage_operations_trace,
+        micro_batch_ids_dict=args.simu_micro_batch_ids,
+        stage_id=args.pp_rank,
+        simu_start=args.simu_start,
+        description=None, 
+        trace_start=args.trace_start,
+        current_iter=args.trace_start,
+        args=args
+        )
+        CMD.set_current_cmd(cmd)
+        with cmd:
+            nvtx.range_push(f"rank:{rank_id}, model_bwd_step")
+            start_event = torch.cuda.Event(enable_timing=True)
+            stop_event = torch.cuda.Event(enable_timing=True)
+            start_event.record()
+            input_tensor_grad = sim_backward_step(rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config)
+            stop_event.record()
+            torch.cuda.synchronize()
+            duration = start_event.elapsed_time(stop_event)
+            nvtx.range_pop()
+            if args.simu_start == True:
+                print(f"rank:{rank_id},bwd time: {duration}")
+                print(f"rank:{rank_id}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
+                print(f"rank:{rank_id}, finish BWD profile ...")
+
+        # dp_allreduce
+        pos_p_t = (args.pp_rank,args.tp_rank)
+        used_dtype = torch.float16 if args.fp16 or args.bf16 else torch.float32
+        cmd = CMD(
+        rank_id=rank_id,
+        mg_state=None,
+        name_cmd="dp_allreduce",
+        use_cuda=True,
+        stage_operations_trace_dict=args.stage_operations_trace,
+        micro_batch_ids_dict=args.simu_micro_batch_ids,
+        stage_id=args.pp_rank,
+        simu_start=args.simu_start,
+        description=None, 
+        group_kind="dp",
+        trace_start=args.trace_start,
+        current_iter=args.trace_start,
+        args=args,
+        input__shape=[args.global_model_params_dict[pos_p_t]["elem_sum"]], 
+        input__dtype=used_dtype,
+        )
+        cmd.no_trace_update(0,0)
+
+
+        # ep_allreduce
+        if (args.is_rank_in_embedding_group and args.fake_pp > 1):
+            ep_input__shape = None
+            ep_input__dtype = None
+            if args.is_pre_process:
+                model_module = model[0]
+            elif args.is_post_process:
+                model_module = model[-1]
+            else:  # We do not support the interleaved schedule for T5 yet.
+                model_module = model[0]
+            model_module = get_attr_wrapped_model(model_module, 'pre_process', return_model_obj=True)
+            if model_module.share_embeddings_and_output_weights:
+                weight = model_module.shared_embedding_or_output_weight()
+                grad = weight.main_grad
+                ep_input__shape = grad.shape
+                ep_input__dtype = grad.dtype
+
             cmd = CMD(
             rank_id=rank_id,
             mg_state=None,
-            name_cmd="dp_allreduce",
+            name_cmd="ep_allreduce",
             use_cuda=True,
             stage_operations_trace_dict=args.stage_operations_trace,
             micro_batch_ids_dict=args.simu_micro_batch_ids,
             stage_id=args.pp_rank,
             simu_start=args.simu_start,
-            description=None, 
-            group_kind="dp",
+            description=None,
+            group_kind="ep",
             trace_start=args.trace_start,
             current_iter=args.trace_start,
             args=args,
-            input__shape=[args.global_model_params_dict[pos_p_t]["elem_sum"]], 
-            input__dtype=used_dtype,
+            input__shape=ep_input__shape, 
+            input__dtype=ep_input__dtype,
             )
             cmd.no_trace_update(0,0)
 
 
-            # ep_allreduce
-            if (args.is_rank_in_embedding_group and args.fake_pp > 1):
-                ep_input__shape = None
-                ep_input__dtype = None
-                if args.is_pre_process:
-                    model_module = model[0]
-                elif args.is_post_process:
-                    model_module = model[-1]
-                else:  # We do not support the interleaved schedule for T5 yet.
-                    model_module = model[0]
-                model_module = get_attr_wrapped_model(model_module, 'pre_process', return_model_obj=True)
-                if model_module.share_embeddings_and_output_weights:
-                    weight = model_module.shared_embedding_or_output_weight()
-                    grad = weight.main_grad
-                    ep_input__shape = grad.shape
-                    ep_input__dtype = grad.dtype
+        # optimizer.step()
+        # with profile_timer(rank_id, "OPTIM_STEP"):
+        cmd = CMD(
+        rank_id=rank_id,
+        mg_state=None,
+        name_cmd="optimizer_step",
+        use_cuda=True,
+        stage_operations_trace_dict=args.stage_operations_trace,
+        micro_batch_ids_dict=args.simu_micro_batch_ids,
+        stage_id=args.pp_rank,
+        simu_start=args.simu_start,
+        description=None, 
+        trace_start=args.trace_start,
+        current_iter=args.trace_start,
+        args=args
+        )
+        with cmd:
+            nvtx.range_push(f"rank:{rank_id}, optimizer_step")
+            params = optimizer.get_parameters()  # 获取所有参数
+            total_param_count = sum(param.numel() for param in params)  # 计算参数总量
+            grads_for_norm = optimizer.get_main_grads_for_grad_norm()  # 获取所有梯度
+            total_grad_count = sum(grad.numel() for grad in grads_for_norm)  # 计算梯度总量
 
-                cmd = CMD(
-                rank_id=rank_id,
-                mg_state=None,
-                name_cmd="ep_allreduce",
-                use_cuda=True,
-                stage_operations_trace_dict=args.stage_operations_trace,
-                micro_batch_ids_dict=args.simu_micro_batch_ids,
-                stage_id=args.pp_rank,
-                simu_start=args.simu_start,
-                description=None,
-                group_kind="ep",
-                trace_start=args.trace_start,
-                current_iter=args.trace_start,
-                args=args,
-                input__shape=ep_input__shape, 
-                input__dtype=ep_input__dtype,
-                )
-                cmd.no_trace_update(0,0)
+            start_event = torch.cuda.Event(enable_timing=True)
+            stop_event = torch.cuda.Event(enable_timing=True)
 
+            print(f"Finish warmup and Optimizer structure is {optimizer}")
+            # torch.cuda.synchronize()
+            # optimizer.zero_grad()
+            start_event.record()
 
-            # optimizer.step()
-            # with profile_timer(rank_id, "OPTIM_STEP"):
-            cmd = CMD(
-            rank_id=rank_id,
-            mg_state=None,
-            name_cmd="optimizer_step",
-            use_cuda=True,
-            stage_operations_trace_dict=args.stage_operations_trace,
-            micro_batch_ids_dict=args.simu_micro_batch_ids,
-            stage_id=args.pp_rank,
-            simu_start=args.simu_start,
-            description=None, 
-            trace_start=args.trace_start,
-            current_iter=args.trace_start,
-            args=args
-            )
-            with cmd:
-                nvtx.range_push(f"rank:{rank_id}, optimizer_step")
-                params = optimizer.get_parameters()  # 获取所有参数
-                total_param_count = sum(param.numel() for param in params)  # 计算参数总量
-                grads_for_norm = optimizer.get_main_grads_for_grad_norm()  # 获取所有梯度
-                total_grad_count = sum(grad.numel() for grad in grads_for_norm)  # 计算梯度总量
+            optimizer.step()
 
-                start_event = torch.cuda.Event(enable_timing=True)
-                stop_event = torch.cuda.Event(enable_timing=True)
-
-                print(f"Finish warmup and Optimizer structure is {optimizer}")
-                # torch.cuda.synchronize()
-                # optimizer.zero_grad()
-                start_event.record()
-
-                optimizer.step()
-
-                stop_event.record()
-                torch.cuda.synchronize()
-                duration = start_event.elapsed_time(stop_event)
-                nvtx.range_pop()
-                if args.simu_start == True:
-                    print(f"rank:{rank_id},optimizer_step time: {duration}, total_param_count: {total_param_count}, total_grad_count: {total_grad_count}")
-            print(f"rank:{rank_id}, finish optimizer.step profile ...")
-            del params,total_param_count,grads_for_norm,total_grad_count
-
+            stop_event.record()
+            torch.cuda.synchronize()
+            duration = start_event.elapsed_time(stop_event)
             nvtx.range_pop()
-            # profile_timer.warm_up_sign = True
+            if args.simu_start == True:
+                print(f"rank:{rank_id},optimizer_step time: {duration}, total_param_count: {total_param_count}, total_grad_count: {total_grad_count}")
+        print(f"rank:{rank_id}, finish optimizer.step profile ...")
+        del params,total_param_count,grads_for_norm,total_grad_count
 
-            # release GPU memory
-            allocated_memory_before = torch.cuda.memory_allocated()
-            reserved_memory_before = torch.cuda.memory_reserved()
-            print(f"rank:{rank_id}, Before memory release - Allocated: {allocated_memory_before}, Reserved: {reserved_memory_before}")
-            
-            # name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_numl{args.num_layers}_\
-            #     bs{args.micro_batch_size}_{args.main_tokenizer_type}"
-            
-            name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
-            write_list_to_file(rank_id, args.stage_operations_trace[rank_id], file_path="profiler_log", name_args=name_args)
-            print(f"rank:{rank_id}, trace log has been written to txt...")
+        nvtx.range_pop()
+        # profile_timer.warm_up_sign = True
 
-            del input_tensor
-            del output_tensor
-            del output_tensor_grad
-            del input_tensor_grad
-            # del forward_data_store
-            del config #, reserved_memory_before, allocated_memory_before
-            # del tokens, labels, loss_mask, attention_mask, position_ids
-            del model, optimizer, opt_param_scheduler, train_data_iterator
-            torch.cuda.empty_cache()
-            gc.collect()
-            print(f"rank:{rank_id}, finish release GPU memory ...")
+        # release GPU memory
+        allocated_memory_before = torch.cuda.memory_allocated()
+        reserved_memory_before = torch.cuda.memory_reserved()
+        print(f"rank:{rank_id}, Before memory release - Allocated: {allocated_memory_before}, Reserved: {reserved_memory_before}")
+        
+        # name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_numl{args.num_layers}_\
+        #     bs{args.micro_batch_size}_{args.main_tokenizer_type}"
+        
+        name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
+        write_list_to_file(rank_id, args.stage_operations_trace[rank_id], file_path="profiler_log", name_args=name_args)
+        print(f"rank:{rank_id}, trace log has been written to txt...")
 
-            # 输出释放内存后的GPU内存使用情况
-            allocated_memory_after = torch.cuda.memory_allocated()
-            reserved_memory_after = torch.cuda.memory_reserved()
-            print(f"rank:{rank_id}, After memory release - Allocated: {allocated_memory_after}, Reserved: {reserved_memory_after}")
-            # del allocated_memory_after, reserved_memory_after
+        # del input_tensor
+        # del output_tensor
+        # del output_tensor_grad
+        # del input_tensor_grad
+        # # del forward_data_store
+        # del config #, reserved_memory_before, allocated_memory_before
+        # # del tokens, labels, loss_mask, attention_mask, position_ids
+        # del model, optimizer, opt_param_scheduler, train_data_iterator
+        # torch.cuda.empty_cache()
+        # gc.collect()
+        print(f"rank:{rank_id}, finish release GPU memory ...")
 
-        # profile_timer.cuda_time_output()
+        # 输出释放内存后的GPU内存使用情况
+        allocated_memory_after = torch.cuda.memory_allocated()
+        reserved_memory_after = torch.cuda.memory_reserved()
+        print(f"Rank:{rank_id}, Memory Allocated: {allocated_memory_after}, Reserved: {reserved_memory_after}")
+        # del allocated_memory_after, reserved_memory_after
+
         return
     
     else:

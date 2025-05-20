@@ -63,6 +63,7 @@ def get_input_tensor_shape(
     if model_type == ModelType.encoder_and_decoder:
         decoder_seq_length = decoder_seq_length // parallel_state.get_context_parallel_world_size()
 
+    # TODO:
     if config.sequence_parallel:
         seq_length = seq_length // parallel_state.get_tensor_model_parallel_world_size()
         if model_type == ModelType.encoder_and_decoder:
@@ -85,9 +86,9 @@ def get_input_tensor_shape(
 def get_input_tensor(input_tensor_shapes:list, config):
     input_tensors = []
     for shape in input_tensor_shapes:
-        tensor = torch.rand(shape).to(torch.cuda.current_device()) * 0.2 - 0.1  # 生成-0.1到0.1之间的随机数
-        tensor.requires_grad = True
-        tensor = tensor.to(dtype=config.pipeline_dtype)  # 假设config.pipeline_dtype已经在函数外部定义
+        tensor = (torch.rand(shape, device=torch.cuda.current_device())*0.2-0.1
+                  ).to(dtype=config.pipeline_dtype, non_blocking=True)
+        tensor.requires_grad_(True)
         input_tensors.append(tensor)
     return input_tensors
 
