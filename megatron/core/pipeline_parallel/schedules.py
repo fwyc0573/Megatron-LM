@@ -1198,7 +1198,6 @@ def forward_backward_pipelining_without_interleaving(
         ), "non-pipeline-parallel schedule does not support model chunking"
         data_iterator = data_iterator[0]
 
-    # TODO: 为什么非交错的PP无法overlap p2p comm.
     config = get_model_config(model)
     if config.overlap_p2p_comm:
         raise ValueError(
