@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=7 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=0 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -53,7 +53,7 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * FAKE_DP)) # 使用FAKE_DP计算全局批次大小
 
 # size variables
-# MODEL_SIZE=30 # "tiny" 6.7
+MODEL_SIZE=30 # "tiny" 6.7
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;

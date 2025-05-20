@@ -24,7 +24,7 @@ MASTER_ADDR="localhost" #"localhost"
 
 # Parallelism variables 
 PP=2
-TP=2
+TP=4
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
 BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
@@ -91,7 +91,6 @@ fi
 
 #        --is-scaling-mode \
 SIM_ARGS=" \
-       --is-scaling-mode \
        --fake-world-size $FAKE_WORLD_SIZE \
        --fake-wrank $FAKE_WRANK \
        --fake-gpus-per-node $FAKE_GPUS_PER_NODE \
