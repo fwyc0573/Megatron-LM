@@ -293,6 +293,7 @@ def pretrain(train_valid_test_dataset_provider,
         args.dp_rank = rank_instance._get_dp_local_rank() if rank_instance is not None else None
         args.tp_rank = rank_instance._get_tp_local_rank() if rank_instance is not None else None
         args.mp_rank = rank_instance._get_mp_local_rank() if rank_instance is not None else None
+        args.exp_rank = rank_instance._get_exp_local_rank() if rank_instance is not None else None
         args.dp_groups= rank_instance._get_dp_groups() if rank_instance is not None else None
         args.is_rank_in_embedding_group = rank_instance.is_rank_in_embedding_group() if rank_instance is not None else None
         args.simu_start = False
@@ -319,7 +320,9 @@ def pretrain(train_valid_test_dataset_provider,
         rank_manager = RankManager(args, all_groups)
         rank_instances: dict = rank_manager.get_rank_zoos()
         print(f"mpu_info:{mpu_info}")
-
+        print(f"all_groups:{all_groups}")
+        # raise 0 
+    
         current_fake_rank_id_int = args.fake_current_rank_id
         if current_fake_rank_id_int not in rank_instances:
             print_rank_0(f"ERROR: Rank ID {current_fake_rank_id_int} not found in rank_manager. Available: {list(rank_instances.keys())}")

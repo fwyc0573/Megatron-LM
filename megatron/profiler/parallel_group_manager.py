@@ -1,16 +1,19 @@
 class MPUInfo:
-    def __init__(self, dp_size, tp_size, pp_size, dp_groups, pp_groups, tp_groups, mp_groups, ep_groups, pep_groups):
+    def __init__(self, dp_size, tp_size, pp_size, dp_groups, pp_groups, tp_groups, mp_groups, ep_groups=None, pep_groups=None, exp_groups=None, cp_groups=None, cp_size=1):
         self.dp_size = dp_size
         self.tp_size = tp_size
         self.pp_size = pp_size
-        self.mp_size = pp_size*tp_size
-        self.world_size = self.mp_size*dp_size
+        self.cp_size = cp_size
+        self.mp_size = pp_size * tp_size
+        self.world_size = self.mp_size * dp_size * cp_size
         self.dp_groups = dp_groups
         self.pp_groups = pp_groups
         self.tp_groups = tp_groups
         self.mp_groups = mp_groups
         self.ep_groups = ep_groups
         self.pep_groups = pep_groups
+        self.exp_groups = exp_groups
+        self.cp_groups = cp_groups
 
     def __str__(self):
         return (
@@ -18,6 +21,7 @@ class MPUInfo:
             f"\tdp_size={self.dp_size}\n"
             f"\ttp_size={self.tp_size}\n"
             f"\tpp_size={self.pp_size}\n"
+            f"\tcp_size={self.cp_size}\n"
             f"\tmp_size={self.mp_size}\n"
             f"\tworld_size={self.world_size}\n"
             f"\tdp_groups={self.dp_groups}\n"
@@ -25,259 +29,163 @@ class MPUInfo:
             f"\ttp_groups={self.tp_groups}\n"
             f"\tmp_groups={self.mp_groups}\n"
             f"\tep_groups={self.ep_groups}\n"
-            f"\tpep_groups={self.pep_groups}"
+            f"\tpep_groups={self.pep_groups}\n"
+            f"\texp_groups={self.exp_groups}\n"
+            f"\tcp_groups={self.cp_groups}"
         )
     
     def covert_stage_to_wrank_id(self, stage_id):
-        # 请从遍历pp_groups（由多个sub list组成，每个list代表一个pp group），返回这个group[stage_id]的元素的值(stage_id即是index)
-        pass
+        """Convert pipeline stage ID to world rank ID.
+        
+        Args:
+            stage_id: Stage ID in pipeline parallel group
+            
+        Returns:
+            World rank ID corresponding to the stage ID
+        """
+        for pp_group in self.pp_groups:
+            if stage_id < len(pp_group):
+                return pp_group[stage_id]
+        return None
     
     def covert_wrank_to_stage_id(self, wrank_id):
-        # 请从遍历pp_groups（由多个sub list组成，每个list代表一个pp group），找到wrank_id所在的group
-        pass
+        """Convert world rank ID to pipeline stage ID.
+        
+        Args:
+            wrank_id: World rank ID
+            
+        Returns:
+            Stage ID in pipeline parallel group
+        """
+        for pp_group in self.pp_groups:
+            if wrank_id in pp_group:
+                return pp_group.index(wrank_id)
+        return None
+
 
 class ParallelGroupManager:
-    def __init__(self, local_size, world_size, pp_size, tp_size, dp_size=None):
+    def __init__(self, local_size, world_size, pp_size, tp_size, dp_size=None, cp_size=1, exp_size=1):
+        """Initialize the parallel group manager.
+        
+        Args:
+            local_size: Number of GPUs per node
+            world_size: Total number of GPUs
+            pp_size: Pipeline parallel size
+            tp_size: Tensor parallel size
+            dp_size: Data parallel size (calculated if None)
+            cp_size: Context parallel size (default: 1)
+            exp_size: Expert parallel size (default: 1)
+        """
         self.local_size = local_size
         self.world_size = world_size
         self.pp_size = pp_size
         self.tp_size = tp_size
+        self.cp_size = cp_size if cp_size is not None else 1
+        self.exp_size = exp_size if exp_size is not None else 1
         self.mp_size = pp_size * tp_size
-        self.dp_size = None
+        
+        # Calculate data parallel size if not provided
+        if dp_size is None:
+            self.dp_size = self.world_size // (self.mp_size * self.cp_size)
+        else:
+            self.dp_size = dp_size
+            
+        # Validate configuration
+        expected_world_size = self.dp_size * self.pp_size * self.tp_size * self.cp_size
+        if self.world_size != expected_world_size:
+            raise ValueError(
+                f"Invalid parallel configuration: world_size ({self.world_size}) != "
+                f"dp_size ({self.dp_size}) * pp_size ({self.pp_size}) * tp_size ({self.tp_size}) * "
+                f"cp_size ({self.cp_size})) = {expected_world_size}"
+            )
+            
+        # Initialize groups using sim_parallel_state
+        self._initialize_groups()
 
-        # TODO: 如何决定？
-        self.tp_src_rank = None
-        self.dp_src_rank = None
-
-        self.num_tp_groups: int = world_size // tp_size
-        self.num_pp_groups: int = world_size // pp_size
-        self.num_mp_groups: int = world_size // self.mp_size
-        self.dp_groups = []
-        self.pp_groups = []
-        self.tp_groups = []
-        self.mp_groups = []
-        self.ep_groups = []
-        self.pep_groups = []
-        self._create_groups()
-
+    def _initialize_groups(self):
+        """Initialize all parallel groups using sim_parallel_state."""
+        from megatron.profiler.sim_parallel_state import sim_initialize_model_parallel
+        
+        groups_info = sim_initialize_model_parallel(
+            world_size=self.world_size,
+            tensor_model_parallel_size=self.tp_size,
+            pipeline_model_parallel_size=self.pp_size,
+            context_parallel_size=self.cp_size,
+            expert_model_parallel_size=self.exp_size
+        )
+        
+        # Extract groups from groups_info
+        self.dp_groups = groups_info['data_parallel_global_ranks']
+        self.pp_groups = groups_info['pipeline_global_ranks']
+        self.tp_groups = groups_info['tensor_model_parallel_global_ranks']
+        self.mp_groups = groups_info['model_parallel_group']
+        self.ep_groups = groups_info['embedding_global_ranks']
+        self.pep_groups = groups_info['position_embedding_global_ranks']
+        self.exp_groups = groups_info['expert_model_parallel_group']
+        self.cp_groups = groups_info['context_parallel_global_ranks']
+        
+        # Additional groups that might be useful
+        self.dp_cp_groups = groups_info['data_parallel_global_ranks_with_cp']
+        self.tp_dp_groups = groups_info['tensor_and_data_parallel_group']
+        self.tp_dp_cp_groups = groups_info['tensor_and_data_parallel_group_with_cp']
+        self.tp_exp_groups = groups_info['tensor_and_expert_parallel_group']
+        self.dp_modulo_exp_groups = groups_info['data_modulo_expert_parallel_group']
         
     def get_mpu_info(self):
+        """Get MPU info object containing parallel group information.
+        
+        Returns:
+            MPUInfo object with all parallel group information
+        """
         return MPUInfo(
             dp_size=self.dp_size,
             tp_size=self.tp_size,
             pp_size=self.pp_size,
+            cp_size=self.cp_size,
             dp_groups=self.dp_groups,
             pp_groups=self.pp_groups,
             tp_groups=self.tp_groups,
             mp_groups=self.mp_groups,
             ep_groups=self.ep_groups,
-            pep_groups=self.pep_groups
+            pep_groups=self.pep_groups,
+            exp_groups=self.exp_groups,
+            cp_groups=self.cp_groups
         )
-
-    def _create_groups(self):
-        # 假设 world_size 是 DP、PP 和 TP sizes 的乘积
-        assert self.world_size % self.mp_size == 0, "ParallelGroupManager Error: world_size must be divisible by mp_size."
-        self.dp_size = self.world_size // self.mp_size
-
-        # 生成DP、PP、TP groups
-        self._create_dp_groups()
-        self._create_pp_groups()
-        self._create_tp_groups()
-        self._create_mp_groups()
-        self._create_ep_groups()
-        self._create_pep_groups()
-
-    def _create_dp_groups(self):
-        """
-            # Build the data-parallel groups.
-            for i in range(pipeline_model_parallel_size):
-                start_rank = i * num_pipeline_model_parallel_groups
-                end_rank = (i + 1) * num_pipeline_model_parallel_groups
-                for j in range(context_parallel_size * tensor_model_parallel_size):
-                    ranks = range(
-                        start_rank + j, end_rank, context_parallel_size * tensor_model_parallel_size
-                    )
-                    group = torch.distributed.new_group(
-                        ranks, pg_options=get_nccl_options('dp', nccl_comm_cfgs)
-                    )
-                    group_gloo = torch.distributed.new_group(ranks, backend="gloo")
-                    if rank in ranks:
-                        _DATA_PARALLEL_GROUP = group
-                        _DATA_PARALLEL_GROUP_GLOO = group_gloo
-                        _DATA_PARALLEL_GLOBAL_RANKS = ranks
-                for j in range(tensor_model_parallel_size):
-                    ranks_with_cp = range(start_rank + j, end_rank, tensor_model_parallel_size)
-                    all_data_parallel_group_ranks_with_cp.append(list(ranks_with_cp))
-                    group_with_cp = torch.distributed.new_group(
-                        ranks_with_cp, pg_options=get_nccl_options('dp_cp', nccl_comm_cfgs)
-                    )
-                    group_with_cp_gloo = torch.distributed.new_group(ranks_with_cp, backend="gloo")
-                    if rank in ranks_with_cp:
-                        _DATA_PARALLEL_GROUP_WITH_CP = group_with_cp
-                        _DATA_PARALLEL_GROUP_WITH_CP_GLOO = group_with_cp_gloo
-                        _DATA_PARALLEL_GLOBAL_RANKS_WITH_CP = ranks_with_cp
-        
-        """
-        for i in range(self.pp_size):
-            start_rank = i * self.num_pp_groups
-            end_rank = (i + 1) * self.num_pp_groups
-            for j in range(self.tp_size):
-                ranks = list(range(
-                    start_rank + j, end_rank, self.tp_size
-                ))
-                self.dp_groups.append(ranks)
-
-
-    def _create_pp_groups(self):
-        """
-            # Build the pipeline model-parallel groups and embedding groups
-            # (first and last rank in each pipeline model-parallel group).
-            for i in range(num_pipeline_model_parallel_groups):
-                ranks = range(i, world_size, num_pipeline_model_parallel_groups)
-                group = torch.distributed.new_group(
-                    ranks, pg_options=get_nccl_options('pp', nccl_comm_cfgs)
-                )
-                if rank in ranks:
-                    _PIPELINE_MODEL_PARALLEL_GROUP = group
-                    _PIPELINE_GLOBAL_RANKS = ranks
-        
-        """
-        for i in range(self.num_pp_groups):
-            ranks = list(range(i, self.world_size, self.num_pp_groups))
-            self.pp_groups.append(ranks)
-
-
-    def _create_tp_groups(self):
-        """
-            # Build the tensor model-parallel groups.
-            for i in range(num_tensor_model_parallel_groups):
-                ranks = range(i * tensor_model_parallel_size, (i + 1) * tensor_model_parallel_size)
-                group = torch.distributed.new_group(
-                    ranks, pg_options=get_nccl_options('tp', nccl_comm_cfgs)
-                )
-                if rank in ranks:
-                    _TENSOR_MODEL_PARALLEL_GROUP = group
-        """
-        for i in range(self.num_tp_groups):
-            ranks = list(range(i * self.tp_size, (i + 1) * self.tp_size))
-            self.tp_groups.append(ranks)
-
-    def _create_mp_groups(self):
-        """
-            # Build the model-parallel groups.
-            for i in range(data_parallel_size * context_parallel_size):
-                ranks = [
-                    data_parallel_group_ranks_with_cp[i]
-                    for data_parallel_group_ranks_with_cp in all_data_parallel_group_ranks_with_cp
-                ]
-                group = torch.distributed.new_group(
-                    ranks, pg_options=get_nccl_options('mp', nccl_comm_cfgs)
-                )
-                if rank in ranks:
-                    _MODEL_PARALLEL_GROUP = group
-        """
-        # Note: Currently, we don't support context-paralel.
-        all_data_parallel_group_ranks_with_cp = self.dp_groups[:]
-        for i in range(self.dp_size):
-            ranks = [
-                data_parallel_group_ranks_with_cp[i]
-                for data_parallel_group_ranks_with_cp in all_data_parallel_group_ranks_with_cp
-            ]
-            self.mp_groups.append(ranks)
-
-    def _create_ep_groups(self):
-        """
-        for ranks in rank_generator.get_ranks('pp'):
-            group = torch.distributed.new_group(
-                ranks, timeout=timeout, pg_options=get_nccl_options('pp', nccl_comm_cfgs)
-            )
-            if rank in ranks:
-                _PIPELINE_MODEL_PARALLEL_GROUP = group
-                _PIPELINE_GLOBAL_RANKS = ranks
-            # Setup embedding group (to exchange gradients between
-            # first and last stages).
-            if len(ranks) > 1:
-                embedding_ranks = [ranks[0], ranks[-1]]
-                position_embedding_ranks = [ranks[0]]
-                if pipeline_model_parallel_split_rank is not None:
-                    if ranks[pipeline_model_parallel_split_rank] not in embedding_ranks:
-                        embedding_ranks = [
-                            ranks[0],
-                            ranks[pipeline_model_parallel_split_rank],
-                            ranks[-1],
-                        ]
-                    if ranks[pipeline_model_parallel_split_rank] not in position_embedding_ranks:
-                        position_embedding_ranks = [ranks[0], ranks[pipeline_model_parallel_split_rank]]
-            else:
-                embedding_ranks = ranks
-                position_embedding_ranks = ranks
-        
-            group = torch.distributed.new_group(
-                embedding_ranks, timeout=timeout, pg_options=get_nccl_options('embd', nccl_comm_cfgs)
-            )
-            if rank in embedding_ranks:
-                _EMBEDDING_GROUP = group
-            if rank in ranks:
-                _EMBEDDING_GLOBAL_RANKS = embedding_ranks
-                
-            group = torch.distributed.new_group(
-                position_embedding_ranks,
-                timeout=timeout,
-                pg_options=get_nccl_options('embd', nccl_comm_cfgs),
-            )
-            if rank in position_embedding_ranks:
-                _POSITION_EMBEDDING_GROUP = group
-            if rank in ranks:
-                _POSITION_EMBEDDING_GLOBAL_RANKS = position_embedding_ranks
-        """
-        for ranks in self.pp_groups:
-            if len(ranks) > 1:
-                embedding_ranks = [ranks[0], ranks[-1]]
-                pipeline_model_parallel_split_rank = None  # Replace with actual split rank if applicable
-
-                if pipeline_model_parallel_split_rank is not None:
-                    if ranks[pipeline_model_parallel_split_rank] not in embedding_ranks:
-                        embedding_ranks = [
-                            ranks[0],
-                            ranks[pipeline_model_parallel_split_rank],
-                            ranks[-1],
-                        ]
-            else:
-                embedding_ranks = ranks
-
-            self.ep_groups.append(embedding_ranks)
-
-    def _create_pep_groups(self):
-        for ranks in self.pp_groups:
-            position_embedding_ranks = [ranks[0]]
-            pipeline_model_parallel_split_rank = None  # Replace with actual split rank if applicable
-
-            if pipeline_model_parallel_split_rank is not None:
-                if ranks[pipeline_model_parallel_split_rank] not in position_embedding_ranks:
-                    position_embedding_ranks = [ranks[0], ranks[pipeline_model_parallel_split_rank]]
-
-            self.pep_groups.append(position_embedding_ranks)
-
         
     def get_dp_groups(self):
+        """Get data parallel groups."""
         return self.dp_groups
 
     def get_pp_groups(self):
+        """Get pipeline parallel groups."""
         return self.pp_groups
 
     def get_tp_groups(self):
+        """Get tensor parallel groups."""
         return self.tp_groups
     
     def get_mp_groups(self):
+        """Get model parallel groups."""
         return self.mp_groups
     
     def get_ep_groups(self):
+        """Get embedding parallel groups."""
         return self.ep_groups
     
     def get_pep_groups(self):
+        """Get position embedding parallel groups."""
         return self.pep_groups
+    
+    def get_exp_groups(self):
+        """Get expert model parallel groups."""
+        return self.exp_groups
+    
+    def get_cp_groups(self):
+        """Get context parallel groups."""
+        return self.cp_groups
 
     def get_all_groups(self):
+        """Get all parallel groups as a dictionary."""
         return {
             'pp_groups': self.pp_groups,
             'tp_groups': self.tp_groups,
@@ -285,8 +193,14 @@ class ParallelGroupManager:
             'mp_groups': self.mp_groups,
             'ep_groups': self.ep_groups,
             'pep_groups': self.pep_groups,
+            'exp_groups': self.exp_groups,
+            'cp_groups': self.cp_groups,
+            'dp_cp_groups': self.dp_cp_groups,
+            'tp_dp_groups': self.tp_dp_groups,
+            'tp_dp_cp_groups': self.tp_dp_cp_groups,
+            'tp_exp_groups': self.tp_exp_groups,
+            'dp_modulo_exp_groups': self.dp_modulo_exp_groups,
         }
-    
 
 """
     megatron原来的组织方式如下,rank对应的某个group中的序号,即local_rank

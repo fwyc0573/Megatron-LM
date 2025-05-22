@@ -415,6 +415,7 @@ def initialize_model_parallel(
     assert torch.distributed.is_initialized()
     world_size: int = torch.distributed.get_world_size()
 
+    
     if (
         world_size
         % (tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size)
