@@ -18,6 +18,7 @@ def parse_arguments():
     parser.add_argument("--trace-start", type=int, default=None, help="When to trace")
     return parser.parse_args()
 
+
 def validate_and_calculate_parameters(args):
     # 验证world-size/tp/pp为整数
     assert args.world_size % (args.tensor_model_parallel_size*args.pipeline_model_parallel_size) == 0, \

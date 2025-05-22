@@ -269,7 +269,6 @@ def pretrain(train_valid_test_dataset_provider,
     # TODO-YC: abvoed operations are all called in the first process which mean only call one time in sim. scaling mode (rank0, i.e., the only one gpu device); But... is it a correct method?
 
 
-
     """ iter-rank start, profile submodel of each rank. 
     for wrank in range(args.fake_world_size):
         补充所有参数**scaling_kwargs: first_process, last_process, tp_rank, dp_rank, pp_rank,local_rank
@@ -334,7 +333,7 @@ def pretrain(train_valid_test_dataset_provider,
         warm_up_iter = 10 # args.train_iters
         args.iteration=0
         CMD.set_current_profile_sign(True)
-        
+
         # for rank_id, rank_instance in rank_instances.items():
         add_extra_args_kwargs(rank_instance)
 
