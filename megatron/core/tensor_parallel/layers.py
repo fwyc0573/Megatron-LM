@@ -42,6 +42,7 @@ from .mappings import (
 )
 from .random import get_cuda_rng_tracker, get_expert_parallel_rng_tracker_name
 from .utils import VocabUtility, divide, split_tensor_along_last_dim
+from megatron.profiler import trace_decorator
 
 _grad_accum_fusion_available = True
 try:
