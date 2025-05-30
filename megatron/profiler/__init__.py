@@ -7,6 +7,7 @@ from .v1.profiler_manager import ProfilerManager, profiler
 from .v1.communication_hooks import CommunicationHook, comm_hook  
 from .v1.decorators import trace_operation as trace_decorator
 from .v1.context_tracker import ContextTracker, context_tracker
+from .comm_utils.interception_comm import allreduce_wrapper
 
 # Export main interfaces
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     'comm_hook',          # Global communication hook instance  
     'trace_decorator',    # Decorator for manual tracing
     'context_tracker',   # Pipeline context tracking
+    'allreduce_wrapper', # Interception allreduce wrapper
 ]
 
 def initialize_profiling(rank_id: str, stage_id: int, enabled: bool = True):

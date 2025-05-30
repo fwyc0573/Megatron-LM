@@ -259,11 +259,14 @@ class CMD:
                 CMD.temp_async_records.pop(key, None)
 
     @staticmethod
-    def get_trace_decorator(attrs: Optional[Dict[str, List[str]]] = None, group_type: Optional[str] = None, comm_func: Optional[str] = None):
+    def get_trace_decorator(attrs: Optional[Dict[str, List[str]]] = None, group_type: Optional[str] = None, comm_func: Optional[str] = None, overlap_op: Optional[str] = None):
         """Get a decorator for tracing function calls"""
         def decorator(func):
             def wrapper(*args, **kwargs):
                 # Fix: Correct condition check for async operations
+                # TODO: I think in async comm. op, we should not use sync() which break the oringinal running mode (async and paralell)
+                # 这2类async comm在real running mode的下，直接返回：因为无法记录comm（还会导致并行并发被sync破坏
+                # scaling mode模式下，还是会测量耗时（单纯用于模拟cpu侧？）
                 if (func.__name__ in ["allreduce", "_reduce"]) and kwargs.get('async_op', False) and CMD.get_current_profile_sign() is False:
                     return func(*args, **kwargs)
                 
@@ -309,6 +312,8 @@ class CMD:
                             attr_info['group'] = group_type
                         if comm_func:
                             attr_info['comm_func'] = comm_func
+                        # if overlap_op:
+                        #     attr_info['overlap_op'] = overlap_op
 
                         current_cmd.add_sub_operation(func.__name__, round(duration, 2), attr_info)
                     except Exception as e:
@@ -325,7 +330,7 @@ class CMD:
     def async_start_trace(operation_name: str, var_dict: Dict[str, any], attrs: Dict[str, List[str]], group_type: Optional[str] = None, comm_func: Optional[str] = None):
         """Start tracing an async operation with thread safety and unique keys"""
         
-        # single gpu profile模式下让装饰器控制即可
+        # Only scaling mode will invoke CMD.get_current_profile_sign()=true, i.e, the big async op will not be traced (only real running mode will trace the big async op)
         if CMD.get_current_profile_sign() is True:
             return None
 
@@ -336,6 +341,8 @@ class CMD:
 
         # Clean up expired records periodically
         CMD._cleanup_expired_async_records()
+
+        # raise 0
 
         # Generate unique key to avoid conflicts
         unique_key = f"{operation_name}_{uuid.uuid4().hex[:8]}_{time.time()}"
@@ -358,6 +365,7 @@ class CMD:
             if comm_func:
                 attr_info['comm_func'] = comm_func
         except Exception as e:
+            raise 0
             print(f"Warning: Failed to extract attributes for async {operation_name}: {e}")
 
         # Create timing record
@@ -400,7 +408,7 @@ class CMD:
         if current_cmd is None:
             print("Warning: current_cmd is None, skip async end trace.")
             return 
-        
+        raise 0
         try:
             with async_records_lock:
                 if unique_key in CMD.temp_async_records:

@@ -130,6 +130,7 @@ class GPTModel(LanguageModule):
                 embedding_activation_buffer=self.embedding_activation_buffer,
                 grad_output_buffer=self.grad_output_buffer,
             )
+            # raise RuntimeError("you are in gpt_model init - ColumnParallelLinear")
 
         if self.pre_process or self.post_process:
             self.setup_embeddings_and_output_layer()

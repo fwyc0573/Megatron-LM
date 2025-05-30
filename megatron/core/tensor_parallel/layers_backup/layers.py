@@ -399,54 +399,56 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         nvtx.range_pop()
         return output
 
-    # @staticmethod
-    # @CMD.get_trace_decorator(attrs={'func': ['name'], 'overlap_op': ['name']}, group_type='comp')
-    # def backward_gemm_wrapper(ctx, total_input, grad_output, weight, input, use_bias, wgrad_compute, func, overlap_op):
-    #     func = func
-    #     overlap_op = overlap_op
+    @staticmethod
+    @CMD.get_trace_decorator(attrs={'func': ['name'], 'overlap_op': ['name']}, group_type='comp')
+    def backward_gemm_wrapper(ctx, total_input, grad_output, weight, input, use_bias, wgrad_compute, func, overlap_op):
+        func = func
+        overlap_op = overlap_op
         
-    #     if ctx.gradient_accumulation_fusion:
-    #         if wgrad_compute:
-    #             if weight.main_grad.dtype == torch.float32:
-    #                 fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp32(
-    #                     total_input, grad_output, weight.main_grad
-    #                 )
-    #             elif weight.main_grad.dtype in (torch.float16, torch.bfloat16):
-    #                 fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp16(
-    #                     total_input, grad_output, weight.main_grad
-    #                 )
-    #             else:
-    #                 raise RuntimeError("Unsupported gradient type for gradient accumulation fusion")
+        if ctx.gradient_accumulation_fusion:
+            if wgrad_compute:
+                if weight.main_grad.dtype == torch.float32:
+                    fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp32(
+                        total_input, grad_output, weight.main_grad
+                    )
+                elif weight.main_grad.dtype in (torch.float16, torch.bfloat16):
+                    fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp16(
+                        total_input, grad_output, weight.main_grad
+                    )
+                else:
+                    raise RuntimeError("Unsupported gradient type for gradient accumulation fusion")
 
-    #         if hasattr(weight, 'grad_added_to_main_grad'):
-    #             if getattr(weight, 'zero_out_wgrad', False):
-    #                 grad_weight = torch.zeros(
-    #                     weight.main_grad.shape,
-    #                     dtype=input.dtype,
-    #                     device=torch.cuda.current_device(),
-    #                     requires_grad=False,
-    #                 )
-    #             else:
-    #                 grad_weight = torch.empty(
-    #                     weight.main_grad.shape,
-    #                     dtype=input.dtype,
-    #                     device=torch.cuda.current_device(),
-    #                     requires_grad=False,
-    #                 )
-    #             weight.grad_added_to_main_grad = True
-    #         else:
-    #             grad_weight = None
-    #     else:
-    #         grad_weight = grad_output.t().matmul(total_input)
+            if hasattr(weight, 'grad_added_to_main_grad'):
+                if getattr(weight, 'zero_out_wgrad', False):
+                    grad_weight = torch.zeros(
+                        weight.main_grad.shape,
+                        dtype=input.dtype,
+                        device=torch.cuda.current_device(),
+                        requires_grad=False,
+                    )
+                else:
+                    grad_weight = torch.empty(
+                        weight.main_grad.shape,
+                        dtype=input.dtype,
+                        device=torch.cuda.current_device(),
+                        requires_grad=False,
+                    )
+                weight.grad_added_to_main_grad = True
+            else:
+                grad_weight = None
+        else:
+            grad_weight = grad_output.t().matmul(total_input)
         
-    #     grad_bias = grad_output.sum(dim=0) if use_bias else None
+        grad_bias = grad_output.sum(dim=0) if use_bias else None
         
-    #     return grad_weight, grad_bias
+        return grad_weight, grad_bias
 
 
     @staticmethod
     @custom_bwd
     def backward(ctx, grad_output):
+        # print("you are in columnParallelLinear init....")
+        # raise RuntimeError("you are in columnParallelLinear init")
         nvtx.range_push("linearwithacculationadnasynccomm_bwd")
 
         input, weight = ctx.saved_tensors
@@ -491,14 +493,25 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         # TODO-YC: we should fix :
         # 0. profiling log (how to get the comp. time without affect async comm. op?)
         # 1. the logic in engine (depending comp. and comm.'s running time)
+        
+        if ctx.async_grad_allreduce:
+            # Asynchronous all-reduce
+            # YC: here scaling mode won't record the aync op (only record allreduce op through decorator); however, real running mode record both the aync op and allreduce op.
+            unique_key = CMD.async_start_trace("embedding_bwd_async", {'input_': grad_input, 'func': 'embedding_bwd_async_all'}, {'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allreduce')
 
-        # if ctx.async_grad_allreduce:
-        #     # Asynchronous all-reduce
-        #     # YC: here scaling mode won't record the aync op (only record allreduce op through decorator); however, real running mode record both the aync op and allreduce op.
-        #     unique_key = CMD.async_start_trace("embedding_bwd_async", {'input_': grad_input, 'func': 'embedding_bwd_async_all'}, {'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allreduce')
-
-        _, handle = allreduce_wrapper(grad_input, get_tensor_model_parallel_group(), async_op=False, func='embedding_bwd_allreduce')
-
+            # handle = _reduce(grad_input,func="embedding_bwd_async", async_op=True)
+            # handle = torch.distributed.all_reduce(
+            #     grad_input, group=get_tensor_model_parallel_group(), async_op=True
+            # )
+            # _, handle = allreduce()
+            _, handle = allreduce_wrapper(grad_input, get_tensor_model_parallel_group(), async_op=True, func='embedding_bwd_allreduce', overlap_op='embedding_bwd_async_gemm')
+            # _, handle = allreduce(grad_input, get_tensor_model_parallel_group(), async_op=True, func='embedding_bwd')
+            # raise 0 
+            # handle = torch.distributed.all_reduce(
+            #     grad_input, group=get_tensor_model_parallel_group(), async_op=True
+            # )
+            # Here we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the
+            # all-reduce is scheduled before the weight gradient computation
 
         if ctx.sequence_parallel:
             assert not ctx.async_grad_allreduce
@@ -513,48 +526,48 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
             # Here we rely on CUDA_DEVICE_MAX_CONNECTIONS=1 to ensure that the
             # reduce scatter is scheduled before the weight gradient computation
 
-        if ctx.gradient_accumulation_fusion:
-            if wgrad_compute:
-                if weight.main_grad.dtype == torch.float32:
-                    fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp32(
-                        total_input, grad_output, weight.main_grad
-                    )
-                elif weight.main_grad.dtype in (torch.float16, torch.bfloat16):
-                    fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp16(
-                        total_input, grad_output, weight.main_grad
-                    )
-                else:
-                    raise RuntimeError("Unsupported gradient type for gradient accumulation fusion")
+        # if ctx.gradient_accumulation_fusion:
+        #     if wgrad_compute:
+        #         if weight.main_grad.dtype == torch.float32:
+        #             fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp32(
+        #                 total_input, grad_output, weight.main_grad
+        #             )
+        #         elif weight.main_grad.dtype in (torch.float16, torch.bfloat16):
+        #             fused_weight_gradient_mlp_cuda.wgrad_gemm_accum_fp16(
+        #                 total_input, grad_output, weight.main_grad
+        #             )
+        #         else:
+        #             raise RuntimeError("Unsupported gradient type for gradient accumulation fusion")
 
-            if hasattr(weight, 'grad_added_to_main_grad'):
-                # When overlap_grad_reduce is True, need to ensure that backward hooks
-                # are all run on the main backprop thread to prevent deadlocks. Setup
-                # dummy grad_weight tensor to prevent backward hooks from being run
-                # in a background thread.
-                if getattr(weight, 'zero_out_wgrad', False):
-                    grad_weight = torch.zeros(
-                        weight.main_grad.shape,
-                        dtype=input.dtype,
-                        device=torch.cuda.current_device(),
-                        requires_grad=False,
-                    )
-                else:
-                    grad_weight = torch.empty(
-                        weight.main_grad.shape,
-                        dtype=input.dtype,
-                        device=torch.cuda.current_device(),
-                        requires_grad=False,
-                    )
-                weight.grad_added_to_main_grad = True
-            else:
-                grad_weight = None
-        else:
-            grad_weight = grad_output.t().matmul(total_input)
-        grad_bias = grad_output.sum(dim=0) if use_bias else None
+        #     if hasattr(weight, 'grad_added_to_main_grad'):
+        #         # When overlap_grad_reduce is True, need to ensure that backward hooks
+        #         # are all run on the main backprop thread to prevent deadlocks. Setup
+        #         # dummy grad_weight tensor to prevent backward hooks from being run
+        #         # in a background thread.
+        #         if getattr(weight, 'zero_out_wgrad', False):
+        #             grad_weight = torch.zeros(
+        #                 weight.main_grad.shape,
+        #                 dtype=input.dtype,
+        #                 device=torch.cuda.current_device(),
+        #                 requires_grad=False,
+        #             )
+        #         else:
+        #             grad_weight = torch.empty(
+        #                 weight.main_grad.shape,
+        #                 dtype=input.dtype,
+        #                 device=torch.cuda.current_device(),
+        #                 requires_grad=False,
+        #             )
+        #         weight.grad_added_to_main_grad = True
+        #     else:
+        #         grad_weight = None
+        # else:
+        #     grad_weight = grad_output.t().matmul(total_input)
+        # grad_bias = grad_output.sum(dim=0) if use_bias else None
 
-        # grad_weight, grad_bias = LinearWithGradAccumulationAndAsyncCommunication.backward_gemm_wrapper(
-        #     ctx, total_input, grad_output, weight, input, use_bias, wgrad_compute, func='embedding_bwd_async_gemm', overlap_op='embedding_bwd_allreduce'
-        # )
+        grad_weight, grad_bias = LinearWithGradAccumulationAndAsyncCommunication.backward_gemm_wrapper(
+            ctx, total_input, grad_output, weight, input, use_bias, wgrad_compute, func='embedding_bwd_async_gemm', overlap_op='embedding_bwd_allreduce'
+        )
 
         if ctx.sequence_parallel:
             handle.wait()
@@ -562,10 +575,10 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
             # provided during forward
             return sub_grad_input, grad_weight, grad_bias, None, None, None, None
 
-        # if ctx.async_grad_allreduce:
-        #     if handle is not None:
-        #         handle.wait()
-                # CMD.async_end_trace(unique_key)
+        if ctx.async_grad_allreduce:
+            if handle is not None:
+                handle.wait()
+                CMD.async_end_trace(unique_key)
                 # print(f"unique_key: {unique_key}")
                 # raise 0
 

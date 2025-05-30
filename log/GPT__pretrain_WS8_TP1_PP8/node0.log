@@ -1,4 +1,8 @@
-using world size: 1, data-parallel size: 1, context-parallel size: 1 tensor-model-parallel size: 1, pipeline-model-parallel size: 1 
+[2025-05-29 20:15:36,024] torch.distributed.run: [WARNING] 
+[2025-05-29 20:15:36,024] torch.distributed.run: [WARNING] *****************************************
+[2025-05-29 20:15:36,024] torch.distributed.run: [WARNING] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+[2025-05-29 20:15:36,024] torch.distributed.run: [WARNING] *****************************************
+using world size: 8, data-parallel size: 1, context-parallel size: 1 tensor-model-parallel size: 1, pipeline-model-parallel size: 8 
 WARNING: Setting args.overlap_p2p_comm to False since non-interleaved schedule does not support overlapping p2p communication
 using torch.float32 for parameters ...
 ------------------------ arguments ------------------------
@@ -74,7 +78,7 @@ using torch.float32 for parameters ...
   empty_unused_memory_level ....................... 0
   enable_one_logger ............................... False
   encoder_num_layers .............................. 40
-  encoder_seq_length .............................. 1024
+  encoder_seq_length .............................. 2048
   end_weight_decay ................................ 0.01
   eod_mask_loss ................................... False
   eval_interval ................................... 1000
@@ -85,11 +89,12 @@ using torch.float32 for parameters ...
   exit_on_missing_checkpoint ...................... False
   exit_signal_handler ............................. False
   expert_model_parallel_size ...................... 1
+  fake_current_rank_id ............................ 0
   fake_dp ......................................... 1
   fake_gpus_per_node .............................. 8
   fake_local_rank ................................. 0
-  fake_pp ......................................... 8
-  fake_tp ......................................... 1
+  fake_pp ......................................... 2
+  fake_tp ......................................... 4
   fake_world_size ................................. 8
   fake_wrank ...................................... 0
   ffn_hidden_size ................................. 30720
@@ -120,7 +125,7 @@ using torch.float32 for parameters ...
   init_method_std ................................. 0.02
   init_method_xavier_uniform ...................... False
   initial_loss_scale .............................. 4294967296
-  is_scaling_mode ................................. True
+  is_scaling_mode ................................. False
   iter_per_epoch .................................. 1250
   kv_channels ..................................... 160
   lazy_mpu_init ................................... None
@@ -158,7 +163,7 @@ using torch.float32 for parameters ...
   mask_prob ....................................... 0.15
   mask_type ....................................... random
   masked_softmax_fusion ........................... True
-  max_position_embeddings ......................... 1024
+  max_position_embeddings ......................... 2048
   max_tokens_to_oom ............................... 12000
   merge_file ...................................... /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/gpt2-merges.txt
   micro_batch_size ................................ 1
@@ -183,7 +188,7 @@ using torch.float32 for parameters ...
   no_save_rng ..................................... None
   norm_epsilon .................................... 1e-05
   normalization ................................... LayerNorm
-  nsight_start .................................... 10
+  nsight_start .................................... 20
   num_attention_heads ............................. 48
   num_channels .................................... 3
   num_classes ..................................... 1000
@@ -206,7 +211,7 @@ using torch.float32 for parameters ...
   params_dtype .................................... torch.float32
   patch_dim ....................................... 16
   perform_initialization .......................... True
-  pipeline_model_parallel_size .................... 1
+  pipeline_model_parallel_size .................... 8
   pipeline_model_parallel_split_rank .............. None
   position_embedding_type ......................... learned_absolute
   pretrained_checkpoint ........................... None
@@ -244,7 +249,7 @@ using torch.float32 for parameters ...
   save_interval ................................... 1000
   scatter_gather_tensors_in_pipeline .............. True
   seed ............................................ 1234
-  seq_length ...................................... 1024
+  seq_length ...................................... 2048
   sequence_parallel ............................... False
   sgd_momentum .................................... 0.9
   short_seq_prob .................................. 0.1
@@ -278,12 +283,12 @@ using torch.float32 for parameters ...
   tp_comm_overlap_rs_dgrad ........................ False
   tp_comm_split_ag ................................ True
   tp_comm_split_rs ................................ True
-  trace_start ..................................... 10
+  trace_start ..................................... 20
   train_data_path ................................. None
-  train_iters ..................................... 10
+  train_iters ..................................... 20
   train_samples ................................... None
   transformer_impl ................................ transformer_engine
-  transformer_pipeline_model_parallel_size ........ 1
+  transformer_pipeline_model_parallel_size ........ 8
   untie_embeddings_and_output_weights ............. False
   use_checkpoint_args ............................. False
   use_checkpoint_opt_param_scheduler .............. False
@@ -310,303 +315,1201 @@ using torch.float32 for parameters ...
   wandb_save_dir .................................. 
   weight_decay .................................... 0.01
   weight_decay_incr_style ......................... constant
-  world_size ...................................... 1
+  world_size ...................................... 8
   yaml_cfg ........................................ None
 -------------------- end of arguments ---------------------
 setting number of micro-batches to constant 1
 > building GPT2BPETokenizer tokenizer ...
  > padded vocab (size: 50257) with 47 dummy tokens (new size: 50304)
 > initializing torch distributed ...
-finish init EP group: {0: [0]}
+finish init EP group: {0: [0], 1: [1], 2: [2], 3: [3], 4: [4], 5: [5], 6: [6], 7: [7]}
 > initialized tensor model parallel with size 1
-> initialized pipeline model parallel with size 1
+> initialized pipeline model parallel with size 8
 > setting random seeds to 1234 ...
 > compiling dataset index builder ...
 make: Entering directory '/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/core/datasets'
 make: Nothing to be done for 'default'.
 make: Leaving directory '/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/core/datasets'
->>> done with dataset index builder. Compilation time: 0.083 seconds
+>>> done with dataset index builder. Compilation time: 0.075 seconds
 WARNING: constraints for invoking optimized fused softmax kernel are not met. We default back to unfused kernel invocations.
 > compiling and loading fused kernels ...
+finish init EP group: {0: [0], 1: [1], 2: [2], 3: [3], 4: [4], 5: [5], 6: [6], 7: [7]}
+finish init EP group: {0: [0], 1: [1], 2: [2], 3: [3], 4: [4], 5: [5], 6: [6], 7: [7]}
+finish init EP group: {0: [0], 1: [1], 2: [2], 3: [3], 4: [4], 5: [5], 6: [6], 7: [7]}
+finish init EP group: {0: [0], 1: [1], 2: [2], 3: [3], 4: [4], 5: [5], 6: [6], 7: [7]}
+finish init EP group: {0: [0], 1: [1], 2: [2], 3: [3], 4: [4], 5: [5], 6: [6], 7: [7]}
+finish init EP group: {0: [0], 1: [1], 2: [2], 3: [3], 4: [4], 5: [5], 6: [6], 7: [7]}
 NCCL version 2.18.6+cuda12.1
->>> done with compiling and loading fused kernels. Compilation time: 0.899 seconds
-/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/initialize.py:416: UserWarning: nvfuser integration in TorchScript is deprecated. (Triggered internally at /opt/conda/conda-bld/pytorch_1702400412039/work/torch/csrc/jit/codegen/cuda/interface.cpp:235.)
+finish init EP group: {0: [0], 1: [1], 2: [2], 3: [3], 4: [4], 5: [5], 6: [6], 7: [7]}
+>>> done with compiling and loading fused kernels. Compilation time: 1.905 seconds
+/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/initialize.py:381: UserWarning: nvfuser integration in TorchScript is deprecated. (Triggered internally at /opt/conda/conda-bld/pytorch_1702400412039/work/torch/csrc/jit/codegen/cuda/interface.cpp:235.)
   output = bias_gelu(bias, input)
-time to initialize megatron (seconds): 2.085
-[after megatron is initialized] datetime: 2025-05-17 16:22:35 
-mpu_info:MPUInfo:
-	dp_size=1
-	tp_size=1
-	pp_size=8
-	mp_size=8
-	world_size=8
-	dp_groups=[[0], [1], [2], [3], [4], [5], [6], [7]]
-	pp_groups=[[0, 1, 2, 3, 4, 5, 6, 7]]
-	tp_groups=[[0], [1], [2], [3], [4], [5], [6], [7]]
-	mp_groups=[[0, 1, 2, 3, 4, 5, 6, 7]]
-	ep_groups=[[0, 7]]
-	pep_groups=[[0]]
-> building train, validation, and test datasets ...
- > datasets target sizes (minimum size):
-    train:      10
-    validation: 1
-    test:       1
-INFO:megatron.core.datasets.blended_megatron_dataset_config:mock = False
-INFO:megatron.core.datasets.blended_megatron_dataset_config:Let split_matrix = [(0, 0.949), (0.949, 0.999), (0.999, 1.0)]
-> building train, validation, and test datasets for GPT ...
-WARNING:megatron.core.datasets.blended_megatron_dataset_builder:Building dataset splits with cls=GPTDataset, sizes=(10, 1, 1), and config=GPTDatasetConfig(random_seed=1234, sequence_length=1024, blend=(['/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document'], None), blend_per_split=[None, None, None], split='949,50,1', split_matrix=[(0, 0.949), (0.949, 0.999), (0.999, 1.0)], path_to_cache=None, mmap_bin_files=True, mock=False, tokenizer=<megatron.training.tokenizer.tokenizer._GPT2BPETokenizer object at 0x7f4370b07dc0>, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=True)
-INFO:megatron.core.datasets.indexed_dataset:Load the _IndexReader from /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document.idx
-INFO:megatron.core.datasets.indexed_dataset:	Extract the sequence lengths
-INFO:megatron.core.datasets.indexed_dataset:	Extract the sequence pointers
-INFO:megatron.core.datasets.indexed_dataset:	Extract the document indices
-INFO:megatron.core.datasets.indexed_dataset:> total number of sequences: 79000
-INFO:megatron.core.datasets.indexed_dataset:> total number of documents: 79000
-INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset train indices
-INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-document_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-sample_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-shuffle_index.npy
-INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 216822
-INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset valid indices
-INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-document_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-sample_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-shuffle_index.npy
-INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 11579
-INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset test indices
-INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-document_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-sample_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-shuffle_index.npy
-INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 368
-> finished creating GPT datasets ...
+/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/initialize.py:381: UserWarning: nvfuser integration in TorchScript is deprecated. (Triggered internally at /opt/conda/conda-bld/pytorch_1702400412039/work/torch/csrc/jit/codegen/cuda/interface.cpp:235.)
+  output = bias_gelu(bias, input)
+/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/initialize.py:381: UserWarning: nvfuser integration in TorchScript is deprecated. (Triggered internally at /opt/conda/conda-bld/pytorch_1702400412039/work/torch/csrc/jit/codegen/cuda/interface.cpp:235.)
+  output = bias_gelu(bias, input)
+/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/initialize.py:381: UserWarning: nvfuser integration in TorchScript is deprecated. (Triggered internally at /opt/conda/conda-bld/pytorch_1702400412039/work/torch/csrc/jit/codegen/cuda/interface.cpp:235.)
+  output = bias_gelu(bias, input)
+/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/initialize.py:381: UserWarning: nvfuser integration in TorchScript is deprecated. (Triggered internally at /opt/conda/conda-bld/pytorch_1702400412039/work/torch/csrc/jit/codegen/cuda/interface.cpp:235.)
+  output = bias_gelu(bias, input)
+/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/initialize.py:381: UserWarning: nvfuser integration in TorchScript is deprecated. (Triggered internally at /opt/conda/conda-bld/pytorch_1702400412039/work/torch/csrc/jit/codegen/cuda/interface.cpp:235.)
+  output = bias_gelu(bias, input)
+/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/initialize.py:381: UserWarning: nvfuser integration in TorchScript is deprecated. (Triggered internally at /opt/conda/conda-bld/pytorch_1702400412039/work/torch/csrc/jit/codegen/cuda/interface.cpp:235.)
+  output = bias_gelu(bias, input)
+/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/initialize.py:381: UserWarning: nvfuser integration in TorchScript is deprecated. (Triggered internally at /opt/conda/conda-bld/pytorch_1702400412039/work/torch/csrc/jit/codegen/cuda/interface.cpp:235.)
+  output = bias_gelu(bias, input)
+time to initialize megatron (seconds): 3.198
+[after megatron is initialized] datetime: 2025-05-29 20:16:07 
 building GPT model ...
-args.is_scaling_mode:True
-use mcore models, use_te = True
- > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 3933642240
-INFO:megatron.core.distributed.distributed_data_parallel:Setting up DistributedDataParallel with DistributedDataParallelConfig: DistributedDataParallelConfig(grad_reduce_in_fp32=False, overlap_grad_reduce=False, use_distributed_optimizer=False, check_for_nan_in_grad=True, bucket_size=None)
-INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
-INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3933642240 elements):
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    embedding.word_embeddings.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    embedding.position_embeddings.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
-INFO:megatron.core.optimizer:Setting up optimizer with OptimizerConfig: OptimizerConfig(optimizer='adam', lr=0.00015, min_lr=1e-05, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.01, fp16=False, bf16=False, params_dtype=torch.float32, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.999, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=False, overlap_grad_reduce=False, overlap_param_gather=False, clip_grad=1.0, log_num_zeros_in_grad=False, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x7f4370b07d90>)
-> learning rate decay style: cosine
-rank_id = 0, finish warm up ...
-rank_id = 0, input_tensor_shapes: []
-rank:0,cuda fwd time: 85.8691177368164
-rank:0, fwd_subop num: 1, fwd_subop: ['trace_src_func=_reduce,duration=0.03,timestamp=20060193582.05,input__shape=[1, 1024, 7680],input__dtype=torch.float32,func_name=embedding_fwd,group=tp,comm_func=allreduce']
-rank_id = 0, finish FWD profile ...
-rank:0, bwd_subop num: 0, bwd_subop: []
-rank:0, finish BWD profile ...
-Finish warmup and Optimizer structure is <megatron.core.optimizer.optimizer.FP32Optimizer object at 0x7f435f69de80>
-rank:0,optimizer_step time: 106.28710174560547, total_param_count: 3933642240, total_grad_count: 0
-rank:0, finish optimizer.step profile ...
-rank:0, Before memory release - Allocated: 63018725888, Reserved: 70743228416
-rank:0, trace log has been written to txt...
-rank:0, finish release GPU memory ...
-rank:0, After memory release - Allocated: 31502924800, Reserved: 31704743936
-> building train, validation, and test datasets ...
- > datasets target sizes (minimum size):
-    train:      10
-    validation: 1
-    test:       1
-INFO:megatron.core.datasets.blended_megatron_dataset_config:mock = False
-INFO:megatron.core.datasets.blended_megatron_dataset_config:Let split_matrix = [(0, 0.949), (0.949, 0.999), (0.999, 1.0)]
-> building train, validation, and test datasets for GPT ...
-WARNING:megatron.core.datasets.blended_megatron_dataset_builder:Building dataset splits with cls=GPTDataset, sizes=(10, 1, 1), and config=GPTDatasetConfig(random_seed=1234, sequence_length=1024, blend=(['/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document'], None), blend_per_split=[None, None, None], split='949,50,1', split_matrix=[(0, 0.949), (0.949, 0.999), (0.999, 1.0)], path_to_cache=None, mmap_bin_files=True, mock=False, tokenizer=<megatron.training.tokenizer.tokenizer._GPT2BPETokenizer object at 0x7f4370b07dc0>, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=True)
-INFO:megatron.core.datasets.indexed_dataset:Load the _IndexReader from /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document.idx
-INFO:megatron.core.datasets.indexed_dataset:	Extract the sequence lengths
-INFO:megatron.core.datasets.indexed_dataset:	Extract the sequence pointers
-INFO:megatron.core.datasets.indexed_dataset:	Extract the document indices
-INFO:megatron.core.datasets.indexed_dataset:> total number of sequences: 79000
-INFO:megatron.core.datasets.indexed_dataset:> total number of documents: 79000
-INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset train indices
-INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-document_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-sample_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 271af06468ae5a9b96d168917446e029-GPTDataset-train-shuffle_index.npy
-INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 216822
-INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset valid indices
-INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-document_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-sample_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 302666637b3e172e7e777cdc3f69cfbf-GPTDataset-valid-shuffle_index.npy
-INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 11579
-INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset test indices
-INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-document_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-sample_index.npy
-INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 9587aaea36b035e61d2636e718b2710a-GPTDataset-test-shuffle_index.npy
-INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 368
-> finished creating GPT datasets ...
-building GPT model ...
-args.is_scaling_mode:True
-use mcore models, use_te = True
+args.is_scaling_mode:False
+args.is_scaling_mode:Falseargs.is_scaling_mode:False
+
+args.is_scaling_mode:False
+args.is_scaling_mode:False
+args.is_scaling_mode:False
+args.is_scaling_mode:False
+args.is_scaling_mode:False
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fdd251aacf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f6190cc4cf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f57a8705db0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fe1f20ee8b0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f4f9102acb0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f699379c0f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f5212e7ec30>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fdd251aacf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f6190cc4cf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fe1f20ee8b0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f699379c0f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f57a8705db0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f4f9102acb0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f5212e7ec30>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f57a8705db0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f6190cc4cf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f4f9102acb0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f5212e7ec30>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fdd251aacf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fe1f20ee8b0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f699379c0f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f57a8705db0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f6190cc4cf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fdd251aacf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f4f9102acb0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f5212e7ec30>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fe1f20ee8b0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f699379c0f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fdd251aacf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f57a8705db0>, actual_tp_size: 1actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f6190cc4cf0>, actual_tp_size: 1
+
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fe1f20ee8b0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f699379c0f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f5212e7ec30>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f4f9102acb0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fdd251aacf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f6190cc4cf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f57a8705db0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fe1f20ee8b0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f699379c0f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f4f9102acb0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f5212e7ec30>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fdd251aacf0>, actual_tp_size: 1actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fe1f20ee8b0>, actual_tp_size: 1
+
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f6190cc4cf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f699379c0f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f57a8705db0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f5212e7ec30>, actual_tp_size: 1actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f4f9102acb0>, actual_tp_size: 1
+
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fdd251aacf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f57a8705db0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f5212e7ec30>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fe1f20ee8b0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f6190cc4cf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f4f9102acb0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f699379c0f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fdd251aacf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f5212e7ec30>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f57a8705db0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f6190cc4cf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fe1f20ee8b0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f4f9102acb0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f699379c0f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fdd251aacf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f5212e7ec30>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f6190cc4cf0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fe1f20ee8b0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f57a8705db0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f4f9102acb0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7f699379c0f0>, actual_tp_size: 1
  > number of parameters on (tensor, pipeline) model parallel rank (0, 1): 3539443200
-INFO:megatron.core.distributed.distributed_data_parallel:Setting up DistributedDataParallel with DistributedDataParallelConfig: DistributedDataParallelConfig(grad_reduce_in_fp32=False, overlap_grad_reduce=False, use_distributed_optimizer=False, check_for_nan_in_grad=True, bucket_size=None)
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 2): 3539443200
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 5): 3539443200
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 3): 3539443200
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 4): 3539443200
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 6): 3539443200
 INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
 INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3539443200 elements):
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
 INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
 INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
 INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
 INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
 INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
 INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
-INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
 INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3539443200 elements):
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3539443200 elements):
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3539443200 elements):
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3539443200 elements):
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
 INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
-INFO:megatron.core.optimizer:Setting up optimizer with OptimizerConfig: OptimizerConfig(optimizer='adam', lr=0.00015, min_lr=1e-05, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.01, fp16=False, bf16=False, params_dtype=torch.float32, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.999, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=False, overlap_grad_reduce=False, overlap_param_gather=False, clip_grad=1.0, log_num_zeros_in_grad=False, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x7f4370b07d90>)
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3539443200 elements):
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fd9be8310f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fd9be8310f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fd9be8310f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fd9be8310f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fd9be8310f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fd9be8310f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fd9be8310f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fd9be8310f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fd9be8310f0>, actual_tp_size: 1
+actual_tp_group: <torch.distributed.distributed_c10d.ProcessGroup object at 0x7fd9be8310f0>, actual_tp_size: 1
+use mcore models, use_te = True
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 7): 3925793280
+ > number of parameters on (tensor, pipeline) model parallel rank (0, 0): 3941506560
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
+INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3925793280 elements):
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.final_layernorm.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    output_layer.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.final_layernorm.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.distributed_data_parallel:Setting up DistributedDataParallel with DistributedDataParallelConfig: DistributedDataParallelConfig(grad_reduce_in_fp32=False, overlap_grad_reduce=False, use_distributed_optimizer=False, check_for_nan_in_grad=True, bucket_size=None)
+INFO:megatron.core.distributed.param_and_grad_buffer:Number of buckets for gradient all-reduce / reduce-scatter: 1
+INFO:megatron.core.distributed.param_and_grad_buffer:Params for bucket 1 (3941506560 elements):
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_qkv.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    embedding.position_embeddings.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.layer_norm_bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.self_attention.linear_proj.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc1.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.self_attention.linear_qkv.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.4.self_attention.linear_proj.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.3.self_attention.linear_qkv.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.2.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.1.mlp.linear_fc2.bias
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    decoder.layers.0.mlp.linear_fc1.layer_norm_weight
+INFO:megatron.core.distributed.param_and_grad_buffer:    embedding.word_embeddings.weight
+INFO:megatron.core.optimizer:Setting up optimizer with OptimizerConfig: OptimizerConfig(optimizer='adam', lr=0.00015, min_lr=1e-05, decoupled_lr=None, decoupled_min_lr=None, weight_decay=0.01, fp16=False, bf16=False, params_dtype=torch.float32, loss_scale=None, initial_loss_scale=4294967296, min_loss_scale=1.0, loss_scale_window=1000, hysteresis=2, adam_beta1=0.9, adam_beta2=0.999, adam_eps=1e-08, sgd_momentum=0.9, use_distributed_optimizer=False, overlap_grad_reduce=False, overlap_param_gather=False, clip_grad=1.0, log_num_zeros_in_grad=False, barrier_with_L1_time=True, timers=<megatron.core.timers.Timers object at 0x7fd9bf167100>)
 > learning rate decay style: cosine
-Traceback (most recent call last):
-  File "/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/pretrain_llama.py", line 320, in <module>
-    pretrain(train_valid_test_datasets_provider,
-  File "/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/training/training.py", line 349, in pretrain
-    optimizer.step()
-  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/utils/_contextlib.py", line 115, in decorate_context
-    return func(*args, **kwargs)
-  File "/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/core/optimizer/optimizer.py", line 795, in step
-    success = self.step_with_ready_grads()
-  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/utils/_contextlib.py", line 115, in decorate_context
-    return func(*args, **kwargs)
-  File "/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron/core/optimizer/optimizer.py", line 759, in step_with_ready_grads
-    self.optimizer.step()
-  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/optim/optimizer.py", line 373, in wrapper
-    out = func(*args, **kwargs)
-  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/apex/optimizers/fused_adam.py", line 175, in step
-    state['exp_avg_sq'] = torch.zeros_like(p.data).float()
-torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 676.00 MiB. GPU 0 has a total capacty of 79.33 GiB of which 348.81 MiB is free. Including non-PyTorch memory, this process has 78.98 GiB memory in use. Of the allocated memory 78.02 GiB is allocated by PyTorch, and 192.56 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
-[2025-05-17 16:22:58,656] torch.distributed.elastic.multiprocessing.api: [ERROR] failed (exitcode: 1) local_rank: 0 (pid: 314019) of binary: /research/d1/gds/ytyang/anaconda3/envs/myenv_yc/bin/python
-Traceback (most recent call last):
-  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/bin/torchrun", line 33, in <module>
-    sys.exit(load_entry_point('torch==2.1.2', 'console_scripts', 'torchrun')())
-  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 346, in wrapper
-    return f(*args, **kwargs)
-  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/distributed/run.py", line 806, in main
-    run(args)
-  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/distributed/run.py", line 797, in run
-    elastic_launch(
-  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/distributed/launcher/api.py", line 134, in __call__
-    return launch_agent(self._config, self._entrypoint, list(args))
-  File "/research/d1/gds/ytyang/anaconda3/envs/myenv_yc/lib/python3.9/site-packages/torch/distributed/launcher/api.py", line 264, in launch_agent
-    raise ChildFailedError(
-torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
-============================================================
-/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/pretrain_llama.py FAILED
-------------------------------------------------------------
-Failures:
-  <NO_OTHER_FAILURES>
-------------------------------------------------------------
-Root Cause (first observed failure):
-[0]:
-  time      : 2025-05-17_16:22:58
-  host      : proj186
-  rank      : 0 (local_rank: 0)
-  exitcode  : 1 (pid: 314019)
-  error_file: <N/A>
-  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
-============================================================
+[after model, optimizer, and learning rate scheduler are built] datetime: 2025-05-29 20:16:08 
+> building train, validation, and test datasets ...
+ > datasets target sizes (minimum size):
+    train:      20
+    validation: 1
+    test:       1
+INFO:megatron.core.datasets.blended_megatron_dataset_config:mock = False
+INFO:megatron.core.datasets.blended_megatron_dataset_config:Let split_matrix = [(0, 0.949), (0.949, 0.999), (0.999, 1.0)]
+> building train, validation, and test datasets for GPT ...
+WARNING:megatron.core.datasets.blended_megatron_dataset_builder:Building dataset splits with cls=GPTDataset, sizes=(20, 1, 1), and config=GPTDatasetConfig(random_seed=1234, sequence_length=2048, blend=(['/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document'], None), blend_per_split=[None, None, None], split='949,50,1', split_matrix=[(0, 0.949), (0.949, 0.999), (0.999, 1.0)], path_to_cache=None, mmap_bin_files=True, mock=False, tokenizer=<megatron.training.tokenizer.tokenizer._GPT2BPETokenizer object at 0x7fd9bf15afd0>, reset_position_ids=False, reset_attention_mask=False, eod_mask_loss=False, create_attention_mask=True)
+INFO:megatron.core.datasets.indexed_dataset:Load the _IndexReader from /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/data/output_prefix_gpt2/my-gpt2_text_document.idx
+INFO:megatron.core.datasets.indexed_dataset:	Extract the sequence lengths
+INFO:megatron.core.datasets.indexed_dataset:	Extract the sequence pointers
+INFO:megatron.core.datasets.indexed_dataset:	Extract the document indices
+INFO:megatron.core.datasets.indexed_dataset:> total number of sequences: 79000
+INFO:megatron.core.datasets.indexed_dataset:> total number of documents: 79000
+INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset train indices
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from e6bd7719b2d54a63635c264ad16bfe0f-GPTDataset-train-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from e6bd7719b2d54a63635c264ad16bfe0f-GPTDataset-train-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from e6bd7719b2d54a63635c264ad16bfe0f-GPTDataset-train-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 108411
+INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset valid indices
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from 55febb202a9d1d18f7ceccbb3baa67ba-GPTDataset-valid-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from 55febb202a9d1d18f7ceccbb3baa67ba-GPTDataset-valid-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from 55febb202a9d1d18f7ceccbb3baa67ba-GPTDataset-valid-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 5789
+INFO:megatron.core.datasets.gpt_dataset:Load the GPTDataset test indices
+INFO:megatron.core.datasets.gpt_dataset:	Load the document index from a48ab3b92c5354df00433b85257b5620-GPTDataset-test-document_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the sample index from a48ab3b92c5354df00433b85257b5620-GPTDataset-test-sample_index.npy
+INFO:megatron.core.datasets.gpt_dataset:	Load the shuffle index from a48ab3b92c5354df00433b85257b5620-GPTDataset-test-shuffle_index.npy
+INFO:megatron.core.datasets.gpt_dataset:> total number of samples: 184
+> finished creating GPT datasets ...
+[after dataloaders are built] datetime: 2025-05-29 20:16:08 
+done with setup ...
+(min, max) time across ranks (ms):
+    model-and-optimizer-setup ......................: (195.14, 381.83)
+    train/valid/test-data-iterators-setup ..........: (103.78, 267.93)
+training ...
+[before the start of training step] datetime: 2025-05-29 20:16:08 
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+NCCL version 2.18.6+cuda12.1
+[W ProcessGroupNCCL.cpp:1856] Warning: 0NCCL_AVOID_RECORD_STREAMS=1 has no effect for point-to-point collectives. (function operator())
+NCCL version 2.18.6+cuda12.1
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 153.37779235839844
+rank_id: 6, sum(1f1b+optim) time: 15107.296737670898
+NCCL version 2.18.6+cuda12.1
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 142.89305114746094
+rank_id: 5, sum(1f1b+optim) time: 16310.015121459961
+NCCL version 2.18.6+cuda12.1
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 170.01370239257812
+rank_id: 4, sum(1f1b+optim) time: 17323.306671142578
+NCCL version 2.18.6+cuda12.1
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 186.5779266357422
+rank_id: 3, sum(1f1b+optim) time: 18346.382614135742
+NCCL version 2.18.6+cuda12.1
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 148.63973999023438
+rank_id: 2, sum(1f1b+optim) time: 19377.811614990234
+NCCL version 2.18.6+cuda12.1
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 162.7729949951172
+rank_id: 1, sum(1f1b+optim) time: 20399.021041870117
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 141.12562561035156
+rank_id: 7, sum(1f1b+optim) time: 21509.17250061035
+rank_id: 0, optim_step time: 159.5852813720703
+rank_id: 0, sum(1f1b+optim) time: 21526.97981262207
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.99590301513672
+rank_id: 6, sum(1f1b+optim) time: 2873.9175338745117
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.90271759033203
+rank_id: 5, sum(1f1b+optim) time: 3294.740364074707
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.9969253540039
+rank_id: 4, sum(1f1b+optim) time: 3725.458351135254
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.96825408935547
+rank_id: 3, sum(1f1b+optim) time: 4153.4247970581055
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.9293441772461
+rank_id: 2, sum(1f1b+optim) time: 4623.994773864746
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.88326263427734
+rank_id: 1, sum(1f1b+optim) time: 5087.733848571777
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.16480255126953
+rank_id: 7, sum(1f1b+optim) time: 5565.6765213012695
+rank_id: 0, optim_step time: 108.75289916992188
+rank_id: 0, sum(1f1b+optim) time: 5568.288543701172
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.98566436767578
+rank_id: 6, sum(1f1b+optim) time: 2931.901435852051
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.98873901367188
+rank_id: 5, sum(1f1b+optim) time: 3393.915985107422
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.7655029296875
+rank_id: 4, sum(1f1b+optim) time: 3855.4327392578125
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.80032348632812
+rank_id: 3, sum(1f1b+optim) time: 4278.623077392578
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.88019561767578
+rank_id: 2, sum(1f1b+optim) time: 4726.186836242676
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.97030639648438
+rank_id: 1, sum(1f1b+optim) time: 5182.886810302734
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.5252456665039
+rank_id: 7, sum(1f1b+optim) time: 5660.055519104004
+rank_id: 0, optim_step time: 108.86962890625
+rank_id: 0, sum(1f1b+optim) time: 5662.50927734375
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.96415710449219
+rank_id: 6, sum(1f1b+optim) time: 2899.278854370117
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.9815673828125
+rank_id: 5, sum(1f1b+optim) time: 3318.6510009765625
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.783935546875
+rank_id: 4, sum(1f1b+optim) time: 3753.671630859375
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 96.21708679199219
+rank_id: 3, sum(1f1b+optim) time: 4196.519821166992
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 96.09830474853516
+rank_id: 2, sum(1f1b+optim) time: 4658.048011779785
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.89350128173828
+rank_id: 1, sum(1f1b+optim) time: 5103.186958312988
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.36345672607422
+rank_id: 7, sum(1f1b+optim) time: 5580.322929382324
+rank_id: 0, optim_step time: 108.82150268554688
+rank_id: 0, sum(1f1b+optim) time: 5582.853240966797
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.94982147216797
+rank_id: 6, sum(1f1b+optim) time: 2876.729362487793
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.78291320800781
+rank_id: 5, sum(1f1b+optim) time: 3316.223098754883
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.70918273925781
+rank_id: 4, sum(1f1b+optim) time: 3779.023880004883
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.9815673828125
+rank_id: 3, sum(1f1b+optim) time: 4218.5543212890625
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 96.13209533691406
+rank_id: 2, sum(1f1b+optim) time: 4656.666763305664
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.92012786865234
+rank_id: 1, sum(1f1b+optim) time: 5130.741905212402
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.9399642944336
+rank_id: 7, sum(1f1b+optim) time: 5607.747581481934
+rank_id: 0, optim_step time: 109.39289855957031
+rank_id: 0, sum(1f1b+optim) time: 5610.17756652832
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 96.04198455810547
+rank_id: 6, sum(1f1b+optim) time: 2804.3879318237305
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.7675552368164
+rank_id: 5, sum(1f1b+optim) time: 3227.5558853149414
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.81568145751953
+rank_id: 4, sum(1f1b+optim) time: 3677.3908767700195
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 96.06553649902344
+rank_id: 3, sum(1f1b+optim) time: 4129.297470092773
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.88531494140625
+rank_id: 2, sum(1f1b+optim) time: 4575.842346191406
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.8730239868164
+rank_id: 1, sum(1f1b+optim) time: 5018.770484924316
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.16377258300781
+rank_id: 7, sum(1f1b+optim) time: 5495.819046020508
+rank_id: 0, optim_step time: 108.79385375976562
+rank_id: 0, sum(1f1b+optim) time: 5498.410064697266
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 96.22732543945312
+rank_id: 6, sum(1f1b+optim) time: 2894.346221923828
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.8730239868164
+rank_id: 5, sum(1f1b+optim) time: 3320.8801040649414
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.70201873779297
+rank_id: 4, sum(1f1b+optim) time: 3795.375114440918
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.94572448730469
+rank_id: 3, sum(1f1b+optim) time: 4222.465255737305
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.66310119628906
+rank_id: 2, sum(1f1b+optim) time: 4681.001968383789
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.75730895996094
+rank_id: 1, sum(1f1b+optim) time: 5128.228012084961
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.10745239257812
+rank_id: 7, sum(1f1b+optim) time: 5604.243682861328
+rank_id: 0, optim_step time: 108.86246490478516
+rank_id: 0, sum(1f1b+optim) time: 5606.945960998535
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.99897766113281
+rank_id: 6, sum(1f1b+optim) time: 2802.467727661133
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.7685775756836
+rank_id: 5, sum(1f1b+optim) time: 3269.7815170288086
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.89043426513672
+rank_id: 4, sum(1f1b+optim) time: 3713.3589401245117
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.89759826660156
+rank_id: 3, sum(1f1b+optim) time: 4143.053848266602
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 96.03788757324219
+rank_id: 2, sum(1f1b+optim) time: 4572.819625854492
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.96211242675781
+rank_id: 1, sum(1f1b+optim) time: 4987.931838989258
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.40850830078125
+rank_id: 7, sum(1f1b+optim) time: 5464.633117675781
+rank_id: 0, optim_step time: 108.79692840576172
+rank_id: 0, sum(1f1b+optim) time: 5467.001029968262
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.90476989746094
+rank_id: 6, sum(1f1b+optim) time: 2785.790023803711
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.92115020751953
+rank_id: 5, sum(1f1b+optim) time: 3256.3046951293945
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.86176300048828
+rank_id: 4, sum(1f1b+optim) time: 3695.7697219848633
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.92422485351562
+rank_id: 3, sum(1f1b+optim) time: 4117.257232666016
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.85664367675781
+rank_id: 2, sum(1f1b+optim) time: 4561.096878051758
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.79212951660156
+rank_id: 1, sum(1f1b+optim) time: 5023.340469360352
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.21804809570312
+rank_id: 7, sum(1f1b+optim) time: 5499.045684814453
+rank_id: 0, optim_step time: 108.79283142089844
+rank_id: 0, sum(1f1b+optim) time: 5501.606796264648
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.88633728027344
+rank_id: 6, sum(1f1b+optim) time: 2854.3282318115234
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.63545227050781
+rank_id: 5, sum(1f1b+optim) time: 3277.003860473633
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.91910552978516
+rank_id: 4, sum(1f1b+optim) time: 3741.959144592285
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.99282836914062
+rank_id: 3, sum(1f1b+optim) time: 4178.777008056641
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.88224029541016
+rank_id: 2, sum(1f1b+optim) time: 4627.61759185791
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.78495788574219
+rank_id: 1, sum(1f1b+optim) time: 5082.063766479492
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.09004974365234
+rank_id: 7, sum(1f1b+optim) time: 5559.217979431152
+rank_id: 0, optim_step time: 108.93619537353516
+rank_id: 0, sum(1f1b+optim) time: 5562.047523498535
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.8361587524414
+rank_id: 6, sum(1f1b+optim) time: 2842.6576919555664
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.61804962158203
+rank_id: 5, sum(1f1b+optim) time: 3305.188362121582
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.68768310546875
+rank_id: 4, sum(1f1b+optim) time: 3722.4652709960938
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.93856048583984
+rank_id: 3, sum(1f1b+optim) time: 4169.98201751709
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.79417419433594
+rank_id: 2, sum(1f1b+optim) time: 4627.113021850586
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.84537506103516
+rank_id: 1, sum(1f1b+optim) time: 5063.936195373535
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.1678695678711
+rank_id: 7, sum(1f1b+optim) time: 5539.871971130371
+rank_id: 0, optim_step time: 108.94233703613281
+rank_id: 0, sum(1f1b+optim) time: 5542.600540161133
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.91295623779297
+rank_id: 6, sum(1f1b+optim) time: 2892.172233581543
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.75218963623047
+rank_id: 5, sum(1f1b+optim) time: 3320.5861740112305
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.81362915039062
+rank_id: 4, sum(1f1b+optim) time: 3858.9122619628906
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.80646514892578
+rank_id: 3, sum(1f1b+optim) time: 4283.798652648926
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.87506866455078
+rank_id: 2, sum(1f1b+optim) time: 4730.263740539551
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.75833892822266
+rank_id: 1, sum(1f1b+optim) time: 5162.773475646973
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.40850830078125
+rank_id: 7, sum(1f1b+optim) time: 5638.773742675781
+rank_id: 0, optim_step time: 108.66687774658203
+rank_id: 0, sum(1f1b+optim) time: 5640.941780090332
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 96.10649871826172
+rank_id: 6, sum(1f1b+optim) time: 2835.1887741088867
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.710205078125
+rank_id: 5, sum(1f1b+optim) time: 3261.210693359375
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.6016616821289
+rank_id: 4, sum(1f1b+optim) time: 3690.361915588379
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.857666015625
+rank_id: 3, sum(1f1b+optim) time: 4172.093505859375
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.83513641357422
+rank_id: 2, sum(1f1b+optim) time: 4627.216484069824
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.81568145751953
+rank_id: 1, sum(1f1b+optim) time: 5070.8337478637695
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.19449615478516
+rank_id: 7, sum(1f1b+optim) time: 5550.888832092285
+rank_id: 0, optim_step time: 108.96588897705078
+rank_id: 0, sum(1f1b+optim) time: 5553.739814758301
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.94572448730469
+rank_id: 6, sum(1f1b+optim) time: 2811.9991912841797
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.77677154541016
+rank_id: 5, sum(1f1b+optim) time: 3224.728675842285
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 96.02047729492188
+rank_id: 4, sum(1f1b+optim) time: 3699.559539794922
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.90476989746094
+rank_id: 3, sum(1f1b+optim) time: 4142.919662475586
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 96.68402862548828
+rank_id: 2, sum(1f1b+optim) time: 4570.374946594238
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.9447021484375
+rank_id: 1, sum(1f1b+optim) time: 5005.8548583984375
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.07469177246094
+rank_id: 7, sum(1f1b+optim) time: 5482.286117553711
+rank_id: 0, optim_step time: 108.62284851074219
+rank_id: 0, sum(1f1b+optim) time: 5484.755172729492
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.9283218383789
+rank_id: 6, sum(1f1b+optim) time: 2832.421974182129
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.54841613769531
+rank_id: 5, sum(1f1b+optim) time: 3278.8848419189453
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.7655029296875
+rank_id: 4, sum(1f1b+optim) time: 3724.7764892578125
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.99385833740234
+rank_id: 3, sum(1f1b+optim) time: 4141.069297790527
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.97747039794922
+rank_id: 2, sum(1f1b+optim) time: 4590.890068054199
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.79110717773438
+rank_id: 1, sum(1f1b+optim) time: 5026.253021240234
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.32454681396484
+rank_id: 7, sum(1f1b+optim) time: 5501.875328063965
+rank_id: 0, optim_step time: 108.77849578857422
+rank_id: 0, sum(1f1b+optim) time: 5504.271171569824
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.93753814697266
+rank_id: 6, sum(1f1b+optim) time: 2845.3950576782227
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.7317123413086
+rank_id: 5, sum(1f1b+optim) time: 3298.3418197631836
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.81465911865234
+rank_id: 4, sum(1f1b+optim) time: 3743.9159774780273
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.81465911865234
+rank_id: 3, sum(1f1b+optim) time: 4178.284629821777
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 96.142333984375
+rank_id: 2, sum(1f1b+optim) time: 4650.069091796875
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.97542572021484
+rank_id: 1, sum(1f1b+optim) time: 5119.171714782715
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.21190643310547
+rank_id: 7, sum(1f1b+optim) time: 5594.3496017456055
+rank_id: 0, optim_step time: 108.90342712402344
+rank_id: 0, sum(1f1b+optim) time: 5597.094833374023
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 96.2375717163086
+rank_id: 6, sum(1f1b+optim) time: 2913.8689193725586
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.89350128173828
+rank_id: 5, sum(1f1b+optim) time: 3343.8800735473633
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.86688232421875
+rank_id: 4, sum(1f1b+optim) time: 3826.7648315429688
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.83103942871094
+rank_id: 3, sum(1f1b+optim) time: 4247.712875366211
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 96.02867126464844
+rank_id: 2, sum(1f1b+optim) time: 4700.758163452148
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.75424194335938
+rank_id: 1, sum(1f1b+optim) time: 5122.733245849609
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.16275024414062
+rank_id: 7, sum(1f1b+optim) time: 5599.354644775391
+rank_id: 0, optim_step time: 108.78975677490234
+rank_id: 0, sum(1f1b+optim) time: 5601.865928649902
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.99897766113281
+rank_id: 6, sum(1f1b+optim) time: 2901.591018676758
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.72557067871094
+rank_id: 5, sum(1f1b+optim) time: 3341.490219116211
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.67334747314453
+rank_id: 4, sum(1f1b+optim) time: 3787.1135330200195
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.86073303222656
+rank_id: 3, sum(1f1b+optim) time: 4205.563858032227
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.94163513183594
+rank_id: 2, sum(1f1b+optim) time: 4660.618392944336
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.8023681640625
+rank_id: 1, sum(1f1b+optim) time: 5083.6676025390625
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.12588500976562
+rank_id: 7, sum(1f1b+optim) time: 5559.455963134766
+rank_id: 0, optim_step time: 108.64128112792969
+rank_id: 0, sum(1f1b+optim) time: 5561.86833190918
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.84742736816406
+rank_id: 6, sum(1f1b+optim) time: 2817.054702758789
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 96.19353485107422
+rank_id: 5, sum(1f1b+optim) time: 3245.986747741699
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 96.29798126220703
+rank_id: 4, sum(1f1b+optim) time: 3684.995002746582
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.75628662109375
+rank_id: 3, sum(1f1b+optim) time: 4108.000183105469
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.84639739990234
+rank_id: 2, sum(1f1b+optim) time: 4565.132041931152
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 96.06553649902344
+rank_id: 1, sum(1f1b+optim) time: 5016.292587280273
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 105.13817596435547
+rank_id: 7, sum(1f1b+optim) time: 5491.2123947143555
+rank_id: 0, optim_step time: 108.86962890625
+rank_id: 0, sum(1f1b+optim) time: 5493.9208984375
+Optimizer type: FP32Optimizer
+rank_id: 6, optim_step time: 95.89453125
+rank_id: 6, sum(1f1b+optim) time: 2861.054931640625
+rank:6, trace log has been written to txt...
+Optimizer type: FP32Optimizer
+rank_id: 5, optim_step time: 95.7122573852539
+rank_id: 5, sum(1f1b+optim) time: 3291.017189025879
+rank:5, trace log has been written to txt...
+Optimizer type: FP32Optimizer
+rank_id: 4, optim_step time: 95.62931060791016
+rank_id: 4, sum(1f1b+optim) time: 3739.09610748291
+rank:4, trace log has been written to txt...
+Optimizer type: FP32Optimizer
+rank_id: 3, optim_step time: 95.88531494140625
+rank_id: 3, sum(1f1b+optim) time: 4170.885070800781
+rank:3, trace log has been written to txt...
+Optimizer type: FP32Optimizer
+rank_id: 2, optim_step time: 95.75321960449219
+rank_id: 2, sum(1f1b+optim) time: 4604.801071166992
+rank:2, trace log has been written to txt...
+Optimizer type: FP32Optimizer
+rank_id: 1, optim_step time: 95.72966766357422
+rank_id: 1, sum(1f1b+optim) time: 5034.161308288574
+rank:1, trace log has been written to txt...
+Optimizer type: FP32Optimizer
+Optimizer type: FP32Optimizer
+rank_id: 7, optim_step time: 104.90879821777344
+rank_id: 7, sum(1f1b+optim) time: 5512.213485717773
+rank_id: 0, optim_step time: 108.77030181884766
+rank_id: 0, sum(1f1b+optim) time: 5514.442665100098
+rank:7, trace log has been written to txt...
+rank:0, trace log has been written to txt...
+[after training is done] datetime: 2025-05-29 20:18:15 

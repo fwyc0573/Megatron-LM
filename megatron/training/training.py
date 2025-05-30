@@ -43,6 +43,7 @@ from megatron.core import parallel_state
 from megatron.profiler.cmd import CMD, write_list_to_file
 import torch.cuda.nvtx as nvtx
 import torch.distributed as dist
+from megatron.profiler import profiler, comm_hook, initialize_profiling, install_hooks, uninstall_hooks
 
 from .utils import (
     calc_params_l2_norm,
@@ -335,6 +336,7 @@ def pretrain(train_valid_test_dataset_provider,
         # profile_timer = CUDATimer()
         warm_up_iter = 10 # args.train_iters
         args.iteration=0
+        # YC: this sign control async profile mode. however, do we need it this?
         CMD.set_current_profile_sign(True)
 
         # for rank_id, rank_instance in rank_instances.items():
@@ -628,13 +630,14 @@ def pretrain(train_valid_test_dataset_provider,
 
         iteration = 0
         if args.do_train and args.train_iters > 0:
+
             iteration, num_floating_point_operations_so_far = train(
                 forward_step_func,
                 model, optimizer, opt_param_scheduler,
                 train_data_iterator, valid_data_iterator,
                 process_non_loss_data_func, config)
-
         print_datetime('after training is done')
+
     else:
         print_rank_0('skipping training (--skip-train is on) ...')
         iteration = args.iteration
@@ -1488,11 +1491,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                 gc.collect()
         nvtx.range_pop()
 
-    # 将cmd写入txt
-    # torch.cuda.synchronize()
-    # dist.barrier()
     if args.do_trace:
-        # 请帮助我完善该部分name_args，该name_args用于命名log文件
         # name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_{args.main_tokenizer_type}"
         # args.micro_batch_size args.main_tokenizer_type
         name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"

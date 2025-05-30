@@ -328,6 +328,7 @@ class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
                 self.set_tensor_parallel_group(None) 
             # If actual_tp_size == 1 (and actual_tp_group is None), the super().__init__()
             # would have already called set_tensor_parallel_group(None).
+        # raise RuntimeError("you are in TELayerNormColumnParallelLinear init")
 
 
     def forward(self, x):

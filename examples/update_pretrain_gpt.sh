@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=0 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=1 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -30,8 +30,8 @@ DP=$((${GPU_NUM}/${TP}/${PP}))
 BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
 
 # 模拟的并行度设置
-FAKE_PP=2
-FAKE_TP=4
+FAKE_PP=8
+FAKE_TP=1
 FAKE_WORLD_SIZE=8
 FAKE_DP=$((${FAKE_WORLD_SIZE}/${FAKE_PP}/${FAKE_TP}))
 if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
@@ -53,7 +53,7 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * FAKE_DP)) # 使用FAKE_DP计算全局批次大小
 
 # size variables
-MODEL_SIZE=30 # "tiny" 6.7
+# MODEL_SIZE="tiny" # "tiny" 6.7
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;

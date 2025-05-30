@@ -23,8 +23,8 @@ MASTER_ADDR="localhost" #"localhost"
 
 
 # Parallelism variables 
-PP=2
-TP=4
+PP=8
+TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
 BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
@@ -55,7 +55,7 @@ fi
 
 DO_TRACE=True
 # TRACE控制参数
-TRAIN_ITERS=10
+TRAIN_ITERS=20
 TRACE_ITER_NUM=1 # trace_iter_num的范围<=train_iters-1（除去第一次）
 TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
@@ -193,7 +193,7 @@ OUTPUT_ARGS="
 # export HF_HOME="/research/d1/gds/ytyang/yichengfeng/.hf_saved_menu"
 # export PYTHONPATH="${PYTHONPATH}:/data/ytyang/yichengfeng/DeepSpeed/Megatron-DeepSpeed/megatron"
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-# nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas  --force-overwrite=true  -x true -o optimzer_find_test \
+# nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas  --force-overwrite=true  -x true -o optimzer_find_test—_tp2pp4 \
 torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/pretrain_llama.py \
     $GPT_ARGS \
     $DATA_ARGS \
