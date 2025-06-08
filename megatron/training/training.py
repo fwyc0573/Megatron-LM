@@ -226,11 +226,8 @@ def pretrain(train_valid_test_dataset_provider,
     # YC: seed set
     set_seed(args.seed)
 
-
     # 设定模拟开始为false
     args.simu_start = False
-    # args.simu_micro_batch_ids = {"recv_forward":-1, "forward_step":-1, "send_forward":-1, "recv_backward":-1,
-    #                               "backward_step":-1, "send_backward":-1, "tp_load_batch_broadcast":-1, "dp_allreduce":-1, "tp_allreduce":-1}
 
     # todo-yc: maybe the value of vars here are equal to '0'? check it.
     args.simu_stage_id = parallel_state.get_pipeline_model_parallel_rank()
@@ -266,10 +263,6 @@ def pretrain(train_valid_test_dataset_provider,
             'train_iterations_warmup': 5
         })
 
-
-    # TODO-YC: abvoed operations are all called in the first process which mean only call one time in sim. scaling mode (rank0, i.e., the only one gpu device); But... is it a correct method?
-
-
     """ iter-rank start, profile submodel of each rank. 
     for wrank in range(args.fake_world_size):
         补充所有参数**scaling_kwargs: first_process, last_process, tp_rank, dp_rank, pp_rank,local_rank
@@ -287,7 +280,10 @@ def pretrain(train_valid_test_dataset_provider,
         # sim_loss_func,
         # get_input_tensor_shape,
         # get_input_tensor,
-    def add_extra_args_kwargs(rank_instance=None):
+    def add_extra_args_kwargs(rank_instance=None, is_scaling_mode=False):
+        if is_scaling_mode:
+            assert rank_instance is not None, "rank_instance is None"
+
         args.is_pre_process = rank_instance.is_pre_process() if rank_instance is not None else None
         args.is_post_process = rank_instance.is_post_process() if rank_instance is not None else None
         args.pp_rank = rank_instance._get_pp_local_rank() if rank_instance is not None else None
@@ -332,17 +328,15 @@ def pretrain(train_valid_test_dataset_provider,
         rank_id = current_fake_rank_id_int
         print_rank_0(f"===> Megatron-LM Single GPU Simulation: Processing Fake Rank {rank_id} <===")
 
-
-        # profile_timer = CUDATimer()
         warm_up_iter = 10 # args.train_iters
         args.iteration=0
-        # YC: this sign control async profile mode. however, do we need it this?
+
+        # open profile mode
         CMD.set_current_profile_sign(True)
 
-        # for rank_id, rank_instance in rank_instances.items():
-        add_extra_args_kwargs(rank_instance)
+        add_extra_args_kwargs(rank_instance, args.is_scaling_mode)
 
-        # 这里占用了大量的内存，但实际上只有tp_rank=0的才涉及next(data_iterator)?
+        # TODO-YC: why the mock-data cannot work in scaling-mode?
         args.iteration=0
         train_data_iterator, _, _= build_train_valid_test_data_iterators(
                 train_valid_test_dataset_provider)
@@ -355,36 +349,34 @@ def pretrain(train_valid_test_dataset_provider,
             model_chunk.zero_grad_buffer()
         optimizer.zero_grad()
 
-        # forward_data_store = []
-
         # warm up
-        # simu_start为False时，上下文管理器不trace；current_cmd为None时，装饰器不trace；
+        # simu_start为False时，上下文管理器不trace; current_cmd 为None时，装饰器不trace
         if args.simu_start == False:
             for _ in range(warm_up_iter):
+                # forward_step_func()
                 output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
                 output_tensor = output_tensor.contiguous()
                 output_tensor_grad = [torch.randn_like(output_tensor)]
                 deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
-                # TODO:确认这儿，装饰器已写了，上下文管理器没有，能否正常追踪？
+
+                # backward_step_func()
                 input_tensor_grad = sim_backward_step(rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config)
+
+                # optimizer.step()
                 optimizer.step()
+
                 for model_chunk in model:
                     model_chunk.zero_grad_buffer()
                 optimizer.zero_grad()
                 args.iteration += 1
 
-            # profile_timer只有在warm_up_sign为False才进行测量和记录
-            # profile_timer.warm_up_sign = False
+            # clean up warmup
             args.simu_start = True
             del output_tensor,input_tensor,output_tensor_grad, input_tensor_grad
-            # forward_data_store.clear()
             print(f"rank_id = {rank_id}, finish warm up ...")
             args.iteration = 0
         
-
-        # TODO: if we finish warmup, why we not clean the param in optimizer for each iter ?(follow training step func()?) 
-
-        # Set grad to zero.
+        # preapare for profiling: set grad to zero
         for model_chunk in model:
             model_chunk.zero_grad_buffer()
         optimizer.zero_grad()
@@ -392,19 +384,18 @@ def pretrain(train_valid_test_dataset_provider,
         nvtx.range_push(f"rank:{rank_id}, complete iteration")
         nvtx.range_push(f"rank:{rank_id}, model_fwd_step")
     
+        # forward_step_func()
         # get_batch / FWD (loss_func:dp_allreudce)
         output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
-        # TODO: 为解决"counter-productive to free a view of another tensor."，是否有其他计算影响？
         output_tensor = output_tensor.contiguous()
         print(f"rank_id = {rank_id}, finish FWD profile ...")
         
         nvtx.range_pop()
 
-        # BWD
+        # backward_step_func()
         # 生成模拟的 output_tensor_grad(recv grad)
         output_tensor_grad = [torch.randn_like(output_tensor)]
         deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
-        # with profile_timer(rank_id, "BWD"):
 
         cmd = CMD(
         rank_id=rank_id,
@@ -415,7 +406,7 @@ def pretrain(train_valid_test_dataset_provider,
         micro_batch_ids_dict=args.simu_micro_batch_ids,
         stage_id=args.pp_rank,
         simu_start=args.simu_start,
-        description=None, 
+        description="simulation", 
         trace_start=args.trace_start,
         current_iter=args.trace_start,
         args=args
@@ -448,7 +439,7 @@ def pretrain(train_valid_test_dataset_provider,
         micro_batch_ids_dict=args.simu_micro_batch_ids,
         stage_id=args.pp_rank,
         simu_start=args.simu_start,
-        description=None, 
+        description="simulation", 
         group_kind="dp",
         trace_start=args.trace_start,
         current_iter=args.trace_start,
@@ -457,7 +448,6 @@ def pretrain(train_valid_test_dataset_provider,
         input__dtype=used_dtype,
         )
         cmd.no_trace_update(0,0)
-
 
         # ep_allreduce
         if (args.is_rank_in_embedding_group and args.fake_pp > 1):
@@ -485,7 +475,7 @@ def pretrain(train_valid_test_dataset_provider,
             micro_batch_ids_dict=args.simu_micro_batch_ids,
             stage_id=args.pp_rank,
             simu_start=args.simu_start,
-            description=None,
+            description="simulation",
             group_kind="ep",
             trace_start=args.trace_start,
             current_iter=args.trace_start,
@@ -495,9 +485,6 @@ def pretrain(train_valid_test_dataset_provider,
             )
             cmd.no_trace_update(0,0)
 
-
-        # optimizer.step()
-        # with profile_timer(rank_id, "OPTIM_STEP"):
         cmd = CMD(
         rank_id=rank_id,
         mg_state=None,
@@ -507,7 +494,7 @@ def pretrain(train_valid_test_dataset_provider,
         micro_batch_ids_dict=args.simu_micro_batch_ids,
         stage_id=args.pp_rank,
         simu_start=args.simu_start,
-        description=None, 
+        description="simulation", 
         trace_start=args.trace_start,
         current_iter=args.trace_start,
         args=args
@@ -518,66 +505,41 @@ def pretrain(train_valid_test_dataset_provider,
             total_param_count = sum(param.numel() for param in params)  # 计算参数总量
             grads_for_norm = optimizer.get_main_grads_for_grad_norm()  # 获取所有梯度
             total_grad_count = sum(grad.numel() for grad in grads_for_norm)  # 计算梯度总量
-
             start_event = torch.cuda.Event(enable_timing=True)
             stop_event = torch.cuda.Event(enable_timing=True)
-
             print(f"Finish warmup and Optimizer structure is {optimizer}")
-            # torch.cuda.synchronize()
-            # optimizer.zero_grad()
+
             start_event.record()
-
             optimizer.step()
-
             stop_event.record()
             torch.cuda.synchronize()
             duration = start_event.elapsed_time(stop_event)
             nvtx.range_pop()
+
             if args.simu_start == True:
                 print(f"rank:{rank_id},optimizer_step time: {duration}, total_param_count: {total_param_count}, total_grad_count: {total_grad_count}")
         print(f"rank:{rank_id}, finish optimizer.step profile ...")
         del params,total_param_count,grads_for_norm,total_grad_count
 
         nvtx.range_pop()
-        # profile_timer.warm_up_sign = True
 
         # release GPU memory
         allocated_memory_before = torch.cuda.memory_allocated()
         reserved_memory_before = torch.cuda.memory_reserved()
         print(f"rank:{rank_id}, Before memory release - Allocated: {allocated_memory_before}, Reserved: {reserved_memory_before}")
         
-        # name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_numl{args.num_layers}_\
-        #     bs{args.micro_batch_size}_{args.main_tokenizer_type}"
-        
-        name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
+        name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_exp{args.fake_exp}_expNum{args.fake_num_experts}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
         write_list_to_file(rank_id, args.stage_operations_trace[rank_id], file_path="profiler_log", name_args=name_args)
         print(f"rank:{rank_id}, trace log has been written to txt...")
-
-        # del input_tensor
-        # del output_tensor
-        # del output_tensor_grad
-        # del input_tensor_grad
-        # # del forward_data_store
-        # del config #, reserved_memory_before, allocated_memory_before
-        # # del tokens, labels, loss_mask, attention_mask, position_ids
-        # del model, optimizer, opt_param_scheduler, train_data_iterator
-        # torch.cuda.empty_cache()
-        # gc.collect()
         print(f"rank:{rank_id}, finish release GPU memory ...")
 
         # 输出释放内存后的GPU内存使用情况
         allocated_memory_after = torch.cuda.memory_allocated()
         reserved_memory_after = torch.cuda.memory_reserved()
         print(f"Rank:{rank_id}, Memory Allocated: {allocated_memory_after}, Reserved: {reserved_memory_after}")
-        # del allocated_memory_after, reserved_memory_after
-
         return
     
     else:
-        # 用于初始化参数
-        # todo-yc: a little bit of confusing here. real running mode also call this function? why? what's the difference? rank instance seems the key point here
-        # for real running mode ranks here, it finish the init definition? but why we need None value?
-        # but for sim-scaling mode, it seems that sequentially get the parallel rank index in loop
         add_extra_args_kwargs()
 
     # ------------- up to here, the process get ranks' parallel index = None? (e.g., pp/tp/dp local rank index) ---------------
@@ -618,7 +580,6 @@ def pretrain(train_valid_test_dataset_provider,
     print_rank_0('done with setup ...')
     timers.log(['model-and-optimizer-setup',
                 'train/valid/test-data-iterators-setup'], barrier=True)
-
 
     if not args.skip_train:
         print_rank_0('training ...')
@@ -1494,7 +1455,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     if args.do_trace:
         # name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_{args.main_tokenizer_type}"
         # args.micro_batch_size args.main_tokenizer_type
-        name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
+        name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_exp{args.expert_model_parallel_size}_expNum{args.num_experts}_l{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
         write_list_to_file(args.simu_rank, args.stage_operations_trace[args.simu_rank], name_args=name_args)
         print(f"rank:{args.simu_rank}, trace log has been written to txt...")
     # track_e2e_metrics()

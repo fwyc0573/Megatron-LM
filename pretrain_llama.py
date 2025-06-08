@@ -4,7 +4,7 @@
 import os
 import torch
 from functools import partial
-from typing import Union
+from typing import Union, Dict
 from megatron.training import get_args
 from megatron.training import print_rank_0
 from megatron.training import get_timers
@@ -63,36 +63,61 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
 
     def add_extra_config_kwargs():
         # fake args for profile
-        # TODO-YC: Why we need two sets params, i.e., args and config?
-        
-        config.is_scaling_mode = args.is_scaling_mode
         config.fake_pp = args.fake_pp
         config.fake_dp = args.fake_dp
         config.fake_tp = args.fake_tp
+        config.fake_exp = args.fake_exp
+        config.fake_world_size = args.fake_world_size
+        config.fake_num_experts = args.fake_num_experts
+
+        # TODO-YC: all fake args? what about in real runing mode? I think they should be same, because ranks in both 2 mode are presented the same meaning.
         config.is_pre_process = args.is_pre_process
         config.is_post_process = args.is_post_process
         config.pp_rank = args.pp_rank
         config.dp_rank = args.dp_rank
         config.tp_rank = args.tp_rank
+        config.exp_rank = args.exp_rank
         config.is_rank_in_embedding_group = args.is_rank_in_embedding_group
-        # 原有参数的修改只能发生在is_scaling_mode下
+
+        config.is_scaling_mode = args.is_scaling_mode
+
+        # only scaling mode
         if config.is_scaling_mode:
             config.pipeline_model_parallel_size = args.fake_pp
             config.tensor_model_parallel_size = args.fake_tp
+            config.expert_model_parallel_size = args.fake_exp
+            config.num_moe_experts = args.fake_num_experts
+            config.current_fake_rank_id = args.fake_current_rank_id
 
-    # if config.is_scaling_mode:
+        if config.expert_model_parallel_size > 1:
+            # get global routing table
+            config.routing_hidden_states_shape = (args.seq_length/args.fake_tp, args.micro_batch_size, args.hidden_size)
+
+            # get each ep rank's routing results (scores and indices)
+            # we transfer scores and indices tensor from GPU to CPU
+            # for real running mode, we use sim_routing to control its token distribution;
+            # for scaling mode, we further use sim_routing to sim comm. process to share token info among all ep ranks.
+            from megatron.profiler.moe.sim_pre_moe import set_pre_distribution_moe
+            set_pre_distribution_moe(config=config)
+
+
     add_extra_config_kwargs()
+
+    if args.is_scaling_mode:
+        num_experts = args.fake_num_experts
+    else:
+        num_experts = args.num_experts
 
     if args.use_mcore_models:
         if args.spec is not None:
             transformer_layer_spec = import_module(args.spec)
         else:
             if use_te:
-                transformer_layer_spec = get_gpt_layer_with_transformer_engine_spec(args.num_experts, args.moe_grouped_gemm)
+                transformer_layer_spec = get_gpt_layer_with_transformer_engine_spec(num_experts, args.moe_grouped_gemm)
             else:
-                transformer_layer_spec = get_gpt_layer_local_spec(args.num_experts, args.moe_grouped_gemm)
+                transformer_layer_spec = get_gpt_layer_local_spec(num_experts, args.moe_grouped_gemm)
 
-        # Note:pre_process和post_process在传入参数时已经根据MODE修正
+        # Note: pre_process和post_process在传入参数时已经根据MODE修正
         model = GPTModel(
             config=config,
             transformer_layer_spec=transformer_layer_spec,

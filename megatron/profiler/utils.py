@@ -387,7 +387,7 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
             micro_batch_ids_dict=args.simu_micro_batch_ids,
             stage_id=args.pp_rank,
             simu_start=args.simu_start,
-            description=None, 
+            description="simulation", 
             group_kind="tp",
             trace_start=args.trace_start,
             current_iter=args.trace_start,
@@ -441,7 +441,7 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
     micro_batch_ids_dict=args.simu_micro_batch_ids,
     stage_id=args.pp_rank,
     simu_start=args.simu_start,
-    description=None, 
+    description="simulation", 
     trace_start=args.trace_start,
     current_iter=args.trace_start,
     args=args
@@ -472,7 +472,7 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
         micro_batch_ids_dict=args.simu_micro_batch_ids,
         stage_id=args.pp_rank,
         simu_start=args.simu_start,
-        description="loss_func, calculate and DP allreduce for the last stage", 
+        description="simulation: loss_func, calculate and DP allreduce for the last stage", 
         trace_start=args.trace_start,
         current_iter=args.trace_start,
         args=args

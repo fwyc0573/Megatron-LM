@@ -1678,23 +1678,27 @@ def _add_trace_args(parser):
 def _add_fake_args(parser):
     group = parser.add_argument_group(title='fake')
     # group.add_argument('--is-scaling-mode', type=bool, default=False,
-    #                 help='The iteration to start tracing.')
+    #                 help='Enable scaling mode for fake distributed training.')
     group.add_argument('--is-scaling-mode', action='store_true',
-                       help='The iteration to start tracing.')
+                       help='Enable scaling mode for fake distributed training.')
     group.add_argument('--fake-world-size', type=int, default=0,
-                       help='The iteration to start tracing.')
+                       help='Total number of processes for fake distributed training.')
     group.add_argument('--fake-wrank', type=int, default=0,
-                       help='The iteration to start tracing.')
+                       help='Global rank ID for fake distributed training.')
     group.add_argument('--fake-gpus-per-node', type=int, default=0,
-                       help='The iteration to start tracing.')
+                       help='Number of GPUs per node for fake distributed training.')
     group.add_argument('--fake-local-rank', type=int, default=0,
-                       help='The iteration to start tracing.')
+                       help='Local rank ID within a node for fake distributed training.')
     group.add_argument('--fake-pp', type=int, default=0,
-                       help='The iteration to start tracing.')
+                       help='Pipeline parallelism degree for fake distributed training.')
     group.add_argument('--fake-dp', type=int, default=0,
-                       help='The iteration to start tracing.')
+                       help='Data parallelism degree for fake distributed training.')
     group.add_argument('--fake-tp', type=int, default=0,
-                       help='The iteration to start tracing.')
+                       help='Tensor parallelism degree for fake distributed training.')
+    group.add_argument('--fake-exp', type=int, default=0,
+                       help='Expert parallelism degree for fake distributed training.')
+    group.add_argument('--fake-num-experts', type=int, default=0,
+                       help='Number of experts for fake MoE training.')
     group.add_argument('--fake-current-rank-id', type=int, default=0,
-                       help='The iteration to start tracing.')
+                       help='Current process rank ID for fake distributed training.')
     return parser

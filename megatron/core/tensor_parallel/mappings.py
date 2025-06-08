@@ -75,7 +75,7 @@ def _split_along_first_dim(input_):
 
     return output
 
-
+@CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allgather')
 def _gather_along_last_dim(input_):
     """Gather tensors and concatinate along the last dimension."""
 
@@ -98,7 +98,7 @@ def _gather_along_last_dim(input_):
     return output
 
 
-def _reduce_scatter_along_last_dim(input_):
+def _reduce_scatter_along_last_dim(input_, func=None):
     """Reduce-scatter tensors on the last dimension."""
     num_dims = input_.dim()
     permute_order = (num_dims - 1,) + tuple(range(num_dims - 1))
@@ -130,8 +130,8 @@ def _gather_along_first_dim(input_):
 
     return output
 
-
-def _reduce_scatter_along_first_dim(input_):
+@CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='reduce_scatter')
+def _reduce_scatter_along_first_dim(input_, func=None):
     """Reduce-scatter the input tensor across model parallel group."""
     world_size = get_tensor_model_parallel_world_size()
     # Bypass the function if we are using only 1 GPU.
@@ -186,7 +186,8 @@ def _reduce_scatter_along_first_dim_moe(input_):
     return output
 
 
-def _gather_along_first_dim_expert_parallel(input_):
+@CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='exp', comm_func='allgather')
+def _gather_along_first_dim_expert_parallel(input_, func=None):
     """Gather tensors and concatenate along the first dimension."""
     group = get_expert_model_parallel_group()
     world_size = torch.distributed.get_world_size(group=group)
@@ -404,8 +405,8 @@ class _ReduceScatterToTensorParallelRegion(torch.autograd.Function):
         return _reduce_scatter_along_last_dim(input_)
 
     @staticmethod
-    def forward(ctx, input_):
-        return _reduce_scatter_along_last_dim(input_,)
+    def forward(ctx, input_, func=None):
+        return _reduce_scatter_along_last_dim(input_, func=func)
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -494,20 +495,34 @@ def gather_from_sequence_parallel_region_to_moe(input_):
 def reduce_scatter_to_sequence_parallel_region_from_moe(input_):
     return _ReduceScatterToSequenceParallelRegionFromMOE.apply(input_)
 
-
-def all_gather_last_dim_from_tensor_parallel_region(input_):
+# @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allgather')
+def all_gather_last_dim_from_tensor_parallel_region(input_, func=None):
     return _AllGatherFromTensorParallelRegion.apply(input_)
 
-
-def reduce_scatter_last_dim_to_tensor_parallel_region(input_):
+def reduce_scatter_last_dim_to_tensor_parallel_region(input_, func=None):
     return _ReduceScatterToTensorParallelRegion.apply(input_)
 
 
-def all_to_all(group, input_, output_split_sizes_=None, input_split_sizes_=None):
+@CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='exp', comm_func='alltoall')
+def _all_to_all_exp_wrapper(group, input_, output_split_sizes_=None, input_split_sizes_=None, func=None):
     return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_)
 
+@CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='alltoall')
+def _all_to_all_tp_wrapper(group, input_, output_split_sizes_=None, input_split_sizes_=None, func=None):
+    return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_)
 
-def all_to_all_sp2hp(input_):
+# No need to use this function, use _all_to_all_exp_wrapper and _all_to_all_tp_wrapper 
+# instead (we do this because we find that comm. op calls are different in this func)
+def all_to_all(group, input_, output_split_sizes_=None, input_split_sizes_=None, func=None, group_type=None):
+    if group_type == "exp":
+        return _all_to_all_exp_wrapper(group, input_, output_split_sizes_, input_split_sizes_, func)
+    elif group_type == "tp":
+        return _all_to_all_tp_wrapper(group, input_, output_split_sizes_, input_split_sizes_, func)
+    else:
+        return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_)
+
+
+def all_to_all_sp2hp(input_, func=None):
     world_size = get_tensor_model_parallel_world_size()
     tp_group = get_tensor_model_parallel_group()
     input_ = input_.reshape(-1, input_.shape[-1])
@@ -515,15 +530,14 @@ def all_to_all_sp2hp(input_):
         input_, split_size_or_sections=input_.shape[-1] // world_size, dim=1
     )
     concat_tensor = torch.cat(split_tensors, dim=0)
-    output = all_to_all(tp_group, concat_tensor)
+    output = all_to_all(tp_group, concat_tensor, func=func, group_type="tp")
     return output
 
-
-def all_to_all_hp2sp(input_):
+def all_to_all_hp2sp(input_, func=None):
     world_size = get_tensor_model_parallel_world_size()
     input_ = input_.reshape(-1, input_.shape[-1])
     tp_group = get_tensor_model_parallel_group()
-    input_exchanged = all_to_all(tp_group, input_)
+    input_exchanged = all_to_all(tp_group, input_, func=func, group_type="tp")
     input_reshaped = input_exchanged.reshape(-1, input_exchanged.shape[-1])
     split_tensors = torch.split(
         input_reshaped, split_size_or_sections=input_reshaped.shape[0] // world_size, dim=0

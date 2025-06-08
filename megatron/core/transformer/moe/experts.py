@@ -52,7 +52,11 @@ class GroupedMLP(MegatronModule):
             self.activation_func = self.config.activation_func
 
         # How many feature each rank holds for fc1 and fc2, respectively.
-        tp_size = parallel_state.get_tensor_model_parallel_world_size()
+        if not self.config.is_scaling_mode:
+            tp_size = parallel_state.get_tensor_model_parallel_world_size()
+        else:
+            tp_size = self.config.fake_tp
+
         fc1_output_size = self.config.ffn_hidden_size * self.num_local_experts
         if config.gated_linear_unit:
             # Project to 4h. If using swiglu double the output width,
@@ -136,11 +140,23 @@ class GroupedMLP(MegatronModule):
         setattr(self.weight2, 'allreduce', not self.expert_parallel)
 
     def forward(self, permuted_local_hidden_states, tokens_per_expert):
+        print(f"[DEBUG] GroupedMLP forward - num_local_experts: {self.num_local_experts}")
+        print(f"[DEBUG] tokens_per_expert shape: {tokens_per_expert.shape}, values: {tokens_per_expert}")
+        print(f"[DEBUG] permuted_local_hidden_states dtype: {permuted_local_hidden_states.dtype}")
+        print(f"[DEBUG] weight1 shape: {self.weight1.shape}, dtype: {self.weight1.dtype}")
+
         if permuted_local_hidden_states.nelement() != 0:
             # Reshape the weights for the grouped GEMMs.
             w1 = self.weight1.view(self.num_local_experts, self.config.hidden_size, -1)
             w2 = self.weight2.view(self.num_local_experts, -1, self.config.hidden_size)
 
+            print(f"[DEBUG] w1 reshaped shape: {w1.shape}")
+            print(f"[DEBUG] Expected experts: {self.num_local_experts}, got tokens for: {len(tokens_per_expert)}")
+            
+            # 检查tokens_per_expert的长度
+            assert len(tokens_per_expert) == self.num_local_experts, \
+                f"tokens_per_expert length {len(tokens_per_expert)} doesn't match num_local_experts {self.num_local_experts}"
+            
             fc1_output = gg.ops.gmm(
                 permuted_local_hidden_states, w1, tokens_per_expert, trans_b=False
             )

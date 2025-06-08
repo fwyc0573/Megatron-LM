@@ -318,10 +318,25 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         Returns:
             torch.Tensor: Tensor containing the number of tokens assigned to local expert.
         """
-        num_local_tokens_per_expert = torch.histc(
-            indices, bins=self.num_experts, min=0, max=self.num_experts
-        )
+        # calculate the number of tokens assigned to each expert (每个expert ID出现的次数，每出现一次代表一个token被分配到这个expert)
+
+
+        if self.config.is_scaling_mode:
+            num_local_tokens_per_expert = self.config.per_rank_dispatching_results[self.config.exp_rank]['num_local_tokens_per_expert']
+
+        else:
+            # TODO-YC  : Here to compare the pre results with the real results?
+            num_local_tokens_per_expert = torch.histc(
+                indices, bins=self.num_experts, min=0, max=self.num_experts
+            )
+
+
+        # ---- stduy case ----
+        # [[2, 5], [0, 7], [2, 3]] => [2, 5, 0, 7, 2, 3] =>
+        # [1, 0, 2, 1, 0, 1, 0, 1]: 1个给Expert 0，0个给Expert 1，2个给Expert 2，1个给Expert 3
+
         # num_local_tokens_per_expert: [num_experts]
+        print(f"[DEBUG] preprocess: num_local_tokens_per_expert: {num_local_tokens_per_expert}")
 
         ep_size = self.config.expert_model_parallel_size
         if ep_size > 1:
@@ -334,9 +349,30 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                 .to(torch.device("cpu"))
                 .numpy()
             )
-            num_global_tokens_per_expert = _gather_along_first_dim_expert_parallel(
-                num_local_tokens_per_expert
-            ).reshape(ep_size, self.num_experts)
+            # ---- stduy case ----
+            # [1, 0, 2, 1, 0, 1, 0, 1] => [1, 3, 1, 1] (假设4个rank，8个experts；统计出发送给每个rank的token num)
+
+            # scaling mode
+            if self.config.is_scaling_mode:
+                num_global_tokens_per_expert = _gather_along_first_dim_expert_parallel(
+                    num_local_tokens_per_expert, func="gather_along_first_dim_expert_parallel"
+                )
+                num_global_tokens_per_expert = self.config.num_global_tokens_per_expert
+            else:
+                print(f"[DEBUG] berfore allgather, num_local_tokens_per_expert = {num_local_tokens_per_expert}")
+                num_global_tokens_per_expert = _gather_along_first_dim_expert_parallel(
+                    num_local_tokens_per_expert, func="gather_along_first_dim_expert_parallel"
+                )#.reshape(ep_size, self.num_experts)
+                print(f"[DEBUG] after allgather, num_global_tokens_per_expert = {num_global_tokens_per_expert}")
+
+            # Print shapes for debugging
+            print(f"[DEBUG] input_splits shape: {self.input_splits.shape}")
+            print(f"[DEBUG] num_local_tokens_per_expert shape: {num_local_tokens_per_expert.shape}")
+            print(f"[DEBUG] num_global_tokens_per_expert shape: {num_global_tokens_per_expert.shape}")
+
+            # get global routing table through allgather
+            # num_global_tokens_per_expert的shape ->【ep_size, self.num_experts】类比为矩阵G【i，j】：第i个ep rank 需要第j个 expert 发送XX个tokens
+            num_global_tokens_per_expert = num_global_tokens_per_expert.reshape(ep_size, self.num_experts)
             self.num_global_tokens_per_local_expert = num_global_tokens_per_expert[
                 :, self.local_expert_indices
             ]
@@ -388,6 +424,8 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                 - Number of tokens per expert.
         """
         self.hidden_shape = hidden_states.shape
+        # YC: save shape for unpermutation
+        self.original_scores_shape = scores.shape
         self.scores = scores
         assert scores.dim() == 2, "Expected 2D tensor for scores"
         assert indices.dim() == 2, "Expected 2D tensor for indices"
@@ -400,8 +438,11 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
 
         # Perform tensor parallel AlltoAll communication
         # hidden_states: [S*B/TP, H] -> [S*B, H/TP]
-        if parallel_state.get_tensor_model_parallel_world_size() > 1:
-            hidden_states = tensor_parallel.all_to_all_sp2hp(hidden_states)
+        # In scaling mode, we run the 1GPU comm. case (to trace the comm. op.)
+        tp_size = self.config.fake_tp if self.config.is_scaling_mode else parallel_state.get_tensor_model_parallel_world_size()
+        if tp_size > 1:
+            assert self.config.is_scaling_mode, "SP in scaling mode is not supported (tp should be 1)"
+            hidden_states = tensor_parallel.all_to_all_sp2hp(hidden_states, func="all_to_all_sp2hp")
 
         # Permutation 1: input to AlltoAll input
         self.local_input_tokens_global_experts_indices = indices
@@ -409,13 +450,28 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             hidden_states, self.local_input_tokens_global_experts_indices, topk=self.router_topk,
         )
 
+
+        # TODO-YC:shape dtype 一致性检测；如果一致则让scaling mode调用（当然也调用下面的）
+        num_received_tokens = self.output_splits.sum()
+        hidden_dim = permutated_local_input_tokens.shape[1]
+        global_input_tokens = torch.empty(
+            (int(num_received_tokens), hidden_dim),
+            dtype=permutated_local_input_tokens.dtype,
+            device=permutated_local_input_tokens.device,
+        )
+
+        print(f"[DEBUG] fake all_to_all - global_input_tokens shape: {global_input_tokens.shape}, dtype: {global_input_tokens.dtype}")
+
         # Perform expert parallel AlltoAll communication
         global_input_tokens = tensor_parallel.all_to_all(
             parallel_state.get_expert_model_parallel_group(),
             permutated_local_input_tokens,
             self.output_splits,
             self.input_splits,
+            func="all_to_all"
         )
+
+        print(f"[DEBUG] real all_to_all - global_input_tokens shape: {global_input_tokens.shape}, dtype: {global_input_tokens.dtype}")
 
         # Permutation 2: AlltoAll output to expert input if num_local_experts > 1
         if self.num_local_experts > 1:
@@ -425,7 +481,8 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
 
         # Perform tensor parallel All-Gather
         # global_input_tokens: [SEQL, H/TP] -> [SEQL, H]
-        if parallel_state.get_tensor_model_parallel_world_size() > 1:
+        if tp_size > 1:
+            assert self.config.is_scaling_mode, "SP in scaling mode is not supported (tp should be 1)"
             global_input_tokens = tensor_parallel.all_gather_last_dim_from_tensor_parallel_region(
                 global_input_tokens
             )
@@ -447,13 +504,15 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                 - Unpermuted token embeddings in the original order.
                 - None (bias is not supported).
         """
-        assert bias is None, "Bias is not supported in MoEAlltoAllTokenDispatcher"
+        # assert bias is None, "Bias is not supported in MoEAlltoAllTokenDispatcher"
 
         # Perform tensor parallel Reduce-Scatter
         # hidden_states: [SEQL, H] -> [SEQL, H/TP]
-        if parallel_state.get_tensor_model_parallel_world_size() > 1:
+        tp_size = self.config.fake_tp if self.config.is_scaling_mode else parallel_state.get_tensor_model_parallel_world_size()
+        if tp_size > 1:
+            assert self.config.is_scaling_mode, "SP in scaling mode is not supported (tp should be 1)"
             hidden_states = tensor_parallel.reduce_scatter_last_dim_to_tensor_parallel_region(
-                hidden_states
+                hidden_states, func="reduce_scatter_last_dim_to_tensor_parallel_region"
             )
 
         # Unpermutation 2: expert output to AlltoAll input
@@ -463,13 +522,40 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                 hidden_states, self.reversed_global_input_permutation_mapping,
             )
 
+
+
+
+        # TODO-YC:shape dtype 一致性检测；如果一致则让scaling mode调用（当然也调用下面的）
+        # In scaling mode, we simulate the reverse all_to_all communication.
+        # The shape of the output tensor is determined by `input_splits`,
+        # which are the `output_splits` for this backward communication.
+        num_received_tokens = self.input_splits.sum()
+        hidden_dim = hidden_states.shape[1]
+        permutated_local_input_tokens = torch.empty(
+            (int(num_received_tokens), hidden_dim),
+            dtype=hidden_states.dtype,
+            device=hidden_states.device,
+        )
+
+        print(f"[DEBUG] fake all_to_all - permutated_local_input_tokens shape: {permutated_local_input_tokens.shape}, dtype: {permutated_local_input_tokens.dtype}")
+
+
         # Perform expert parallel AlltoAll communication
         permutated_local_input_tokens = tensor_parallel.all_to_all(
             parallel_state.get_expert_model_parallel_group(),
             hidden_states,
             self.input_splits,
             self.output_splits,
+            func="all_to_all",
+            group_type="exp"
         )
+
+        print(f"[DEBUG] real all_to_all - permutated_local_input_tokens shape: {permutated_local_input_tokens.shape}, dtype: {permutated_local_input_tokens.dtype}")
+
+
+
+
+
 
         # Unpermutation 1: AlltoAll output to output
         output = unpermute(
@@ -480,7 +566,8 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         )
 
         # Perform tensor parallel AlltoAll communication
-        if parallel_state.get_tensor_model_parallel_world_size() > 1:
+        if tp_size > 1:
+            assert self.config.is_scaling_mode, "SP in scaling mode is not supported (tp should be 1)"
             # output: [S*B, H/TP] -> [S*B/TP, H]
             output = tensor_parallel.all_to_all_hp2sp(output)
 

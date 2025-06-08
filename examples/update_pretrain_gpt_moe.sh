@@ -8,30 +8,34 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=0 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=3 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
 # Distributed training variables
 NNODES=1
-GPUS_PER_NODE=1 # 修改为1，因为我们每次只使用一个GPU模拟一个rank
+GPUS_PER_NODE=1
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
 NODE_RANK=0
 MASTER_PORT=6000
-MASTER_ADDR="localhost" #"localhost"
+MASTER_ADDR="localhost"
 
 
 # Parallelism variables 
-PP=1 # 实际使用的PP大小，设为1
-TP=1 # 实际使用的TP大小，设为1
+PP=1
+TP=1
+EP=1
+NUM_EXPERTS=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
 BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
 
 # 模拟的并行度设置
 FAKE_PP=2
-FAKE_TP=2
+FAKE_TP=1 # when TP>1, SP should be supported
+FAKE_EXP=2
+FAKE_NUM_EXPERTS=6
 FAKE_WORLD_SIZE=8
 FAKE_DP=$((${FAKE_WORLD_SIZE}/${FAKE_PP}/${FAKE_TP}))
 if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
@@ -40,7 +44,7 @@ if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
 fi
 
 # 创建统一的日志目录
-MODEL_SIZE=30 # 使用原脚本中的模型大小
+MODEL_SIZE=6.7  # "tiny" # 使用原脚本中的模型大小
 LOG_NAME=SIM_GPT_${MODEL_SIZE}_FakeWS${FAKE_WORLD_SIZE}_TP${FAKE_TP}_PP${FAKE_PP}
 LOG_DIR=${BASE_PATH}/log/${LOG_NAME}
 
@@ -51,9 +55,6 @@ mkdir -p ${LOG_DIR}
 NUM_MICBATCH=1
 MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * FAKE_DP)) # 使用FAKE_DP计算全局批次大小
-
-# size variables
-MODEL_SIZE=6.7 # "tiny" 6.7
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
@@ -102,16 +103,11 @@ SIM_ARGS=" \
        --fake-local-rank $FAKE_LOCAL_RANK \
        --fake-pp $FAKE_PP \
        --fake-dp $FAKE_DP \
-       --fake-tp $FAKE_TP 
+       --fake-tp $FAKE_TP \
+       --fake-exp $FAKE_EXP \
+       --fake-num-experts $FAKE_NUM_EXPERTS \
        "
 
-EP=2
-NUM_EXPERTS=6
-
-if [ "$((NUM_EXPERTS % EP))" -ne "0" ]; then
-    echo "Error: NUM_EXPERTS must be divisible by EP"
-    exit 1
-fi
 
 MOE_ARGS="
     --num-experts $NUM_EXPERTS \
@@ -120,9 +116,9 @@ MOE_ARGS="
     --moe-router-topk 2 \
     --moe-aux-loss-coeff 1e-2 \
     --moe-token-dispatcher-type alltoall \
-    --disable-bias-linear
+    --disable-bias-linear \
     --moe-grouped-gemm \
-    --bf16 
+    --bf16 \
 "
     # plz use these paras together, --moe-token-dispatcher-type (default: allgather)
     # --moe-token-dispatcher-type alltoall \
@@ -166,7 +162,7 @@ DATA_ARGS="
     --vocab-file $VOCAB_FILE \
     --merge-file $MERGE_FILE \
     --split 949,50,1 \
-    --vocab-size 3200 
+    --vocab-size 3200 \
 "
 # --vocab-size 3200
 
@@ -174,13 +170,13 @@ OUTPUT_ARGS="
     --log-interval 100 \
     --save-interval 1000 \
     --eval-interval 1000 \
-    --eval-iters 1
+    --eval-iters 1 \
 "
 
 # 添加迭代执行逻辑
 echo "============================================================"
 echo "Starting Megatron-LM Single GPU Simulation for ${FAKE_WORLD_SIZE} ranks"
-echo "Model: GPT-${MODEL_SIZE}, PP=${FAKE_PP}, TP=${FAKE_TP}, DP=${FAKE_DP}, EP=${EP}, NUM_EXPERTS=${NUM_EXPERTS}"
+echo "Model: GPT-${MODEL_SIZE}, PP=${FAKE_PP}, TP=${FAKE_TP}, DP=${FAKE_DP}, EP=${FAKE_EXP}, NUM_EXPERTS=${FAKE_NUM_EXPERTS}"
 echo "============================================================"
 
 # 迭代所有模拟的rank

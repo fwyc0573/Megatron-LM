@@ -61,6 +61,8 @@ class Router(ABC, MegatronModule):
             torch.Tensor: Logits tensor.
         """
         logits = torch.nn.functional.linear(input, self.weight)
+        print(f"[DEBUG] gating - input dtype: {input.dtype}")
+        print(f"[DEBUG] gating - weight dtype: {self.weight.dtype}")
         return logits
 
     @abstractmethod
@@ -238,8 +240,10 @@ class TopKRouter(Router):
             and self.config.moe_token_dispatcher_type == "alltoall"
         ):
             # Gather the logits from the TP region
+            # TODO-YC: Currently, we cannot support SP in scaling mode (so tp must be 1)
+            assert self.config.is_scaling_mode, "SP in scaling mode is not supported (tp should be 1)"
             logits = gather_from_sequence_parallel_region(logits)
-
+        
         if self.routing_type == "sinkhorn":
             scores, indices = self.sinkhorn_load_balancing(logits)
         elif self.routing_type == "aux_loss":
@@ -271,5 +275,16 @@ class TopKRouter(Router):
         logits = logits.view(-1, self.config.num_moe_experts)
 
         scores, indices = self.routing(logits)
+
+        # ------ study case -------
+        # indices shape = [num_tokens, top_k], which token to which expert
+        # tensor([[2, 5],   # Token 0 -> Expert 2, Expert 5
+        #         [0, 7],   # Token 1 -> Expert 0, Expert 7
+        #         [2, 3]])  # Token 2 -> Expert 2, Expert 3
+
+        # scores shape = [num_tokens, top_k], the score of the selected expert
+        # tensor([[0.6, 0.4],  # Token 0 的最终输出 = 0.6 * Output(E2) + 0.4 * Output(E5)
+        #         [0.9, 0.1],  # Token 1 的最终输出 = 0.9 * Output(E0) + 0.1 * Output(E7)
+        #         [0.5, 0.5]]) # Token 2 的最终输出 = 0.5 * Output(E2) + 0.5 * Output(E3)
 
         return scores, indices
