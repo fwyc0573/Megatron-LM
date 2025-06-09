@@ -35,8 +35,8 @@ def sim_dispatching(config: TransformerConfig):
         indices = config.pre_fixed_routing_results[ep_rank]['indices']
 
         num_local_tokens_per_expert = torch.histc(
-            indices, bins=num_experts, min=0, max=num_experts
-        )
+            indices.float(), bins=num_experts, min=0, max=num_experts
+        ).long()
         dispatching_results_per_rank[ep_rank] = {
             'num_local_tokens_per_expert': num_local_tokens_per_expert
         }
@@ -44,7 +44,7 @@ def sim_dispatching(config: TransformerConfig):
 
     num_global_tokens_per_expert = _sim_gather_along_first_dim_expert_parallel(
         all_num_local_tokens_per_expert
-    )
+    ).long()
 
     # In the real code, each rank gets the same global tensor.
     # We add it to the final results dictionary.

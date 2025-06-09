@@ -162,22 +162,27 @@ class MoELayer(BaseMoELayer):
 
         print(f"[DEBUG] Before fixed routing - scores shape: {scores.shape}, dtype: {scores.dtype}")
         print(f"[DEBUG] Before fixed routing - indices shape: {indices.shape}, dtype: {indices.dtype}")
+        print(f"[DEBUG] Before fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
 
-        #################### use fixed routing results ##############
-
-
+        #################### replaced by fixed routing results ##############
         if self.config.pre_fixed_routing_results:
+
             scores = self.config.pre_fixed_routing_results[exp_rank]['scores']
             indices = self.config.pre_fixed_routing_results[exp_rank]['indices']
+            hidden_states = self.config.pre_fixed_routing_results[exp_rank]['hidden_states']
             
             # Move tensors to GPU if they're not already there
             if not scores.is_cuda:
                 scores = scores.cuda()
             if not indices.is_cuda:
                 indices = indices.cuda()
+            if not hidden_states.is_cuda:
+                hidden_states = hidden_states.cuda()
 
             print(f"[DEBUG] After fixed routing - scores shape: {scores.shape}, dtype: {scores.dtype}")
             print(f"[DEBUG] After fixed routing - indices shape: {indices.shape}, dtype: {indices.dtype}")
+            print(f"[DEBUG] After fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
+
 
         (dispatched_input, tokens_per_expert) = self.token_dispatcher.token_permutation(
             hidden_states, scores, indices

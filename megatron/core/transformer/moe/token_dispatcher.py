@@ -323,6 +323,9 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
 
         if self.config.is_scaling_mode:
             num_local_tokens_per_expert = self.config.per_rank_dispatching_results[self.config.exp_rank]['num_local_tokens_per_expert']
+            # Move tensor to GPU if it's not already there
+            if not num_local_tokens_per_expert.is_cuda:
+                num_local_tokens_per_expert = num_local_tokens_per_expert.cuda()
 
         else:
             # TODO-YC  : Here to compare the pre results with the real results?
@@ -358,17 +361,22 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                     num_local_tokens_per_expert, func="gather_along_first_dim_expert_parallel"
                 )
                 num_global_tokens_per_expert = self.config.num_global_tokens_per_expert
+
+                # Move tensor to GPU if it's not already there
+                if not num_global_tokens_per_expert.is_cuda:
+                    num_global_tokens_per_expert = num_global_tokens_per_expert.cuda()
+                # num_global_tokens_per_expert = num_global_tokens_per_expert.long()
             else:
-                print(f"[DEBUG] berfore allgather, num_local_tokens_per_expert = {num_local_tokens_per_expert}")
+                print(f"[DEBUG] berfore allgather, num_local_tokens_per_expert = {num_local_tokens_per_expert}, device: {num_local_tokens_per_expert.device}")
                 num_global_tokens_per_expert = _gather_along_first_dim_expert_parallel(
                     num_local_tokens_per_expert, func="gather_along_first_dim_expert_parallel"
                 )#.reshape(ep_size, self.num_experts)
-                print(f"[DEBUG] after allgather, num_global_tokens_per_expert = {num_global_tokens_per_expert}")
+                print(f"[DEBUG] after allgather, num_global_tokens_per_expert = {num_global_tokens_per_expert}, device: {num_global_tokens_per_expert.device}, dtype: {num_global_tokens_per_expert.dtype}")
 
-            # Print shapes for debugging
+            # Print shapes and dtypes for debugging
             print(f"[DEBUG] input_splits shape: {self.input_splits.shape}")
-            print(f"[DEBUG] num_local_tokens_per_expert shape: {num_local_tokens_per_expert.shape}")
-            print(f"[DEBUG] num_global_tokens_per_expert shape: {num_global_tokens_per_expert.shape}")
+            print(f"[DEBUG] num_local_tokens_per_expert shape: {num_local_tokens_per_expert.shape}, device: {num_local_tokens_per_expert.device}")
+            print(f"[DEBUG] num_global_tokens_per_expert shape: {num_global_tokens_per_expert.shape}, device: {num_global_tokens_per_expert.device}, dtype: {num_global_tokens_per_expert.dtype}")
 
             # get global routing table through allgather
             # num_global_tokens_per_expert的shape ->【ep_size, self.num_experts】类比为矩阵G【i，j】：第i个ep rank 需要第j个 expert 发送XX个tokens
@@ -451,16 +459,7 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         )
 
 
-        # TODO-YC:shape dtype 一致性检测；如果一致则让scaling mode调用（当然也调用下面的）
-        num_received_tokens = self.output_splits.sum()
-        hidden_dim = permutated_local_input_tokens.shape[1]
-        global_input_tokens = torch.empty(
-            (int(num_received_tokens), hidden_dim),
-            dtype=permutated_local_input_tokens.dtype,
-            device=permutated_local_input_tokens.device,
-        )
-
-        print(f"[DEBUG] fake all_to_all - global_input_tokens shape: {global_input_tokens.shape}, dtype: {global_input_tokens.dtype}")
+        
 
         # Perform expert parallel AlltoAll communication
         global_input_tokens = tensor_parallel.all_to_all(
@@ -470,8 +469,19 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             self.input_splits,
             func="all_to_all"
         )
-
         print(f"[DEBUG] real all_to_all - global_input_tokens shape: {global_input_tokens.shape}, dtype: {global_input_tokens.dtype}")
+
+        if self.config.is_scaling_mode:
+            # TODO-YC:shape dtype 一致性检测；如果一致则让scaling mode调用（当然也调用下面的）
+            num_received_tokens = self.output_splits.sum()
+            hidden_dim = permutated_local_input_tokens.shape[1]
+            global_input_tokens = torch.empty(
+                (int(num_received_tokens), hidden_dim),
+                dtype=permutated_local_input_tokens.dtype,
+                device=permutated_local_input_tokens.device,
+            )
+
+
 
         # Permutation 2: AlltoAll output to expert input if num_local_experts > 1
         if self.num_local_experts > 1:
@@ -521,25 +531,6 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             hidden_states = unpermute(
                 hidden_states, self.reversed_global_input_permutation_mapping,
             )
-
-
-
-
-        # TODO-YC:shape dtype 一致性检测；如果一致则让scaling mode调用（当然也调用下面的）
-        # In scaling mode, we simulate the reverse all_to_all communication.
-        # The shape of the output tensor is determined by `input_splits`,
-        # which are the `output_splits` for this backward communication.
-        num_received_tokens = self.input_splits.sum()
-        hidden_dim = hidden_states.shape[1]
-        permutated_local_input_tokens = torch.empty(
-            (int(num_received_tokens), hidden_dim),
-            dtype=hidden_states.dtype,
-            device=hidden_states.device,
-        )
-
-        print(f"[DEBUG] fake all_to_all - permutated_local_input_tokens shape: {permutated_local_input_tokens.shape}, dtype: {permutated_local_input_tokens.dtype}")
-
-
         # Perform expert parallel AlltoAll communication
         permutated_local_input_tokens = tensor_parallel.all_to_all(
             parallel_state.get_expert_model_parallel_group(),
@@ -552,9 +543,18 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
 
         print(f"[DEBUG] real all_to_all - permutated_local_input_tokens shape: {permutated_local_input_tokens.shape}, dtype: {permutated_local_input_tokens.dtype}")
 
-
-
-
+        if self.config.is_scaling_mode:
+            # TODO-YC:shape dtype 一致性检测；如果一致则让scaling mode调用（当然也调用下面的）
+            # In scaling mode, we simulate the reverse all_to_all communication.
+            # The shape of the output tensor is determined by `input_splits`,
+            # which are the `output_splits` for this backward communication.
+            num_received_tokens = self.input_splits.sum()
+            hidden_dim = hidden_states.shape[1]
+            permutated_local_input_tokens = torch.empty(
+                (int(num_received_tokens), hidden_dim),
+                dtype=hidden_states.dtype,
+                device=hidden_states.device,
+            )
 
 
         # Unpermutation 1: AlltoAll output to output

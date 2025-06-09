@@ -62,6 +62,7 @@ def sim_routing(config: TransformerConfig, hidden_states_shape: Tuple[int, int, 
             print(f"[DEBUG] scores dtype: {scores.dtype}")
             print(f"[DEBUG] indices dtype: {indices.dtype}")
             routing_results[ep_rank] = {
+                'hidden_states': hidden_states.cpu(),
                 'scores': scores.cpu(),
                 'indices': indices.cpu()
             }

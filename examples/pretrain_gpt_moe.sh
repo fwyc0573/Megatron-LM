@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=0,2,4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,4,5,6,7
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
