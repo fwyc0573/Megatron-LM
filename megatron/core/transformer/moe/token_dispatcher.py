@@ -365,7 +365,6 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                 # Move tensor to GPU if it's not already there
                 if not num_global_tokens_per_expert.is_cuda:
                     num_global_tokens_per_expert = num_global_tokens_per_expert.cuda()
-                # num_global_tokens_per_expert = num_global_tokens_per_expert.long()
             else:
                 print(f"[DEBUG] berfore allgather, num_local_tokens_per_expert = {num_local_tokens_per_expert}, device: {num_local_tokens_per_expert.device}")
                 num_global_tokens_per_expert = _gather_along_first_dim_expert_parallel(

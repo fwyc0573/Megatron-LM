@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=0,1,4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,2,4,6,7
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -107,7 +107,7 @@ if echo "$SIM_ARGS" | grep -q -- "--is-scaling-mode"; then
 fi
 
 
-EP=2  # 专家并行度
+EP=3  # 专家并行度
 NUM_EXPERTS=6  # 专家总数（必须是EP的倍数）
 if [ "$((NUM_EXPERTS % EP))" -ne "0" ]; then
     echo "Error: NUM_EXPERTS must be divisible by EP"

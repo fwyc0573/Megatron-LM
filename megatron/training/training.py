@@ -713,6 +713,15 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
             #     sum([sum([p.nelement() for p in model_module.parameters()])
             #         for model_module in model])), flush=True)
             total_params = sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+            
+            # 收集模型参数的数据类型信息
+            dtype_list = {}
+            for model_module in model:
+                for p in model_module.parameters():
+                    dtype_str = str(p.dtype)
+                    if dtype_str not in dtype_list:
+                        dtype_list[dtype_str] = 0
+                    dtype_list[dtype_str] += p.nelement()
 
             print(' > number of parameters on (tensor, pipeline) '
                 'model parallel rank ({}, {}): {}'.format(
@@ -723,21 +732,33 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
             pos_p_t = (mpu.get_pipeline_model_parallel_rank(),mpu.get_tensor_model_parallel_rank())
             if pos_p_t not in args.global_model_params_dict:
                 args.global_model_params_dict[pos_p_t] = {}
-            args.global_model_params_dict[pos_p_t] = {"elem_sum": total_params,"dtype_list": None}
+            args.global_model_params_dict[pos_p_t] = {"elem_sum": total_params, "dtype_list": dtype_list}
     else:
-        if args.dp_rank == 0:
-            total_params = sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
-            # TODO-YC: we need compare here.
-            print(' > number of parameters on (tensor, pipeline) '
-                'model parallel rank ({}, {}): {}'.format(
-                args.tp_rank,
-                args.pp_rank,
-                total_params), flush=True)
-            
-            pos_p_t = (args.pp_rank,args.tp_rank)
-            if pos_p_t not in args.global_model_params_dict:
-                args.global_model_params_dict[pos_p_t] = {}
-            args.global_model_params_dict[pos_p_t] = {"elem_sum": total_params,"dtype_list": None}
+        # TODO-YC: 因为我们修改了迭代的逻辑，这里在scaling mode下可能会出现key error（例如如果当前dp为1，dp非0部分记录不存在，从而导致dp allreduce的CMD报错）
+        # 一种方式是，让每个dp rank都记录，但是这样会占用更多的内存
+        # if args.dp_rank == 0:
+        total_params = sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+        
+        # 收集模型参数的数据类型信息
+        dtype_list = {}
+        for model_module in model:
+            for p in model_module.parameters():
+                dtype_str = str(p.dtype)
+                if dtype_str not in dtype_list:
+                    dtype_list[dtype_str] = 0
+                dtype_list[dtype_str] += p.nelement()
+                
+        # TODO-YC: we need compare here.
+        print(' > number of parameters on (tensor, pipeline) '
+            'model parallel rank ({}, {}): {}'.format(
+            args.tp_rank,
+            args.pp_rank,
+            total_params), flush=True)
+        
+        pos_p_t = (args.pp_rank,args.tp_rank)
+        if pos_p_t not in args.global_model_params_dict:
+            args.global_model_params_dict[pos_p_t] = {}
+        args.global_model_params_dict[pos_p_t] = {"elem_sum": total_params, "dtype_list": dtype_list}
 
     # GPU allocation.
     for model_module in model:
@@ -768,8 +789,7 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
 
         # Broadcast params from data parallel src rank to other data parallel ranks.
         if args.data_parallel_random_init:
-            # YC: check it here
-            raise 0
+            # raise 0
             for model_module in model:
                 model_module.broadcast_params()
 

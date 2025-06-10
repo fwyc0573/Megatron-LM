@@ -91,9 +91,15 @@ class MegatronOptimizer(ABC):
         Get list of parameters wrapped in optimizer.
         """
         params = []
-        for param_group in self.optimizer.param_groups:
-            for param in param_group['params']:
-                params.append(param)
+        try:
+            for param_group in self.optimizer.param_groups:
+                for param in param_group['params']:
+                    params.append(param)
+        except Exception as e:
+            for param_group in self.param_groups:
+                for param in param_group['params']:
+                    params.append(param)
+                    return params
         return params
 
     def get_main_grads_for_grad_norm(self) -> List[torch.Tensor]:
