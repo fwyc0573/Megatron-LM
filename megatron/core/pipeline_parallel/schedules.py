@@ -282,7 +282,7 @@ def forward_step(
     return [output_tensor]
 
 
-def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config):
+def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config, args):
     """Backward step through passed-in output tensor.
 
     If last stage, output_tensor_grad is None, otherwise gradient of loss
@@ -316,10 +316,23 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
     if output_tensor_grad[0] is None and config.grad_scale_func is not None:
         output_tensor[0] = config.grad_scale_func(output_tensor[0])
 
+
+
+    torch.cuda.synchronize()
+    print(f"Rank {args.simu_rank} before bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+
+
     if config.deallocate_pipeline_outputs:
         custom_backward(output_tensor[0], output_tensor_grad[0])
     else:
         torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
+
+    torch.cuda.synchronize()
+    print(f"Rank {args.simu_rank} after bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+
+
+
+
 
     # Collect the grad of the input_tensor.
     input_tensor_grad = [None]
@@ -1593,7 +1606,7 @@ def forward_backward_pipelining_without_interleaving(
             with cmd:
                 nvtx.range_push(f"{args.simu_rank}_sd_backward_step_{nvtx_add_label_micro_batch_id}")
                 input_tensor_grad = backward_step(
-                    input_tensor, output_tensor, output_tensor_grad, model_type, config
+                    input_tensor, output_tensor, output_tensor_grad, model_type, config, args
                 )
                 nvtx.range_pop()
             # current_cmd_var.reset(token)
@@ -1764,7 +1777,7 @@ def forward_backward_pipelining_without_interleaving(
             with cmd:
                 nvtx.range_push(f"{args.simu_rank}_co_backward_step_{nvtx_add_label_micro_batch_id}")
                 input_tensor_grad = backward_step(
-                    input_tensor, output_tensor, output_tensor_grad, model_type, config
+                    input_tensor, output_tensor, output_tensor_grad, model_type, config, args
                 )
                 nvtx.range_pop()
             # print(f"rank:{args.simu_rank}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")

@@ -232,11 +232,19 @@ def sim_backward_step(rank_id, input_tensor, output_tensor, output_tensor_grad, 
     if output_tensor_grad[0] is None and config.grad_scale_func is not None:
         output_tensor[0] = config.grad_scale_func(output_tensor[0])
 
+    torch.cuda.synchronize()
+    print(f"Rank {rank_id} before bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+
+
     # with profile_timer(rank_id, "model_bwd"):
     if config.deallocate_pipeline_outputs:
         custom_backward(output_tensor[0], output_tensor_grad[0])
     else:
         torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
+
+    torch.cuda.synchronize()
+    print(f"Rank {rank_id} after bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+
 
     # Collect the grad of the input_tensor.
     input_tensor_grad = [None]
@@ -451,7 +459,17 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
         start_event = torch.cuda.Event(enable_timing=True)
         stop_event = torch.cuda.Event(enable_timing=True)
         start_event.record()
+
+        torch.cuda.synchronize()
+        print(f"Rank {rank_id} before fwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+
         output_tensor = unwrapped_model(tokens, position_ids, attention_mask, labels=labels)
+
+        torch.cuda.synchronize()
+        print(f"Rank {rank_id} after fwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+
+
+
         output_tensor = output_tensor.contiguous()
         stop_event.record()
         torch.cuda.synchronize()

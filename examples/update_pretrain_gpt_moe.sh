@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=7 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=6 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -32,11 +32,11 @@ DP=$((${GPU_NUM}/${TP}/${PP}))
 BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
 
 # 模拟的并行度设置
-FAKE_PP=3
+FAKE_PP=2
 FAKE_TP=1 # when TP>1, SP should be supported
 FAKE_EXP=2
-FAKE_NUM_EXPERTS=6
-FAKE_WORLD_SIZE=6
+FAKE_NUM_EXPERTS=2
+FAKE_WORLD_SIZE=4
 FAKE_DP=$((${FAKE_WORLD_SIZE}/${FAKE_PP}/${FAKE_TP}))
 if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
     echo "Error: FAKE_DP must be an integer."
@@ -44,7 +44,7 @@ if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
 fi
 
 # 创建统一的日志目录
-MODEL_SIZE="tiny"  # "tiny" # 使用原脚本中的模型大小
+MODEL_SIZE=6.7  # "tiny" # 使用原脚本中的模型大小
 LOG_NAME=SIM_GPT_${MODEL_SIZE}_FakeWS${FAKE_WORLD_SIZE}_TP${FAKE_TP}_PP${FAKE_PP}_EXP${FAKE_EXP}_EX${FAKE_NUM_EXPERTS}
 LOG_DIR=${BASE_PATH}/log/${LOG_NAME}
 
@@ -75,8 +75,8 @@ TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
 
 
-MAX_SEQ_LEN=2048 # 4096 2048 1024
-MAX_POSITION_EMBEDDINGS=2048 # 4096 2048 1024
+MAX_SEQ_LEN=512 # 4096 2048 1024
+MAX_POSITION_EMBEDDINGS=512 # 4096 2048 1024
 
 # 检查trace_iter_num是否在合理的范围内
 if [ $TRACE_ITER_NUM -gt $((TRAIN_ITERS - 1)) ]; then
@@ -90,7 +90,7 @@ TRACE_ARGS=" \
        --nsight-start $NSIGHT_START \
        "
 
-FAKE_GPUS_PER_NODE=8
+FAKE_GPUS_PER_NODE=4
 FAKE_WRANK=0
 FAKE_LOCAL_RANK=0
 # IS_SCALING_MODE=Falsef
@@ -162,7 +162,7 @@ DATA_ARGS="
     --vocab-file $VOCAB_FILE \
     --merge-file $MERGE_FILE \
     --split 949,50,1 \
-    --vocab-size 3200 \
+    --vocab-size 600 \
 "
 # --vocab-size 3200
 

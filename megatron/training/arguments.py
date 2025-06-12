@@ -1689,15 +1689,15 @@ def _add_fake_args(parser):
                        help='Number of GPUs per node for fake distributed training.')
     group.add_argument('--fake-local-rank', type=int, default=0,
                        help='Local rank ID within a node for fake distributed training.')
-    group.add_argument('--fake-pp', type=int, default=0,
+    group.add_argument('--fake-pp', type=int, default=1,
                        help='Pipeline parallelism degree for fake distributed training.')
-    group.add_argument('--fake-dp', type=int, default=0,
+    group.add_argument('--fake-dp', type=int, default=1,
                        help='Data parallelism degree for fake distributed training.')
-    group.add_argument('--fake-tp', type=int, default=0,
+    group.add_argument('--fake-tp', type=int, default=1,
                        help='Tensor parallelism degree for fake distributed training.')
-    group.add_argument('--fake-exp', type=int, default=0,
+    group.add_argument('--fake-exp', type=int, default=1,
                        help='Expert parallelism degree for fake distributed training.')
-    group.add_argument('--fake-num-experts', type=int, default=0,
+    group.add_argument('--fake-num-experts', type=int, default=None,
                        help='Number of experts for fake MoE training.')
     group.add_argument('--fake-current-rank-id', type=int, default=0,
                        help='Current process rank ID for fake distributed training.')

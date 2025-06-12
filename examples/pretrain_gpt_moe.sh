@@ -8,13 +8,13 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=0,1,2,4,6,7
+export CUDA_VISIBLE_DEVICES=1,4,5,6
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
 # Distributed training variables
 NNODES=1
-GPUS_PER_NODE=6
+GPUS_PER_NODE=4
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
 NODE_RANK=0
@@ -23,7 +23,7 @@ MASTER_ADDR="localhost" #"localhost"
 
 
 # Parallelism variables
-PP=3
+PP=2
 TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
@@ -35,7 +35,7 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
 # size variables
-MODEL_SIZE="tiny" # "tiny"
+MODEL_SIZE=6.7 # "tiny"
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
@@ -50,14 +50,14 @@ fi
 
 DO_TRACE=True
 # TRACE控制参数
-TRAIN_ITERS=10
+TRAIN_ITERS=5
 TRACE_ITER_NUM=1 # trace_iter_num的范围<=train_iters-1（除去第一次）
 TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
 
 
-MAX_SEQ_LEN=2048 # 4096 2048
-MAX_POSITION_EMBEDDINGS=2048 # 4096 2048
+MAX_SEQ_LEN=512 # 4096 2048
+MAX_POSITION_EMBEDDINGS=512 # 4096 2048
 
 # 检查trace_iter_num是否在合理的范围内
 if [ $TRACE_ITER_NUM -gt $((TRAIN_ITERS - 1)) ]; then
@@ -107,8 +107,8 @@ if echo "$SIM_ARGS" | grep -q -- "--is-scaling-mode"; then
 fi
 
 
-EP=3  # 专家并行度
-NUM_EXPERTS=6  # 专家总数（必须是EP的倍数）
+EP=2  # 专家并行度
+NUM_EXPERTS=2 # 专家总数（必须是EP的倍数）
 if [ "$((NUM_EXPERTS % EP))" -ne "0" ]; then
     echo "Error: NUM_EXPERTS must be divisible by EP"
     exit 1
@@ -204,7 +204,9 @@ OUTPUT_ARGS="
 # export HF_HOME="/research/d1/gds/ytyang/yichengfeng/.hf_saved_menu"
 # export PYTHONPATH="${PYTHONPATH}:/data/ytyang/yichengfeng/DeepSpeed/Megatron-DeepSpeed/megatron"
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-# nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas  --force-overwrite=true  -x true -o optimzer_find_test \
+NSYS_OUT_NAME="${MODEL_SIZE}_pp${PP}_dp${DP}_tp${TP}_ep${EP}_numexp${NUM_EXPERTS}"
+
+# nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas  --force-overwrite=true  -x true -o ${NSYS_OUT_NAME} \
 torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/pretrain_llama.py \
     $GPT_ARGS \
     $MOE_ARGS \

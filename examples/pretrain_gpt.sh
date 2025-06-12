@@ -8,13 +8,13 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-# export CUDA_VISIBLE_DEVICES=1 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=3,4,5,6 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
 # Distributed training variables
 NNODES=1
-GPUS_PER_NODE=8
+GPUS_PER_NODE=4
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
 NODE_RANK=0
@@ -23,7 +23,7 @@ MASTER_ADDR="localhost" #"localhost"
 
 
 # Parallelism variables 
-PP=8
+PP=2
 TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
@@ -40,7 +40,7 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
 # size variables
-MODEL_SIZE=30 # "tiny" 6.7
+MODEL_SIZE=6.7 # "tiny" 6.7
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
@@ -55,14 +55,14 @@ fi
 
 DO_TRACE=True
 # TRACE控制参数
-TRAIN_ITERS=20
+TRAIN_ITERS=10
 TRACE_ITER_NUM=1 # trace_iter_num的范围<=train_iters-1（除去第一次）
 TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
 
 
-MAX_SEQ_LEN=2048 # 4096 2048 1024
-MAX_POSITION_EMBEDDINGS=2048 # 4096 2048 1024
+MAX_SEQ_LEN=1024 # 4096 2048 1024
+MAX_POSITION_EMBEDDINGS=1024 # 4096 2048 1024
 
 # 检查trace_iter_num是否在合理的范围内
 if [ $TRACE_ITER_NUM -gt $((TRAIN_ITERS - 1)) ]; then
