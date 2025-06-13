@@ -1701,4 +1701,10 @@ def _add_fake_args(parser):
                        help='Number of experts for fake MoE training.')
     group.add_argument('--fake-current-rank-id', type=int, default=0,
                        help='Current process rank ID for fake distributed training.')
+    group.add_argument('--trace-memory', action='store_true',
+                       help='Enable memory tracking.')
+    # group.add_argument('--trace-memory-dir', type=str, default='memory_traces',
+    #                    help='Directory to save memory traces.')
+    group.add_argument('--trace-memory-interval', type=float, default=0.001,
+                       help='Interval for memory sampling.')
     return parser

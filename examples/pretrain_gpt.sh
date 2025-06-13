@@ -8,13 +8,13 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=3,4,5,6 #0,1,2,3
+# export CUDA_VISIBLE_DEVICES=3,4,5,6 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
 # Distributed training variables
 NNODES=1
-GPUS_PER_NODE=4
+GPUS_PER_NODE=8
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
 NODE_RANK=0
@@ -23,16 +23,9 @@ MASTER_ADDR="localhost" #"localhost"
 
 
 # Parallelism variables 
-PP=2
+PP=8
 TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
-
-BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
-LOG_NAME=GPT_${MODEL_SIZE}_pretrain_WS${WORLD_SIZE}_TP${TP}_PP${PP}
-LOG_PATH=${BASE_PATH}/log/${LOG_NAME}/node${NODE_RANK}.log
-
-# 确保日志目录存在
-mkdir -p $(dirname ${LOG_PATH})
 
 
 NUM_MICBATCH=1
@@ -40,7 +33,7 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
 # size variables
-MODEL_SIZE=6.7 # "tiny" 6.7
+MODEL_SIZE=70 # "tiny" 6.7
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
@@ -53,6 +46,14 @@ else echo "invalid MODEL_SIZE: ${MODEL_SIZE}"; exit 1
 fi
 
 
+BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
+LOG_NAME=GPT_${MODEL_SIZE}_pretrain_WS${WORLD_SIZE}_TP${TP}_PP${PP}
+LOG_PATH=${BASE_PATH}/log/${LOG_NAME}/node${NODE_RANK}.log
+
+# 确保日志目录存在
+mkdir -p $(dirname ${LOG_PATH})
+
+
 DO_TRACE=True
 # TRACE控制参数
 TRAIN_ITERS=10
@@ -61,8 +62,8 @@ TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
 
 
-MAX_SEQ_LEN=1024 # 4096 2048 1024
-MAX_POSITION_EMBEDDINGS=1024 # 4096 2048 1024
+MAX_SEQ_LEN=512 # 4096 2048 1024
+MAX_POSITION_EMBEDDINGS=512 # 4096 2048 1024
 
 # 检查trace_iter_num是否在合理的范围内
 if [ $TRACE_ITER_NUM -gt $((TRAIN_ITERS - 1)) ]; then
@@ -97,7 +98,9 @@ SIM_ARGS=" \
        --fake-local-rank $FAKE_LOCAL_RANK \
        --fake-pp $FAKE_PP \
        --fake-dp $FAKE_DP \
-       --fake-tp $FAKE_TP 
+       --fake-tp $FAKE_TP \
+       --trace-memory \
+       --trace-memory-interval 0.005 \
        "
 
 
@@ -162,6 +165,7 @@ GPT_ARGS="
     --weight-decay 1e-2 \
     --lr-warmup-fraction .01 \
     --clip-grad 1.0 \
+    --fp16 \
 "
     # --fp16
     # --mock-data
@@ -176,7 +180,7 @@ DATA_ARGS="
     --vocab-file $VOCAB_FILE \
     --merge-file $MERGE_FILE \
     --split 949,50,1 \
-    --vocab-size 3200 
+    --vocab-size 1000 
 "
 # --vocab-size 3200
 

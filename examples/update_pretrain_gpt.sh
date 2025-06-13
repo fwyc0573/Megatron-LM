@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=3 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=7 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -30,9 +30,9 @@ DP=$((${GPU_NUM}/${TP}/${PP}))
 BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
 
 # 模拟的并行度设置
-FAKE_PP=2
-FAKE_TP=1
-FAKE_WORLD_SIZE=4
+FAKE_PP=4
+FAKE_TP=2
+FAKE_WORLD_SIZE=8
 FAKE_DP=$((${FAKE_WORLD_SIZE}/${FAKE_PP}/${FAKE_TP}))
 if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
     echo "Error: FAKE_DP must be an integer."
@@ -40,7 +40,7 @@ if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
 fi
 
 # 创建统一的日志目录
-MODEL_SIZE=6.7 # 使用原脚本中的模型大小
+MODEL_SIZE=30 # 使用原脚本中的模型大小
 LOG_NAME=SIM_GPT_${MODEL_SIZE}_FakeWS${FAKE_WORLD_SIZE}_TP${FAKE_TP}_PP${FAKE_PP}
 LOG_DIR=${BASE_PATH}/log/${LOG_NAME}
 
@@ -89,7 +89,7 @@ TRACE_ARGS=" \
        --nsight-start $NSIGHT_START \
        "
 
-FAKE_GPUS_PER_NODE=4
+FAKE_GPUS_PER_NODE=8
 FAKE_WRANK=0
 FAKE_LOCAL_RANK=0
 # IS_SCALING_MODE=Falsef
@@ -102,7 +102,9 @@ SIM_ARGS=" \
        --fake-local-rank $FAKE_LOCAL_RANK \
        --fake-pp $FAKE_PP \
        --fake-dp $FAKE_DP \
-       --fake-tp $FAKE_TP 
+       --fake-tp $FAKE_TP \
+       --trace-memory \
+       --trace-memory-interval 0.005 \
        "
 
 GPT_ARGS="
@@ -124,6 +126,7 @@ GPT_ARGS="
     --weight-decay 1e-2 \
     --lr-warmup-fraction .01 \
     --clip-grad 1.0 \
+    --fp16 \
 "
     # --fp16
     # --mock-data

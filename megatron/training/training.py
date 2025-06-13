@@ -64,6 +64,8 @@ from .global_vars import (
     get_num_microbatches,
     update_num_microbatches)
 
+from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.profiler.trace_memory import get_memory_tracker
 
 stimer = StragglerDetector()
 
@@ -375,7 +377,7 @@ def pretrain(train_valid_test_dataset_provider,
             del output_tensor,input_tensor,output_tensor_grad, input_tensor_grad
             print(f"rank_id = {rank_id}, finish warm up ...")
             args.iteration = 0
-        
+
         # preapare for profiling: set grad to zero
         for model_chunk in model:
             model_chunk.zero_grad_buffer()
@@ -383,6 +385,15 @@ def pretrain(train_valid_test_dataset_provider,
 
         nvtx.range_push(f"rank:{rank_id}, complete iteration")
         nvtx.range_push(f"rank:{rank_id}, model_fwd_step")
+    
+
+        # Start memory tracking after warmup
+        memory_tracker = get_memory_tracker(args)
+        if memory_tracker is not None:
+            print_rank_0(f"Starting memory tracker for fake rank {rank_id}...")
+            torch.cuda.reset_peak_memory_stats()
+            memory_tracker.start()
+            memory_tracker.next_iteration(0) # Scaling mode simulates one iteration
     
         # forward_step_func()
         # get_batch / FWD (loss_func:dp_allreudce)
@@ -522,6 +533,14 @@ def pretrain(train_valid_test_dataset_provider,
         del params,total_param_count,grads_for_norm,total_grad_count
 
         nvtx.range_pop()
+
+        # Stop memory tracker before exiting
+        if 'memory_tracker' in locals() and memory_tracker is not None:
+            peak_memory_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
+            memory_tracker.log_peak_memory(0, peak_memory_mb)
+            memory_tracker.stop_tracking()
+
+
 
         # release GPU memory
         allocated_memory_before = torch.cuda.memory_allocated()
@@ -892,7 +911,7 @@ def setup_model_and_optimizer(model_provider_func,
 
 
 def train_step(forward_step_func, data_iterator,
-               model, optimizer, opt_param_scheduler, config):
+               model, optimizer, opt_param_scheduler, config, memory_tracker=None):
     """Single training step."""
     args = get_args()
     timers = get_timers()
@@ -901,6 +920,12 @@ def train_step(forward_step_func, data_iterator,
     for model_chunk in model:
         model_chunk.zero_grad_buffer()
     optimizer.zero_grad()
+
+
+    if memory_tracker is not None:
+        torch.cuda.reset_peak_memory_stats()
+        memory_tracker.next_iteration(args.current_iter)
+
 
     # Forward pass.
     # print(f"args.pipeline_model_parallel_size = {args.pipeline_model_parallel_size}")
@@ -969,6 +994,11 @@ def train_step(forward_step_func, data_iterator,
         print(f"rank_id: {args.simu_rank}, optim_step time: {elapsed_optim_time_ms}")
         # print(f"rank_id: {args.simu_rank}, total_parm_count: {total_param_count}, total_grad_count: {total_grad_count}")
     timers('optimizer').stop()
+
+    if memory_tracker is not None:
+        peak_memory_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
+        memory_tracker.log_peak_memory(args.current_iter, peak_memory_mb)
+        
     # args.simu_micro_batch_ids["optimizer_step"] += 1
     # cmd = CMD(args.simu_rank, "finalize", "optimizer_step", args.simu_micro_batch_ids["optimizer_step"])
     # args.stage_operations_trace[args.simu_rank].append(str(cmd))
@@ -1324,6 +1354,10 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     # Iterations.
     iteration = args.iteration
+
+    # Memory tracker
+    memory_tracker = get_memory_tracker(args)
+        
     one_logger = get_one_logger()
     if one_logger:
         iteration_start = iteration
@@ -1410,6 +1444,9 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     args.simu_start = True
     args.stage_operations_trace = {}
+    if memory_tracker is not None:
+        memory_tracker.start()
+        
     while iteration < args.train_iters:
         # if args.profile and \
         #    iteration == args.profile_step_start and \
@@ -1446,6 +1483,14 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         num_microbatches = get_num_microbatches()
         update_num_microbatches(args.consumed_train_samples, consistency_check=True)
 
+
+
+        if memory_tracker is not None:
+            # torch.cuda.reset_peak_memory_stats()
+            # memory_tracker.next_iteration(iteration)
+            pass
+
+
         args.current_iter = iteration
         nvtx.range_push("iteration:"+str(iteration))
         loss_dict, skipped_iter, grad_norm, num_zeros_in_grad = \
@@ -1454,11 +1499,18 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                        model,
                        optimizer,
                        opt_param_scheduler,
-                       config)
+                       config,
+                       memory_tracker)
         nvtx.range_pop()
 
         nvtx.range_push("after iteration")
         iteration += 1
+
+        # if memory_tracker is not None:
+        #     # Note: max_memory_allocated records the peak memory allocated since the last reset.
+        #     peak_memory_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
+        #     memory_tracker.log_peak_memory(iteration - 1, peak_memory_mb)
+
         batch_size = mpu.get_data_parallel_world_size() * \
                      args.micro_batch_size * \
                      get_num_microbatches()
@@ -1472,21 +1524,15 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                 gc.collect()
         nvtx.range_pop()
 
+    if memory_tracker is not None:
+        memory_tracker.stop_tracking()
+
     if args.do_trace:
         # name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_{args.main_tokenizer_type}"
         # args.micro_batch_size args.main_tokenizer_type
         name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_exp{args.expert_model_parallel_size}_expNum{args.num_experts}_l{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
         write_list_to_file(args.simu_rank, args.stage_operations_trace[args.simu_rank], name_args=name_args)
         print(f"rank:{args.simu_rank}, trace log has been written to txt...")
-    # track_e2e_metrics()
-
-    # # Flush TensorBoard and WandB writers.
-    # writer = get_tensorboard_writer()
-    # if writer:
-    #     writer.flush()
-    # wandb_writer = get_wandb_writer()
-    # if wandb_writer:
-    #     wandb_writer.finish()
 
     # Close out pre-hooks if using distributed optimizer and overlapped param gather.
     if args.use_distributed_optimizer and args.overlap_param_gather:
