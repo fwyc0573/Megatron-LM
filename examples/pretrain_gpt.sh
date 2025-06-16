@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-# export CUDA_VISIBLE_DEVICES=3,4,5,6 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=4,5,6,7 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -24,7 +24,7 @@ MASTER_ADDR="localhost" #"localhost"
 
 # Parallelism variables 
 PP=2
-TP=1
+TP=2
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
 
@@ -99,10 +99,9 @@ SIM_ARGS=" \
        --fake-pp $FAKE_PP \
        --fake-dp $FAKE_DP \
        --fake-tp $FAKE_TP \
-       --trace-memory \
-       --trace-memory-interval 0.005 \
        "
-
+    #    --trace-memory \
+    #    --trace-memory-interval 0.005 \
 
 # 当采用is-scaling-mode时,采用单个rank进行PROFILE
 if echo "$SIM_ARGS" | grep -q -- "--is-scaling-mode"; then
