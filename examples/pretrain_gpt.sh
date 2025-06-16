@@ -14,7 +14,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 
 # Distributed training variables
 NNODES=1
-GPUS_PER_NODE=8
+GPUS_PER_NODE=4
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
 NODE_RANK=0
@@ -23,7 +23,7 @@ MASTER_ADDR="localhost" #"localhost"
 
 
 # Parallelism variables 
-PP=8
+PP=2
 TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
@@ -33,7 +33,7 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
 # size variables
-MODEL_SIZE=70 # "tiny" 6.7
+MODEL_SIZE=6.7 # "tiny" 6.7
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;

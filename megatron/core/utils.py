@@ -48,9 +48,7 @@ def get_attr_wrapped_model(model, attr, allow_none=True, return_model_obj=False)
     if allow_none:
         def condition(model, attr):
             return not hasattr(model, attr)
-
     else:
-
         def condition(model, attr):
             return getattr(model, attr, None) is None
 

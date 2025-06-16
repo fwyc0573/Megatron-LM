@@ -1863,6 +1863,8 @@ def forward_backward_pipelining_without_interleaving(
         # record_name = str(args.simu_rank) + ":finalize:dp_allreduce:" + str(args.simu_micro_batch_ids["dp_allreduce"])
         # args.simu_stage_operations_trace.append(record_name)
 
+        # in training.py we have config.finalize_model_grads_func = finalize_model_grads
+        # so here we call finalize_model_grads([model], args)
         nvtx.range_push(f"{args.simu_rank}_finalize_model_grads_func")
         config.finalize_model_grads_func([model], args)
         nvtx.range_pop()

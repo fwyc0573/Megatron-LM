@@ -61,8 +61,8 @@ class Router(ABC, MegatronModule):
             torch.Tensor: Logits tensor.
         """
         logits = torch.nn.functional.linear(input, self.weight)
-        print(f"[DEBUG] gating - input dtype: {input.dtype}")
-        print(f"[DEBUG] gating - weight dtype: {self.weight.dtype}")
+        # print(f"[DEBUG] gating - input dtype: {input.dtype}")
+        # print(f"[DEBUG] gating - weight dtype: {self.weight.dtype}")
         return logits
 
     @abstractmethod

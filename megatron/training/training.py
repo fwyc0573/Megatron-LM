@@ -318,8 +318,8 @@ def pretrain(train_valid_test_dataset_provider,
         all_groups = manager.get_all_groups()
         rank_manager = RankManager(args, all_groups)
         rank_instances: dict = rank_manager.get_rank_zoos()
-        print(f"mpu_info:{mpu_info}")
-        print(f"all_groups:{all_groups}")
+        print(f"【INIT】 mpu_info:{mpu_info}")
+        print(f"【INIT】 all_groups:{all_groups}")
         # raise 0 
     
         current_fake_rank_id_int = args.fake_current_rank_id
@@ -528,7 +528,7 @@ def pretrain(train_valid_test_dataset_provider,
             nvtx.range_pop()
 
             if args.simu_start == True:
-                print(f"rank:{rank_id},optimizer_step time: {duration}, total_param_count: {total_param_count}, total_grad_count: {total_grad_count}")
+                print(f"rank:{rank_id},optimizer_step time: {duration}, optimizer_total_param_count: {total_param_count}, optimizer_total_grad_count: {total_grad_count}")
         print(f"rank:{rank_id}, finish optimizer.step profile ...")
         del params,total_param_count,grads_for_norm,total_grad_count
 
@@ -540,22 +540,9 @@ def pretrain(train_valid_test_dataset_provider,
             memory_tracker.log_peak_memory(0, peak_memory_mb)
             memory_tracker.stop_tracking()
 
-
-
-        # release GPU memory
-        allocated_memory_before = torch.cuda.memory_allocated()
-        reserved_memory_before = torch.cuda.memory_reserved()
-        print(f"rank:{rank_id}, Before memory release - Allocated: {allocated_memory_before}, Reserved: {reserved_memory_before}")
-        
         name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_exp{args.fake_exp}_expNum{args.fake_num_experts}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
         write_list_to_file(rank_id, args.stage_operations_trace[rank_id], file_path="profiler_log", name_args=name_args)
-        print(f"rank:{rank_id}, trace log has been written to txt...")
-        print(f"rank:{rank_id}, finish release GPU memory ...")
 
-        # 输出释放内存后的GPU内存使用情况
-        allocated_memory_after = torch.cuda.memory_allocated()
-        reserved_memory_after = torch.cuda.memory_reserved()
-        print(f"Rank:{rank_id}, Memory Allocated: {allocated_memory_after}, Reserved: {reserved_memory_after}")
         return
     
     else:
@@ -975,10 +962,10 @@ def train_step(forward_step_func, data_iterator,
     )
     timers('optimizer', log_level=1).start(barrier=args.barrier_with_L1_time)
 
-    # params = optimizer.get_parameters()  # 获取所有参数
-    # total_param_count = sum(param.numel() for param in params)  # 计算参数总量
-    # grads_for_norm = optimizer.get_main_grads_for_grad_norm()  # 获取所有梯度
-    # total_grad_count = sum(grad.numel() for grad in grads_for_norm)  # 计算梯度总量
+    params = optimizer.get_parameters()  # 获取所有参数
+    total_param_count = sum(param.numel() for param in params)  # 计算参数总量
+    grads_for_norm = optimizer.get_main_grads_for_grad_norm()  # 获取所有梯度
+    total_grad_count = sum(grad.numel() for grad in grads_for_norm)  # 计算梯度总量
 
     with cmd:
         nvtx.range_push("param optim")
@@ -992,7 +979,7 @@ def train_step(forward_step_func, data_iterator,
         elapsed_optim_time_ms = start_event.elapsed_time(end_event)
         nvtx.range_pop()
         print(f"rank_id: {args.simu_rank}, optim_step time: {elapsed_optim_time_ms}")
-        # print(f"rank_id: {args.simu_rank}, total_parm_count: {total_param_count}, total_grad_count: {total_grad_count}")
+        print(f"rank_id: {args.simu_rank}, optimizer_total_parm_count: {total_param_count}, optimizer_total_grad_count: {total_grad_count}")
     timers('optimizer').stop()
 
     if memory_tracker is not None:
@@ -1523,6 +1510,10 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             if args.manual_gc_interval != 0 and iteration % args.manual_gc_interval == 0:
                 gc.collect()
         nvtx.range_pop()
+        
+        if torch.distributed.get_rank() == 0:
+            num_microbatches = get_num_microbatches()
+            report_theoretical_memory(args, num_microbatches=num_microbatches, verbose=True)
 
     if memory_tracker is not None:
         memory_tracker.stop_tracking()

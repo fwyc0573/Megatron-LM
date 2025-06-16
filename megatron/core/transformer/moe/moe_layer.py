@@ -160,9 +160,9 @@ class MoELayer(BaseMoELayer):
 
         scores, indices = self.router(hidden_states)
 
-        print(f"[DEBUG] Before fixed routing - scores shape: {scores.shape}, dtype: {scores.dtype}")
-        print(f"[DEBUG] Before fixed routing - indices shape: {indices.shape}, dtype: {indices.dtype}")
-        print(f"[DEBUG] Before fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
+        # print(f"[DEBUG] Before fixed routing - scores shape: {scores.shape}, dtype: {scores.dtype}")
+        # print(f"[DEBUG] Before fixed routing - indices shape: {indices.shape}, dtype: {indices.dtype}")
+        # print(f"[DEBUG] Before fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
 
         #################### replaced by fixed routing results ##############
         if self.config.pre_fixed_routing_results:
@@ -179,9 +179,9 @@ class MoELayer(BaseMoELayer):
             if not hidden_states.is_cuda:
                 hidden_states = hidden_states.cuda()
 
-            print(f"[DEBUG] After fixed routing - scores shape: {scores.shape}, dtype: {scores.dtype}")
-            print(f"[DEBUG] After fixed routing - indices shape: {indices.shape}, dtype: {indices.dtype}")
-            print(f"[DEBUG] After fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
+            # print(f"[DEBUG] After fixed routing - scores shape: {scores.shape}, dtype: {scores.dtype}")
+            # print(f"[DEBUG] After fixed routing - indices shape: {indices.shape}, dtype: {indices.dtype}")
+            # print(f"[DEBUG] After fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
 
 
         (dispatched_input, tokens_per_expert) = self.token_dispatcher.token_permutation(

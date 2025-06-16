@@ -106,6 +106,8 @@ SIM_ARGS=" \
        --fake-tp $FAKE_TP \
        --fake-exp $FAKE_EXP \
        --fake-num-experts $FAKE_NUM_EXPERTS \
+       --trace-memory \
+       --trace-memory-interval 0.005 \
        "
 
 
@@ -162,7 +164,7 @@ DATA_ARGS="
     --vocab-file $VOCAB_FILE \
     --merge-file $MERGE_FILE \
     --split 949,50,1 \
-    --vocab-size 600 \
+    --vocab-size 3200 \
 "
 # --vocab-size 3200
 

@@ -8,13 +8,13 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=1,4,5,6
+# export CUDA_VISIBLE_DEVICES=4,5,6,7
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
 # Distributed training variables
 NNODES=1
-GPUS_PER_NODE=4
+GPUS_PER_NODE=8
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
 NODE_RANK=0
@@ -35,7 +35,7 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
 # size variables
-MODEL_SIZE=6.7 # "tiny"
+MODEL_SIZE="tiny" # "tiny"
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
@@ -50,7 +50,7 @@ fi
 
 DO_TRACE=True
 # TRACE控制参数
-TRAIN_ITERS=5
+TRAIN_ITERS=3
 TRACE_ITER_NUM=1 # trace_iter_num的范围<=train_iters-1（除去第一次）
 TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
@@ -93,6 +93,8 @@ SIM_ARGS=" \
        --fake-pp $FAKE_PP \
        --fake-dp $FAKE_DP \
        --fake-tp $FAKE_TP \
+       --trace-memory \
+       --trace-memory-interval 0.005 \
        "
 
 
@@ -107,8 +109,8 @@ if echo "$SIM_ARGS" | grep -q -- "--is-scaling-mode"; then
 fi
 
 
-EP=2  # 专家并行度
-NUM_EXPERTS=2 # 专家总数（必须是EP的倍数）
+EP=4  # 专家并行度
+NUM_EXPERTS=8 # 专家总数（必须是EP的倍数）
 if [ "$((NUM_EXPERTS % EP))" -ne "0" ]; then
     echo "Error: NUM_EXPERTS must be divisible by EP"
     exit 1
@@ -187,7 +189,7 @@ DATA_ARGS="
     --vocab-file $VOCAB_FILE \
     --merge-file $MERGE_FILE \
     --split 949,50,1 \
-    --vocab-size 600 \
+    --vocab-size 3200 \
 "
 # --vocab-size 3200
 
@@ -206,7 +208,7 @@ OUTPUT_ARGS="
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 NSYS_OUT_NAME="${MODEL_SIZE}_pp${PP}_dp${DP}_tp${TP}_ep${EP}_numexp${NUM_EXPERTS}"
 
-# nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas  --force-overwrite=true  -x true -o ${NSYS_OUT_NAME} \
+nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas  --force-overwrite=true  -x true -o ${NSYS_OUT_NAME} \
 torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/pretrain_llama.py \
     $GPT_ARGS \
     $MOE_ARGS \
@@ -215,6 +217,7 @@ torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE
     $SIM_ARGS \
     $TRACE_ARGS \
     --distributed-backend nccl \
+    --seed 42 \
     --use-mcore-models 2>&1 | tee ${LOG_PATH}
 
 

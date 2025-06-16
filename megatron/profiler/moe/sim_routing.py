@@ -47,6 +47,10 @@ def sim_routing(config: TransformerConfig, hidden_states_shape: Tuple[int, int, 
     """
     Simulate the routing process.
     """
+    from megatron.training import get_args
+    args = get_args()
+    torch.manual_seed(args.seed)
+
     router_wrapper = TopKRouterWrapper(config=config)
     router_wrapper.to(device='cuda', dtype=config.params_dtype)
     # Dictionary to store routing results for each EP rank
@@ -55,12 +59,12 @@ def sim_routing(config: TransformerConfig, hidden_states_shape: Tuple[int, int, 
     # for each rank, we randomly init the hidden_states to simulate the routing process to get scores and indices
     with torch.no_grad():
         for ep_rank in range(config.expert_model_parallel_size):
+            torch.manual_seed(args.seed + ep_rank) 
+            
             hidden_states_shape = tuple(map(int, hidden_states_shape))
             hidden_states = torch.rand(hidden_states_shape, dtype=config.params_dtype, device='cuda')
             # TODO-YC: add customized load-balance func API cotrol
             scores, indices = router_wrapper(hidden_states)
-            print(f"[DEBUG] scores dtype: {scores.dtype}")
-            print(f"[DEBUG] indices dtype: {indices.dtype}")
             routing_results[ep_rank] = {
                 'hidden_states': hidden_states.cpu(),
                 'scores': scores.cpu(),

@@ -305,6 +305,7 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         self.input_splits = None
         self.output_splits = None
         self.num_global_tokens_per_local_expert = None
+        self.simulated_nccl_buffer = None
 
     def preprocess(self, indices: torch.Tensor) -> torch.Tensor:
         """
@@ -327,6 +328,11 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             if not num_local_tokens_per_expert.is_cuda:
                 num_local_tokens_per_expert = num_local_tokens_per_expert.cuda()
 
+            # if self.simulated_nccl_buffer is None and self.ep_size > 1:
+            #     # Allocate ~1GB to simulate NCCL's internal buffer.
+            #     self.simulated_nccl_buffer = torch.empty(
+            #         1024 ** 3, dtype=torch.uint8, device="cuda"
+            #     )
         else:
             # TODO-YC  : Here to compare the pre results with the real results?
             num_local_tokens_per_expert = torch.histc(
@@ -339,7 +345,7 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         # [1, 0, 2, 1, 0, 1, 0, 1]: 1个给Expert 0，0个给Expert 1，2个给Expert 2，1个给Expert 3
 
         # num_local_tokens_per_expert: [num_experts]
-        print(f"[DEBUG] preprocess: num_local_tokens_per_expert: {num_local_tokens_per_expert}")
+        # print(f"[DEBUG] preprocess: num_local_tokens_per_expert: {num_local_tokens_per_expert}")
 
         ep_size = self.config.expert_model_parallel_size
         if ep_size > 1:
@@ -357,25 +363,42 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
 
             # scaling mode
             if self.config.is_scaling_mode:
-                num_global_tokens_per_expert = _gather_along_first_dim_expert_parallel(
-                    num_local_tokens_per_expert, func="gather_along_first_dim_expert_parallel"
-                )
+                # num_global_tokens_per_expert = _gather_along_first_dim_expert_parallel(
+                #     num_local_tokens_per_expert, func="gather_along_first_dim_expert_parallel"
+                # )
+                # num_global_tokens_per_expert = self.config.num_global_tokens_per_expert
+
+                # # Move tensor to GPU if it's not already there
+                # if not num_global_tokens_per_expert.is_cuda:
+                #     num_global_tokens_per_expert = num_global_tokens_per_expert.cuda()
+                ep_world_size = self.config.expert_model_parallel_size
+                if ep_world_size > 1:
+                    # This simulates the 'output' tensor allocation in
+                    # `_gather_along_first_dim_expert_parallel`.
+                    # The output buffer is `world_size` times the input buffer.
+                    output_dim_size = list(num_local_tokens_per_expert.size())
+                    output_dim_size[0] *= ep_world_size
+                    _ = torch.empty(output_dim_size,
+                                    dtype=num_local_tokens_per_expert.dtype,
+                                    device='cuda')
+
+                # The actual result is loaded from config, as the communication is pre-computed.
                 num_global_tokens_per_expert = self.config.num_global_tokens_per_expert
 
                 # Move tensor to GPU if it's not already there
                 if not num_global_tokens_per_expert.is_cuda:
                     num_global_tokens_per_expert = num_global_tokens_per_expert.cuda()
             else:
-                print(f"[DEBUG] berfore allgather, num_local_tokens_per_expert = {num_local_tokens_per_expert}, device: {num_local_tokens_per_expert.device}")
+                # print(f"[DEBUG] berfore allgather, num_local_tokens_per_expert = {num_local_tokens_per_expert}, device: {num_local_tokens_per_expert.device}")
                 num_global_tokens_per_expert = _gather_along_first_dim_expert_parallel(
                     num_local_tokens_per_expert, func="gather_along_first_dim_expert_parallel"
                 )#.reshape(ep_size, self.num_experts)
-                print(f"[DEBUG] after allgather, num_global_tokens_per_expert = {num_global_tokens_per_expert}, device: {num_global_tokens_per_expert.device}, dtype: {num_global_tokens_per_expert.dtype}")
+                # print(f"[DEBUG] after allgather, num_global_tokens_per_expert = {num_global_tokens_per_expert}, device: {num_global_tokens_per_expert.device}, dtype: {num_global_tokens_per_expert.dtype}")
 
             # Print shapes and dtypes for debugging
-            print(f"[DEBUG] input_splits shape: {self.input_splits.shape}")
-            print(f"[DEBUG] num_local_tokens_per_expert shape: {num_local_tokens_per_expert.shape}, device: {num_local_tokens_per_expert.device}")
-            print(f"[DEBUG] num_global_tokens_per_expert shape: {num_global_tokens_per_expert.shape}, device: {num_global_tokens_per_expert.device}, dtype: {num_global_tokens_per_expert.dtype}")
+            # print(f"[DEBUG] input_splits shape: {self.input_splits.shape}")
+            # print(f"[DEBUG] num_local_tokens_per_expert shape: {num_local_tokens_per_expert.shape}, device: {num_local_tokens_per_expert.device}")
+            # print(f"[DEBUG] num_global_tokens_per_expert shape: {num_global_tokens_per_expert.shape}, device: {num_global_tokens_per_expert.device}, dtype: {num_global_tokens_per_expert.dtype}")
 
             # get global routing table through allgather
             # num_global_tokens_per_expert的shape ->【ep_size, self.num_experts】类比为矩阵G【i，j】：第i个ep rank 需要第j个 expert 发送XX个tokens
@@ -457,9 +480,6 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             hidden_states, self.local_input_tokens_global_experts_indices, topk=self.router_topk,
         )
 
-
-        
-
         # Perform expert parallel AlltoAll communication
         global_input_tokens = tensor_parallel.all_to_all(
             parallel_state.get_expert_model_parallel_group(),
@@ -468,16 +488,35 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             self.input_splits,
             func="all_to_all"
         )
-        print(f"[DEBUG] real all_to_all - global_input_tokens shape: {global_input_tokens.shape}, dtype: {global_input_tokens.dtype}")
+        # print(f"[DEBUG] real all_to_all - global_input_tokens shape: {global_input_tokens.shape}, dtype: {global_input_tokens.dtype}")
 
         if self.config.is_scaling_mode:
             # TODO-YC:shape dtype 一致性检测；如果一致则让scaling mode调用（当然也调用下面的）
-            num_received_tokens = self.output_splits.sum()
+            # num_received_tokens = self.output_splits.sum()
+            # hidden_dim = permutated_local_input_tokens.shape[1]
+            # global_input_tokens = torch.empty(
+            #     (int(num_received_tokens), hidden_dim),
+            #     dtype=permutated_local_input_tokens.dtype,
+            #     device=permutated_local_input_tokens.device,
+            # )
+            num_received_tokens_fwd = self.output_splits.sum()
             hidden_dim = permutated_local_input_tokens.shape[1]
-            global_input_tokens = torch.empty(
-                (int(num_received_tokens), hidden_dim),
+
+            send_buffer_nelem = permutated_local_input_tokens.numel()
+            recv_buffer_nelem = int(num_received_tokens_fwd) * hidden_dim
+            
+            # We allocate a single contiguous buffer to simulate the combined memory footprint
+            # of send and receive buffers. This is a closer approximation of the peak memory
+            # usage during a real communication call.
+            simulated_comm_buffer = torch.empty(
+                send_buffer_nelem + recv_buffer_nelem,
                 dtype=permutated_local_input_tokens.dtype,
                 device=permutated_local_input_tokens.device,
+            )
+            # We then slice this buffer to create the correctly-sized output tensor.
+            # This ensures the large buffer remains allocated while returning a tensor of the expected shape.
+            global_input_tokens = simulated_comm_buffer[:recv_buffer_nelem].view(
+                int(num_received_tokens_fwd), hidden_dim
             )
 
 
@@ -540,20 +579,41 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             group_type="exp"
         )
 
-        print(f"[DEBUG] real all_to_all - permutated_local_input_tokens shape: {permutated_local_input_tokens.shape}, dtype: {permutated_local_input_tokens.dtype}")
+        # print(f"[DEBUG] real all_to_all - permutated_local_input_tokens shape: {permutated_local_input_tokens.shape}, dtype: {permutated_local_input_tokens.dtype}")
 
         if self.config.is_scaling_mode:
             # TODO-YC:shape dtype 一致性检测；如果一致则让scaling mode调用（当然也调用下面的）
             # In scaling mode, we simulate the reverse all_to_all communication.
             # The shape of the output tensor is determined by `input_splits`,
             # which are the `output_splits` for this backward communication.
-            num_received_tokens = self.input_splits.sum()
+            # num_received_tokens = self.input_splits.sum()
+            # hidden_dim = hidden_states.shape[1]
+            # permutated_local_input_tokens = torch.empty(
+            #     (int(num_received_tokens), hidden_dim),
+            #     dtype=hidden_states.dtype,
+            #     device=hidden_states.device,
+            # )
+
+            num_received_tokens_bwd = self.input_splits.sum()
             hidden_dim = hidden_states.shape[1]
-            permutated_local_input_tokens = torch.empty(
-                (int(num_received_tokens), hidden_dim),
+
+            send_buffer_nelem = hidden_states.numel()
+            recv_buffer_nelem = int(num_received_tokens_bwd) * hidden_dim
+            
+            # We allocate a single contiguous buffer to simulate the combined memory footprint
+            # of send and receive buffers. This is a closer approximation of the peak memory
+            # usage during a real communication call.
+            simulated_comm_buffer = torch.empty(
+                send_buffer_nelem + recv_buffer_nelem,
                 dtype=hidden_states.dtype,
                 device=hidden_states.device,
             )
+            # We then slice this buffer to create the correctly-sized output tensor.
+            # This ensures the large buffer remains allocated while returning a tensor of the expected shape.
+            permutated_local_input_tokens = simulated_comm_buffer[:recv_buffer_nelem].view(
+                int(num_received_tokens_bwd), hidden_dim
+            )
+
 
 
         # Unpermutation 1: AlltoAll output to output

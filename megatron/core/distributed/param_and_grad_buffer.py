@@ -137,6 +137,12 @@ class Bucket:
             # print(f"rank_id: {rank_id} | allreduce | Grad data size: {self.grad_data.size()}, dtype: {self.grad_data.dtype}")
             # raise 0 
             # nvtx.range_push(f"all_reduce_dp_{self.data_parallel_rank}")
+            
+            # 获取分布式信息用于调试
+            global_rank = torch.distributed.get_rank()
+            dp_group_ranks = list(range(torch.distributed.get_world_size(group=self.data_parallel_group)))
+            print(f"Global rank: {global_rank}, EP?DP group ranks: {dp_group_ranks}, EP?DP rank: {self.data_parallel_rank}")
+            
             self.communication_handle = torch.distributed.all_reduce(
                 self.grad_data,
                 group=self.data_parallel_group,

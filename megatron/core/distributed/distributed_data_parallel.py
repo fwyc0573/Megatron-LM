@@ -161,7 +161,6 @@ class DistributedDataParallel(MegatronModule):
         # This is a temporary workaround around a TE bug that is fixed with
         # https://github.com/NVIDIA/TransformerEngine/pull/719.
         if self.ddp_config.use_distributed_optimizer:
-
             @torch.no_grad()
             def unmap_weight_tensor(m):
                 if hasattr(m, 'weight_tensor'):

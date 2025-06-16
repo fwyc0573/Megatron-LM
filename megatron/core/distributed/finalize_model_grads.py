@@ -134,6 +134,7 @@ def finalize_model_grads(model: List[torch.nn.Module], args):
     CMD.set_current_cmd(cmd)
     with cmd:
         nvtx.range_push(f"allreduce_grads_sync_model_chunk")
+        # YC: check here, does it include ep optimizer's allreduce?
         for model_chunk in model:
             model_chunk.finish_grad_sync()
         nvtx.range_pop()
