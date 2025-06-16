@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=7 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=6 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -31,8 +31,8 @@ BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/y
 
 # 模拟的并行度设置
 FAKE_PP=2
-FAKE_TP=1
-FAKE_WORLD_SIZE=8
+FAKE_TP=2
+FAKE_WORLD_SIZE=4
 FAKE_DP=$((${FAKE_WORLD_SIZE}/${FAKE_PP}/${FAKE_TP}))
 if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
     echo "Error: FAKE_DP must be an integer."
@@ -40,7 +40,7 @@ if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
 fi
 
 # 创建统一的日志目录
-MODEL_SIZE=6.7 # 使用原脚本中的模型大小
+MODEL_SIZE=13 # 使用原脚本中的模型大小
 LOG_NAME=SIM_GPT_${MODEL_SIZE}_FakeWS${FAKE_WORLD_SIZE}_TP${FAKE_TP}_PP${FAKE_PP}
 LOG_DIR=${BASE_PATH}/log/${LOG_NAME}
 
@@ -74,8 +74,8 @@ TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
 
 
-MAX_SEQ_LEN=512 # 4096 2048 1024
-MAX_POSITION_EMBEDDINGS=512 # 4096 2048 1024
+MAX_SEQ_LEN=2048 # 4096 2048 1024
+MAX_POSITION_EMBEDDINGS=2048 # 4096 2048 1024
 
 # 检查trace_iter_num是否在合理的范围内
 if [ $TRACE_ITER_NUM -gt $((TRAIN_ITERS - 1)) ]; then
@@ -103,9 +103,9 @@ SIM_ARGS=" \
        --fake-pp $FAKE_PP \
        --fake-dp $FAKE_DP \
        --fake-tp $FAKE_TP \
-       --trace-memory \
-       --trace-memory-interval 0.005 \
        "
+    #    --trace-memory \
+    #    --trace-memory-interval 0.005 \
 
 GPT_ARGS="
     --main-tokenizer-type GPT2BPETokenizer \

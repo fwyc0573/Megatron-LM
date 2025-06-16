@@ -71,82 +71,9 @@ if [ $TRACE_ITER_NUM -gt $((TRAIN_ITERS - 1)) ]; then
   exit 1
 fi
 
-TRACE_ARGS=" \
-       --do-trace $DO_TRACE \
-       --trace-start $TRACE_START \
-       --nsight-start $NSIGHT_START \
-       "
-
-FAKE_WORLD_SIZE=8
-FAKE_WRANK=0
-FAKE_GPUS_PER_NODE=8
-FAKE_LOCAL_RANK=0
-# IS_SCALING_MODE=Falsef
-FAKE_PP=2
-FAKE_TP=4
-FAKE_DP=$((FAKE_WORLD_SIZE / FAKE_PP / FAKE_TP))
-if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
-    echo "Error: FAKE_DP must be an integer."
-    exit 1
-fi
-
-#        --is-scaling-mode \
-SIM_ARGS=" \
-       --fake-world-size $FAKE_WORLD_SIZE \
-       --fake-wrank $FAKE_WRANK \
-       --fake-gpus-per-node $FAKE_GPUS_PER_NODE \
-       --fake-local-rank $FAKE_LOCAL_RANK \
-       --fake-pp $FAKE_PP \
-       --fake-dp $FAKE_DP \
-       --fake-tp $FAKE_TP \
-       "
-    #    --trace-memory \
-    #    --trace-memory-interval 0.005 \
-
-# 当采用is-scaling-mode时,采用单个rank进行PROFILE
-if echo "$SIM_ARGS" | grep -q -- "--is-scaling-mode"; then
-    GPUS_PER_NODE=1
-    GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
-    WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
-    TP=1
-    PP=1
-    DP=$((${GPU_NUM}/${TP}/${PP}))
-fi
-
-
-
-# EP=2  # 专家并行度
-# NUM_EXPERTS=6  # 专家总数（必须是EP的倍数）
-
-# # 确保专家数量能被EP整除
-# if [ "$((NUM_EXPERTS % EP))" -ne "0" ]; then
-#     echo "Error: NUM_EXPERTS must be divisible by EP"
-#     exit 1
-# fi
-
-# MOE_ARGS="
-#     --num-experts $NUM_EXPERTS \
-#     --expert-model-parallel-size $EP \
-#     --moe-router-load-balancing-type aux_loss \
-#     --moe-router-topk 2 \
-#     --moe-aux-loss-coeff 1e-2 \
-#     --moe-token-dispatcher-type alltoall \
-#     --disable-bias-linear
-#     --moe-grouped-gemm \
-#     --bf16 
-# "
-    # 以下参数需要捆绑使用只使用, --moe-token-dispatcher-type默认是allgather，且可正常使用
-    # --moe-token-dispatcher-type alltoall \
-    # --disable-bias-linear
-
-    # --moe-grouped-gemm \
-    # --bf16 \
-
-    # 不开启moe_input_jitter_eps
 
 
 GPT_ARGS="
-    --main-tokenizer-type GPT2BPETokenizer \
     --tensor-model-parallel-size $TP \
     --pipeline-model-parallel-size $PP \
     --num-layers $NUM_LAYERS \
@@ -197,12 +124,10 @@ OUTPUT_ARGS="
 # export PYTHONPATH="${PYTHONPATH}:/data/ytyang/yichengfeng/DeepSpeed/Megatron-DeepSpeed/megatron"
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 # nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas  --force-overwrite=true  -x true -o optimzer_find_test—_tp2pp4 \
-torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/pretrain_llama.py \
+torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/pretrain_gpt.py \
     $GPT_ARGS \
     $DATA_ARGS \
     $OUTPUT_ARGS \
-    $SIM_ARGS \
-    $TRACE_ARGS \
     --distributed-backend nccl \
     --use-mcore-models 2>&1 | tee ${LOG_PATH}
 

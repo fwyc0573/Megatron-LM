@@ -52,5 +52,6 @@ dist/
 *.tracelog/
 logs/
 
+*.txt
 
 apex/
