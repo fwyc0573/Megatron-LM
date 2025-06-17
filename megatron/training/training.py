@@ -313,7 +313,7 @@ def pretrain(train_valid_test_dataset_provider,
 
         from megatron.profiler.rank_manager import RankManager
         from megatron.profiler.parallel_group_manager import MPUInfo, ParallelGroupManager
-        manager = ParallelGroupManager(local_size=args.fake_local_rank, world_size=args.fake_world_size, pp_size=args.fake_pp, tp_size=args.fake_tp)
+        manager = ParallelGroupManager(local_size=args.fake_local_rank, world_size=args.fake_world_size, pp_size=args.fake_pp, tp_size=args.fake_tp, exp_size=args.fake_exp)
         mpu_info: MPUInfo = manager.get_mpu_info()
         all_groups = manager.get_all_groups()
         rank_manager = RankManager(args, all_groups)
@@ -336,7 +336,7 @@ def pretrain(train_valid_test_dataset_provider,
         # open profile mode
         CMD.set_current_profile_sign(True)
 
-        add_extra_args_kwargs(rank_instance, args.is_scaling_mode)
+        add_extra_args_kwargs(rank_instance=rank_instance, is_scaling_mode=args.is_scaling_mode)
 
         # TODO-YC: why the mock-data cannot work in scaling-mode?
         args.iteration=0
@@ -425,17 +425,17 @@ def pretrain(train_valid_test_dataset_provider,
         CMD.set_current_cmd(cmd)
         with cmd:
             nvtx.range_push(f"rank:{rank_id}, model_bwd_step")
-            start_event = torch.cuda.Event(enable_timing=True)
-            stop_event = torch.cuda.Event(enable_timing=True)
-            start_event.record()
+            # start_event = torch.cuda.Event(enable_timing=True)
+            # stop_event = torch.cuda.Event(enable_timing=True)
+            # start_event.record()
             input_tensor_grad = sim_backward_step(rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config)
-            stop_event.record()
-            torch.cuda.synchronize()
-            duration = start_event.elapsed_time(stop_event)
+            # stop_event.record()
+            # torch.cuda.synchronize()
+            # duration = start_event.elapsed_time(stop_event)
             nvtx.range_pop()
             if args.simu_start == True:
-                print(f"rank:{rank_id},bwd time: {duration}")
-                print(f"rank:{rank_id}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
+            #     print(f"rank:{rank_id},bwd time: {duration}")
+            #     print(f"rank:{rank_id}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
                 print(f"rank:{rank_id}, finish BWD profile ...")
 
         # dp_allreduce
@@ -516,19 +516,19 @@ def pretrain(train_valid_test_dataset_provider,
             total_param_count = sum(param.numel() for param in params)  # 计算参数总量
             grads_for_norm = optimizer.get_main_grads_for_grad_norm()  # 获取所有梯度
             total_grad_count = sum(grad.numel() for grad in grads_for_norm)  # 计算梯度总量
-            start_event = torch.cuda.Event(enable_timing=True)
-            stop_event = torch.cuda.Event(enable_timing=True)
-            print(f"Finish warmup and Optimizer structure is {optimizer}")
+            # start_event = torch.cuda.Event(enable_timing=True)
+            # stop_event = torch.cuda.Event(enable_timing=True)
+            # print(f"Finish warmup and Optimizer structure is {optimizer}")
 
-            start_event.record()
+            # start_event.record()
             optimizer.step()
-            stop_event.record()
-            torch.cuda.synchronize()
-            duration = start_event.elapsed_time(stop_event)
+            # stop_event.record()
+            # torch.cuda.synchronize()
+            # duration = start_event.elapsed_time(stop_event)
             nvtx.range_pop()
 
-            if args.simu_start == True:
-                print(f"rank:{rank_id},optimizer_step time: {duration}, optimizer_total_param_count: {total_param_count}, optimizer_total_grad_count: {total_grad_count}")
+            # if args.simu_start == True:
+            #     print(f"rank:{rank_id},optimizer_step time: {duration}, optimizer_total_param_count: {total_param_count}, optimizer_total_grad_count: {total_grad_count}")
         print(f"rank:{rank_id}, finish optimizer.step profile ...")
         del params,total_param_count,grads_for_norm,total_grad_count
 
@@ -919,9 +919,9 @@ def train_step(forward_step_func, data_iterator,
     forward_backward_func = get_forward_backward_func()
 
     # temp add
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
-    start_event.record()
+    # start_event = torch.cuda.Event(enable_timing=True)
+    # end_event = torch.cuda.Event(enable_timing=True)
+    # start_event.record()
     nvtx.range_push("fwd_bwd_func")
     losses_reduced = forward_backward_func(
         forward_step_func=forward_step_func,
@@ -933,9 +933,9 @@ def train_step(forward_step_func, data_iterator,
         decoder_seq_length=args.decoder_seq_length,
         forward_only=False)
     nvtx.range_pop()
-    end_event.record()
-    torch.cuda.synchronize()
-    elapsed_fb_time = start_event.elapsed_time(end_event)
+    # end_event.record()
+    # torch.cuda.synchronize()
+    # elapsed_fb_time = start_event.elapsed_time(end_event)
 
     # Empty unused memory.
     if args.empty_unused_memory_level >= 1:
@@ -969,17 +969,17 @@ def train_step(forward_step_func, data_iterator,
 
     with cmd:
         nvtx.range_push("param optim")
-        print(f"Optimizer type: {type(optimizer).__name__}")
-        start_event = torch.cuda.Event(enable_timing=True)
-        end_event = torch.cuda.Event(enable_timing=True)
-        start_event.record()
+        # print(f"Optimizer type: {type(optimizer).__name__}")
+        # start_event = torch.cuda.Event(enable_timing=True)
+        # end_event = torch.cuda.Event(enable_timing=True)
+        # start_event.record()
         update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
-        end_event.record()
-        torch.cuda.synchronize()
-        elapsed_optim_time_ms = start_event.elapsed_time(end_event)
+        # end_event.record()
+        # torch.cuda.synchronize()
+        # elapsed_optim_time_ms = start_event.elapsed_time(end_event)
         nvtx.range_pop()
-        print(f"rank_id: {args.simu_rank}, optim_step time: {elapsed_optim_time_ms}")
-        print(f"rank_id: {args.simu_rank}, optimizer_total_parm_count: {total_param_count}, optimizer_total_grad_count: {total_grad_count}")
+        # print(f"rank_id: {args.simu_rank}, optim_step time: {elapsed_optim_time_ms}")
+        # print(f"rank_id: {args.simu_rank}, optimizer_total_parm_count: {total_param_count}, optimizer_total_grad_count: {total_grad_count}")
     timers('optimizer').stop()
 
     if memory_tracker is not None:
@@ -989,8 +989,8 @@ def train_step(forward_step_func, data_iterator,
     # args.simu_micro_batch_ids["optimizer_step"] += 1
     # cmd = CMD(args.simu_rank, "finalize", "optimizer_step", args.simu_micro_batch_ids["optimizer_step"])
     # args.stage_operations_trace[args.simu_rank].append(str(cmd))
-    elapsed_sum = elapsed_optim_time_ms + elapsed_fb_time
-    print(f"rank_id: {args.simu_rank}, sum(1f1b+optim) time: {elapsed_sum}")
+    # elapsed_sum = elapsed_optim_time_ms + elapsed_fb_time
+    # print(f"rank_id: {args.simu_rank}, sum(1f1b+optim) time: {elapsed_sum}")
 
     nvtx.range_push("afet parm optim")
     # Vision momentum.

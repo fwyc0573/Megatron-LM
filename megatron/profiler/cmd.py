@@ -141,7 +141,7 @@ class CMD:
             self.batch_id = self.micro_batch_ids_dict[self.name_cmd]
 
         try:
-            if self.use_cuda and torch.cuda.is_available():
+            if self.use_cuda:
                 self.start_event = torch.cuda.Event(enable_timing=True)
                 self.stop_event = torch.cuda.Event(enable_timing=True)
                 self.start_event.record()
@@ -158,7 +158,7 @@ class CMD:
             return
 
         try:
-            if self.use_cuda and torch.cuda.is_available():
+            if self.use_cuda:
                 if self.stop_event is not None:
                     self.stop_event.record()
                     torch.cuda.synchronize()
@@ -259,7 +259,7 @@ class CMD:
                 CMD.temp_async_records.pop(key, None)
 
     @staticmethod
-    def get_trace_decorator(attrs: Optional[Dict[str, List[str]]] = None, group_type: Optional[str] = None, comm_func: Optional[str] = None, overlap_op: Optional[str] = None):
+    def get_trace_decorator(attrs: Optional[Dict[str, List[str]]] = None, group_type: Optional[str] = None, comm_func: Optional[str] = None, overlap_op: Optional[str] = None, dynamic_attrs: Optional[Dict[str, str]] = None):
         """Get a decorator for tracing function calls"""
         def decorator(func):
             def wrapper(*args, **kwargs):
@@ -273,7 +273,7 @@ class CMD:
                 current_cmd = CMD.get_current_cmd()
                 if current_cmd is not None:
                     try:
-                        if current_cmd.use_cuda and torch.cuda.is_available():
+                        if current_cmd.use_cuda:
                             start_event = torch.cuda.Event(enable_timing=True)
                             stop_event = torch.cuda.Event(enable_timing=True)
                             start_event.record()
@@ -289,26 +289,35 @@ class CMD:
                             duration = (end_time - start_time) * 1000  # convert to ms
 
                         attr_info = {}
-                        if attrs:
+                        bound_args = None
+                        if attrs or dynamic_attrs:
                             try:
                                 bound_args = inspect.signature(func).bind(*args, **kwargs)
                                 bound_args.apply_defaults()
-                                for var_name, attributes in attrs.items():
-                                    variable = bound_args.arguments.get(var_name)
-                                    if variable is not None:
-                                        for attr in attributes:
-                                            if hasattr(variable, attr):
-                                                value = getattr(variable, attr)
-                                                if attr == 'shape':
-                                                    attr_info[f"{var_name}_{attr}"] = list(value)
+                                
+                                if attrs:
+                                    for var_name, attributes in attrs.items():
+                                        variable = bound_args.arguments.get(var_name)
+                                        if variable is not None:
+                                            for attr in attributes:
+                                                if hasattr(variable, attr):
+                                                    value = getattr(variable, attr)
+                                                    if attr == 'shape':
+                                                        attr_info[f"{var_name}_{attr}"] = list(value)
+                                                    else:
+                                                        attr_info[f"{var_name}_{attr}"] = value
                                                 else:
-                                                    attr_info[f"{var_name}_{attr}"] = value
-                                            else:
-                                                attr_info[f"{var_name}_{attr}"] = variable
+                                                    attr_info[f"{var_name}_{attr}"] = variable
+                                
+                                if dynamic_attrs:
+                                    for attr_key, arg_name in dynamic_attrs.items():
+                                        if arg_name in bound_args.arguments:
+                                            attr_info[attr_key] = bound_args.arguments[arg_name]
+                                            
                             except Exception as e:
                                 print(f"Warning: Failed to extract attributes for {func.__name__}: {e}")
                                 
-                        if group_type:
+                        if group_type and 'group' not in attr_info:
                             attr_info['group'] = group_type
                         if comm_func:
                             attr_info['comm_func'] = comm_func
@@ -371,7 +380,7 @@ class CMD:
         # Create timing record
         try:
             with async_records_lock:
-                if current_cmd.use_cuda and torch.cuda.is_available():
+                if current_cmd.use_cuda:
                     start_event = torch.cuda.Event(enable_timing=True)
                     start_event.record()
                     CMD.temp_async_records[unique_key] = {
@@ -416,7 +425,7 @@ class CMD:
                     operation_name = record.get('operation_name', 'unknown')
                     duration = "Async operation, duration not measured"
                     
-                    if current_cmd.use_cuda and torch.cuda.is_available():
+                    if current_cmd.use_cuda:
                         start_event = record.get('start_event', None)
                         if start_event is not None:
                             stop_event = torch.cuda.Event(enable_timing=True)

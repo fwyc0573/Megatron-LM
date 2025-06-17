@@ -232,8 +232,8 @@ def sim_backward_step(rank_id, input_tensor, output_tensor, output_tensor_grad, 
     if output_tensor_grad[0] is None and config.grad_scale_func is not None:
         output_tensor[0] = config.grad_scale_func(output_tensor[0])
 
-    torch.cuda.synchronize()
-    print(f"Rank {rank_id} before bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+    # torch.cuda.synchronize()
+    # print(f"Rank {rank_id} before bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
 
     # with profile_timer(rank_id, "model_bwd"):
@@ -242,8 +242,8 @@ def sim_backward_step(rank_id, input_tensor, output_tensor, output_tensor_grad, 
     else:
         torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
 
-    torch.cuda.synchronize()
-    print(f"Rank {rank_id} after bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+    # torch.cuda.synchronize()
+    # print(f"Rank {rank_id} after bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
 
     # Collect the grad of the input_tensor.
@@ -380,8 +380,8 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
         set_input_tensor(input_tensor)
     else:
         input_tensor = [None]
-    if args.simu_start == True:
-        print(f"rank_id = {rank_id}, input_tensor_shapes: {input_tensor_shapes}")
+    # if args.simu_start == True:
+    #     print(f"rank_id = {rank_id}, input_tensor_shapes: {input_tensor_shapes}")
 
     # 2. forward_step_func()
     #   2.1 get_batch()
@@ -456,27 +456,27 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
     )
     CMD.set_current_cmd(cmd)
     with cmd:
-        start_event = torch.cuda.Event(enable_timing=True)
-        stop_event = torch.cuda.Event(enable_timing=True)
-        start_event.record()
+        # start_event = torch.cuda.Event(enable_timing=True)
+        # stop_event = torch.cuda.Event(enable_timing=True)
+        # start_event.record()
 
-        torch.cuda.synchronize()
-        print(f"Rank {rank_id} before fwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+        # torch.cuda.synchronize()
+        # print(f"Rank {rank_id} before fwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
         output_tensor = unwrapped_model(tokens, position_ids, attention_mask, labels=labels)
 
-        torch.cuda.synchronize()
-        print(f"Rank {rank_id} after fwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+        # torch.cuda.synchronize()
+        # print(f"Rank {rank_id} after fwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
 
 
-        output_tensor = output_tensor.contiguous()
-        stop_event.record()
-        torch.cuda.synchronize()
-        duration = start_event.elapsed_time(stop_event)
-        if args.simu_start == True:
-            print(f"rank:{rank_id},cuda fwd time: {duration}")
-            print(f"rank:{rank_id}, fwd_subop num: {len(cmd.sub_operations)}, fwd_subop: {cmd.sub_operations}")
+        # output_tensor = output_tensor.contiguous()
+        # stop_event.record()
+        # torch.cuda.synchronize()
+        # duration = start_event.elapsed_time(stop_event)
+        # if args.simu_start == True:
+        #     print(f"rank:{rank_id},cuda fwd time: {duration}")
+        #     print(f"rank:{rank_id}, fwd_subop num: {len(cmd.sub_operations)}, fwd_subop: {cmd.sub_operations}")
             
     # 3. is_pipeline_last_stage -> loss_func()
     if args.is_post_process:

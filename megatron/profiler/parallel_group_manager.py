@@ -64,7 +64,7 @@ class MPUInfo:
 
 
 class ParallelGroupManager:
-    def __init__(self, local_size, world_size, pp_size, tp_size, dp_size=None, cp_size=1, exp_size=1):
+    def __init__(self, local_size, world_size, pp_size, tp_size, dp_size=None, exp_size=1, cp_size=1):
         """Initialize the parallel group manager.
         
         Args:
@@ -97,6 +97,13 @@ class ParallelGroupManager:
                 f"Invalid parallel configuration: world_size ({self.world_size}) != "
                 f"dp_size ({self.dp_size}) * pp_size ({self.pp_size}) * tp_size ({self.tp_size}) * "
                 f"cp_size ({self.cp_size})) = {expected_world_size}"
+            )
+            
+        # Validate expert parallel configuration
+        if self.dp_size % self.exp_size != 0:
+            raise ValueError(
+                f"Invalid expert parallel configuration: dp_size ({self.dp_size}) must be "
+                f"divisible by exp_size ({self.exp_size})"
             )
             
         # Initialize groups using sim_parallel_state

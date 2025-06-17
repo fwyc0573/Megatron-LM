@@ -318,8 +318,8 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
 
 
 
-    torch.cuda.synchronize()
-    print(f"Rank {args.simu_rank} before bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+    # torch.cuda.synchronize()
+    # print(f"Rank {args.simu_rank} before bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
 
     if config.deallocate_pipeline_outputs:
@@ -327,11 +327,8 @@ def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, c
     else:
         torch.autograd.backward(output_tensor[0], grad_tensors=output_tensor_grad[0])
 
-    torch.cuda.synchronize()
-    print(f"Rank {args.simu_rank} after bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-
-
-
+    # torch.cuda.synchronize()
+    # print(f"Rank {args.simu_rank} after bwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
 
     # Collect the grad of the input_tensor.
@@ -1507,7 +1504,6 @@ def forward_backward_pipelining_without_interleaving(
         # Note: 串行过程，先send后recv，comm.和comp.不重叠（通信是阻塞式的，but why？）
         if forward_only:
             send_forward(output_tensor, send_tensor_shapes, config)
-
             if not last_iteration:
                 input_tensor = recv_forward(recv_tensor_shapes, config)
         else:

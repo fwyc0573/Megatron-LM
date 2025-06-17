@@ -75,8 +75,8 @@ TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
 
 
-MAX_SEQ_LEN=512 # 4096 2048 1024
-MAX_POSITION_EMBEDDINGS=512 # 4096 2048 1024
+MAX_SEQ_LEN=2048 # 4096 2048 1024
+MAX_POSITION_EMBEDDINGS=2048 # 4096 2048 1024
 
 # 检查trace_iter_num是否在合理的范围内
 if [ $TRACE_ITER_NUM -gt $((TRAIN_ITERS - 1)) ]; then
@@ -106,10 +106,9 @@ SIM_ARGS=" \
        --fake-tp $FAKE_TP \
        --fake-exp $FAKE_EXP \
        --fake-num-experts $FAKE_NUM_EXPERTS \
-       --trace-memory \
-       --trace-memory-interval 0.005 \
        "
-
+    #    --trace-memory \
+    #    --trace-memory-interval 0.005 \
 
 MOE_ARGS="
     --num-experts $NUM_EXPERTS \

@@ -151,8 +151,14 @@ class MoELayer(BaseMoELayer):
         
         if self.config.is_scaling_mode:
             exp_rank = self.config.exp_rank
+            pp_rank = self.config.pp_rank
+            dp_rank = self.config.dp_rank
+            tp_rank = self.config.tp_rank
         else:
             exp_rank = parallel_state.get_expert_model_parallel_rank()
+            pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+            dp_rank = parallel_state.get_data_parallel_rank()
+            tp_rank = parallel_state.get_tensor_model_parallel_rank()
 
         # hidden_states shape = [seq_len, micro_batch_size, hidden_size]
         # TODO-YC:
@@ -165,28 +171,66 @@ class MoELayer(BaseMoELayer):
         # print(f"[DEBUG] Before fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
 
         #################### replaced by fixed routing results ##############
-        if self.config.pre_fixed_routing_results:
+        # if self.config.pre_fixed_routing_results:
 
-            scores = self.config.pre_fixed_routing_results[exp_rank]['scores']
-            indices = self.config.pre_fixed_routing_results[exp_rank]['indices']
-            hidden_states = self.config.pre_fixed_routing_results[exp_rank]['hidden_states']
+        #     # scores = self.config.pre_fixed_routing_results[exp_rank]['scores']
+        #     indices = self.config.pre_fixed_routing_results[exp_rank]['indices']
+        #     # hidden_states = self.config.pre_fixed_routing_results[exp_rank]['hidden_states']
             
-            # Move tensors to GPU if they're not already there
-            if not scores.is_cuda:
-                scores = scores.cuda()
+        #     # Move tensors to GPU if they're not already there
+        #     if not scores.is_cuda:
+        #         scores = scores.cuda()
+        #     if not indices.is_cuda:
+        #         indices = indices.cuda()
+        #     if not hidden_states.is_cuda:
+        #         hidden_states = hidden_states.cuda()
+
+        #     # print(f"[DEBUG] After fixed routing - scores shape: {scores.shape}, dtype: {scores.dtype}")
+        #     # print(f"[DEBUG] After fixed routing - indices shape: {indices.shape}, dtype: {indices.dtype}")
+        #     # print(f"[DEBUG] After fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
+
+        
+        if self.config.pre_fixed_routing_results:
+            # --- START of a new block to fix the graph ---
+            # 1. DO NOT replace hidden_states. Use the real one from the previous layer.
+            # 2. Run router's gating to get logits. This keeps the graph connected to router weights.
+            logits = self.router.gating(hidden_states)
+            logits = logits.view(-1, self.config.num_moe_experts)
+            
+            # 3. Apply z_loss to keep it in the backward pass.
+            logits = self.router.apply_z_loss(logits)
+            
+            # 4. Use the pre-computed indices.
+            indices = self.config.pre_fixed_routing_results[exp_rank]['indices']
             if not indices.is_cuda:
                 indices = indices.cuda()
-            if not hidden_states.is_cuda:
-                hidden_states = hidden_states.cuda()
 
-            # print(f"[DEBUG] After fixed routing - scores shape: {scores.shape}, dtype: {scores.dtype}")
-            # print(f"[DEBUG] After fixed routing - indices shape: {indices.shape}, dtype: {indices.dtype}")
-            # print(f"[DEBUG] After fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
+            # 5. Re-compute scores from real logits and fixed indices.
+            top_logits = torch.gather(logits, 1, indices)
+            scores = torch.softmax(top_logits, dim=-1, dtype=torch.float32).type_as(logits)
+
+            # 6. Re-apply load balancing loss to keep it in the backward pass.
+            if self.config.moe_router_load_balancing_type == 'aux_loss':
+                probs = torch.softmax(logits, dim=-1, dtype=torch.float32)
+                scores = self.router.apply_load_balancing_loss(probs, indices, activation=scores)
+            # --- END of the new block ---
+        else:
+            # Original path for real running mode
+            scores, indices = self.router(hidden_states)
 
 
+        # Debug: Print scores and indices to check differences across ranks
+        print(f"[DEBUG] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} - scores (first 10): {scores.flatten()[:10].tolist()}")
+        print(f"[DEBUG] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} - indices (first 10): {indices.flatten()[:10].tolist()}")
+        # [MoE Dispatch Info] Rank (1, 1, 0, 0)
         (dispatched_input, tokens_per_expert) = self.token_dispatcher.token_permutation(
             hidden_states, scores, indices
         )
+        print(f"[MoE Dispatch Info] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} (EP Rank {exp_rank}): "
+              f"tokens_per_expert={tokens_per_expert.tolist()} | "
+              f"total_tokens={tokens_per_expert.sum().item()} | "
+              f"dispatched_input_shape={dispatched_input.shape}")
+
         expert_output, mlp_bias = self.experts(dispatched_input, tokens_per_expert)
         output, mlp_bias = self.token_dispatcher.token_unpermutation(expert_output, mlp_bias)
         return output, mlp_bias

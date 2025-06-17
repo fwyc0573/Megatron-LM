@@ -266,14 +266,14 @@ def forward_step(data_iterator, model: GPTModel):
         # end_event = torch.cuda.Event(enable_timing=True)
         # start_event.record()
 
-        torch.cuda.synchronize()
-        print(f"Rank {args.simu_rank} before fwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+        # torch.cuda.synchronize()
+        # print(f"Rank {args.simu_rank} before fwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
         output_tensor = model(tokens, position_ids, attention_mask,
                                 labels=labels)
         
-        torch.cuda.synchronize()
-        print(f"Rank {args.simu_rank} after fwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+        # torch.cuda.synchronize()
+        # print(f"Rank {args.simu_rank} after fwd: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
 
         # end_event.record()
         # torch.cuda.synchronize()

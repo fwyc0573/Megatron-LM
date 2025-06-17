@@ -413,12 +413,100 @@ class _ReduceScatterToTensorParallelRegion(torch.autograd.Function):
         return _gather_along_last_dim(grad_output)
 
 
+# class _AllToAll(torch.autograd.Function):
+#     @staticmethod
+#     def forward(ctx, group, input, output_split_sizes, input_split_sizes):
+#         ctx.group = group
+#         ctx.output_split_sizes = output_split_sizes
+#         ctx.input_split_sizes = input_split_sizes
+
+#         world_size = torch.distributed.get_world_size(group=group)
+#         # Bypass the function if we are using only 1 GPU.
+#         if world_size == 1:
+#             return input
+
+#         input = input.contiguous()
+#         if output_split_sizes is None:
+#             # Equal split (all2all)
+#             output = torch.empty_like(input)
+#         else:
+#             # Unequal split (all2all-v)
+#             output = input.new_empty(
+#                 size=[sum(output_split_sizes)] + list(input.size()[1:]),
+#                 dtype=input.dtype,
+#                 device=torch.cuda.current_device(),
+#             )
+#         torch.distributed.all_to_all_single(
+#             output,
+#             input,
+#             output_split_sizes=output_split_sizes,
+#             input_split_sizes=input_split_sizes,
+#             group=group,
+#         )
+#         return output
+
+#     @staticmethod
+#     def backward(ctx, *grad_output):
+#         return (
+#             None,
+#             _AllToAll.apply(ctx.group, *grad_output, ctx.input_split_sizes, ctx.output_split_sizes),
+#             None,
+#             None,
+#         )
+
+@CMD.get_trace_decorator(
+    attrs={'input_': ['shape', 'dtype']},
+    comm_func='all_to_all_single',
+    dynamic_attrs={'group': 'group_type'}
+)
+def _profiled_all_to_all_single(input_, output_split_sizes, input_split_sizes, group, group_type, is_scaling_mode=False):
+    """
+    This is a profiled wrapper around the raw PyTorch all_to_all_single call.
+    The decorator handles timing and attribute extraction.
+    In scaling mode, it creates an empty tensor to simulate the communication buffer.
+    """
+    # In scaling mode, we only simulate the buffer creation and skip the actual communication.
+    if is_scaling_mode:
+        if output_split_sizes is None:
+            # This logic branch is for cases where split sizes are not provided,
+            # which might imply an equal split. We'll create a similar shaped empty tensor.
+            output = torch.empty_like(input_)
+        else:
+            # Create an empty tensor with the shape of what the output of all_to_all would have been.
+            output = input_.new_empty(
+                size=[sum(output_split_sizes)] + list(input_.size()[1:]),
+                dtype=input_.dtype,
+                device=torch.cuda.current_device(),
+            )
+        return output
+
+    if output_split_sizes is None:
+        output = torch.empty_like(input_)
+    else:
+        output = input_.new_empty(
+            size=[sum(output_split_sizes)] + list(input_.size()[1:]),
+            dtype=input_.dtype,
+            device=torch.cuda.current_device(),
+        )
+    
+    torch.distributed.all_to_all_single(
+        output,
+        input_,
+        output_split_sizes=output_split_sizes,
+        input_split_sizes=input_split_sizes,
+        group=group,
+    )
+    return output
+
+
 class _AllToAll(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, group, input, output_split_sizes, input_split_sizes):
+    def forward(ctx, group, input, output_split_sizes, input_split_sizes, group_type_for_profiling, is_scaling_mode):
         ctx.group = group
         ctx.output_split_sizes = output_split_sizes
         ctx.input_split_sizes = input_split_sizes
+        ctx.group_type_for_profiling = group_type_for_profiling
+        ctx.is_scaling_mode = is_scaling_mode
 
         world_size = torch.distributed.get_world_size(group=group)
         # Bypass the function if we are using only 1 GPU.
@@ -426,22 +514,14 @@ class _AllToAll(torch.autograd.Function):
             return input
 
         input = input.contiguous()
-        if output_split_sizes is None:
-            # Equal split (all2all)
-            output = torch.empty_like(input)
-        else:
-            # Unequal split (all2all-v)
-            output = input.new_empty(
-                size=[sum(output_split_sizes)] + list(input.size()[1:]),
-                dtype=input.dtype,
-                device=torch.cuda.current_device(),
-            )
-        torch.distributed.all_to_all_single(
-            output,
+
+        output = _profiled_all_to_all_single(
             input,
-            output_split_sizes=output_split_sizes,
-            input_split_sizes=input_split_sizes,
-            group=group,
+            output_split_sizes,
+            input_split_sizes,
+            group,
+            group_type_for_profiling,
+            is_scaling_mode
         )
         return output
 
@@ -449,10 +529,14 @@ class _AllToAll(torch.autograd.Function):
     def backward(ctx, *grad_output):
         return (
             None,
-            _AllToAll.apply(ctx.group, *grad_output, ctx.input_split_sizes, ctx.output_split_sizes),
+            _AllToAll.apply(ctx.group, *grad_output, ctx.input_split_sizes, ctx.output_split_sizes, ctx.group_type_for_profiling, ctx.is_scaling_mode),
             None,
             None,
+            None,
+            None, # for is_scaling_mode
         )
+
+
 
 
 # -----------------
@@ -511,15 +595,30 @@ def _all_to_all_exp_wrapper(group, input_, output_split_sizes_=None, input_split
 def _all_to_all_tp_wrapper(group, input_, output_split_sizes_=None, input_split_sizes_=None, func=None):
     return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_)
 
-# No need to use this function, use _all_to_all_exp_wrapper and _all_to_all_tp_wrapper 
-# instead (we do this because we find that comm. op calls are different in this func)
+# # No need to use this function, use _all_to_all_exp_wrapper and _all_to_all_tp_wrapper 
+# # instead (we do this because we find that comm. op calls are different in this func)
+# def all_to_all(group, input_, output_split_sizes_=None, input_split_sizes_=None, func=None, group_type=None):
+#     if group_type == "exp":
+#         return _all_to_all_exp_wrapper(group, input_, output_split_sizes_, input_split_sizes_, func)
+#     elif group_type == "tp":
+#         return _all_to_all_tp_wrapper(group, input_, output_split_sizes_, input_split_sizes_, func)
+#     else:
+#         return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_)
+
+
+
+
 def all_to_all(group, input_, output_split_sizes_=None, input_split_sizes_=None, func=None, group_type=None):
-    if group_type == "exp":
-        return _all_to_all_exp_wrapper(group, input_, output_split_sizes_, input_split_sizes_, func)
-    elif group_type == "tp":
-        return _all_to_all_tp_wrapper(group, input_, output_split_sizes_, input_split_sizes_, func)
-    else:
-        return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_)
+    """
+    The main entry point for all_to_all communication.
+    It passes the group_type to the autograd function for profiling.
+    """
+    from megatron.training import get_args
+    args = get_args()
+    is_scaling_mode = getattr(args, 'is_scaling_mode', False)
+    return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_, group_type, is_scaling_mode)
+
+
 
 
 def all_to_all_sp2hp(input_, func=None):

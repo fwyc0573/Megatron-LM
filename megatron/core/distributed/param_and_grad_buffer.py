@@ -141,7 +141,7 @@ class Bucket:
             # 获取分布式信息用于调试
             global_rank = torch.distributed.get_rank()
             dp_group_ranks = list(range(torch.distributed.get_world_size(group=self.data_parallel_group)))
-            print(f"Global rank: {global_rank}, EP?DP group ranks: {dp_group_ranks}, EP?DP rank: {self.data_parallel_rank}")
+            # print(f"Global rank: {global_rank}, EP?DP group ranks: {dp_group_ranks}, EP?DP rank: {self.data_parallel_rank}")
             
             self.communication_handle = torch.distributed.all_reduce(
                 self.grad_data,
