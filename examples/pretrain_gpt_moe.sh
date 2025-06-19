@@ -93,6 +93,8 @@ SIM_ARGS=" \
        --fake-pp $FAKE_PP \
        --fake-dp $FAKE_DP \
        --fake-tp $FAKE_TP \
+       --trace-memory \
+       --trace-memory-interval 0.005 \
        "
     #    --trace-memory \
     #    --trace-memory-interval 0.005 \

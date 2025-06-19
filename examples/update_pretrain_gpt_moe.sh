@@ -106,6 +106,8 @@ SIM_ARGS=" \
        --fake-tp $FAKE_TP \
        --fake-exp $FAKE_EXP \
        --fake-num-experts $FAKE_NUM_EXPERTS \
+       --trace-memory \
+       --trace-memory-interval 0.005 \
        "
     #    --trace-memory \
     #    --trace-memory-interval 0.005 \

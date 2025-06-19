@@ -508,10 +508,16 @@ class _AllToAll(torch.autograd.Function):
         ctx.group_type_for_profiling = group_type_for_profiling
         ctx.is_scaling_mode = is_scaling_mode
 
+        # ctx.current_cmd_for_backward = current_cmd
+
+        # original_cmd = CMD.get_current_cmd()
+        # CMD.set_current_cmd(current_cmd)
+
+
         world_size = torch.distributed.get_world_size(group=group)
         # Bypass the function if we are using only 1 GPU.
-        if world_size == 1:
-            return input
+        # if world_size == 1:
+        #     return input
 
         input = input.contiguous()
 
@@ -523,6 +529,8 @@ class _AllToAll(torch.autograd.Function):
             group_type_for_profiling,
             is_scaling_mode
         )
+
+        # CMD.set_current_cmd(original_cmd)
         return output
 
     @staticmethod
@@ -535,6 +543,34 @@ class _AllToAll(torch.autograd.Function):
             None,
             None, # for is_scaling_mode
         )
+
+    # @staticmethod
+    # def backward(ctx, *grad_output):
+    #     current_cmd = ctx.current_cmd_for_backward
+    #     original_cmd = CMD.get_current_cmd()
+    #     CMD.set_current_cmd(current_cmd)
+
+    #     backward_result = _AllToAll.apply(
+    #         ctx.group, 
+    #         *grad_output, 
+    #         ctx.input_split_sizes, 
+    #         ctx.output_split_sizes, 
+    #         ctx.group_type_for_profiling, 
+    #         ctx.is_scaling_mode,
+    #         current_cmd
+    #     )
+
+    #     CMD.set_current_cmd(original_cmd)
+
+    #     return (
+    #         None,
+    #         backward_result,
+    #         None,
+    #         None,
+    #         None,
+    #         None, # for is_scaling_mode
+    #         None, # for current_cmd
+    #     )
 
 
 
@@ -616,6 +652,7 @@ def all_to_all(group, input_, output_split_sizes_=None, input_split_sizes_=None,
     from megatron.training import get_args
     args = get_args()
     is_scaling_mode = getattr(args, 'is_scaling_mode', False)
+    # current_cmd = CMD.get_current_cmd()
     return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_, group_type, is_scaling_mode)
 
 
