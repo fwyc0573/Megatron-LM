@@ -277,12 +277,11 @@ def sim_backward_step(rank_id, input_tensor, output_tensor, output_tensor_grad, 
 
 def get_batch_on_this_tp_rank(data_iterator, args):
 
-    @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='broadcast')
+    # @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='broadcast')
     def _broadcast(input_, func=None):
-       if input_ is not None:
-            # torch.distributed.broadcast(input_, mpu.get_tensor_model_parallel_src_rank(), group=mpu.get_tensor_model_parallel_group())
-            # print("_broadcast | sim -> torch.distributed.broadcast")
-            pass
+       from megatron.profiler import broadcast_wrapper
+       if args.fake_tp > 1:
+           broadcast_wrapper(input_, func=func, tp_group=None, tp_src_rank=None)
 
     if args.tp_rank  == 0:
        if data_iterator is not None:

@@ -1,6 +1,5 @@
 import os
 import torch
-from datetime import datetime
 
 class CMD:
     def __init__(self, stage_id, mg_state, cmd, batch_id, duration=None, description=None, group_kind=None, input__shape=None, input__dtype=None):
@@ -214,22 +213,8 @@ class SchedulingPlan:
 
 
     def write_list_to_file(self, stage_id, list_to_write):
-        # 创建包含配置信息的目录名
-        fp16_str = "fp16" if self.args.fp16 else "fp32"
-        dir_name = f"MODEL{self.args.model_size}_pp{self.args.pipeline_model_parallel_size}_tp{self.args.tensor_model_parallel_size}_dp{self.args.data_parallel_size}_seq{self.args.seq_length}_mbs{self.args.micro_batch_size}_gbs{self.args.global_batch_size}_{fp16_str}"
-        
-        # 创建完整的目录路径
-        log_dir = f"./mg_scheduling_plan_log/{dir_name}"
-        os.makedirs(log_dir, exist_ok=True)
-        
-        # 获取当前时间信息
-        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # 创建包含stage id和时间信息的文件名
-        filename = f"{log_dir}/stage{stage_id}_{current_time}_scheduling_plan.txt"
-        
+        os.makedirs("./mg_scheduling_plan_log", exist_ok=True)
+        filename = f"./mg_scheduling_plan_log/0712mg_stage{stage_id}_scheduling_plan.txt"
         with open(filename, 'w') as f:
             for item in list_to_write:
                 f.write(f"{item}\n")
-        
-        print(f"Scheduling plan for stage {stage_id} written to: {filename}")

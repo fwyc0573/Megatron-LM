@@ -1,18 +1,3 @@
-"""
-This module is used for generating scheduling plan for megatron-lm in stage-level.
-We focus on the stage level ops like send/recv/forward/backward/optimizer_step/loss_func, etc, 
-but not the micro-batch level ops (like tp_allreduce, ep_alltoall, etc).
-
-ps: I think in moe mode, we donot need to add any other stage-level ops?
-
-
-The scheduling plan is generated in the following steps:
-1. Calculate the number of micro-batches in one global-batch.
-2. Generate the scheduling plan for each stage.
-3. Write the scheduling plan to a file.
-
-"""
-
 import argparse
 from mg_scheduling_plan import SchedulingPlan
 
@@ -28,7 +13,6 @@ def parse_arguments():
     parser.add_argument("--global-batch-size", type=int, default=None, help="Total effective batch size across all instances")
     parser.add_argument("--seq-length", type=int, default=None, help="")
     parser.add_argument("--hidden-size", type=int, default=None, help="")
-    parser.add_argument("--model-size", type=str, default="tiny", help="Model size (e.g., tiny, 13, 30, 40, 70, 175)")
     parser.add_argument("--fp16", action='store_true', help="Enable fp16 precision (for pipeline_dtype)")
     parser.add_argument("--train-iters", type=int, default=None, help="Number of training iterations")
     parser.add_argument("--trace-start", type=int, default=None, help="When to trace")

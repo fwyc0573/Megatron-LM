@@ -15,22 +15,24 @@ import torch.cuda.nvtx as nvtx
 
 from megatron.profiler.cmd import CMD, current_cmd_var
 
-@CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allreduce')
+# @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allreduce')
 def _reduce(input_, func=None, op=torch.distributed.ReduceOp.SUM, async_op=False):
     """All-reduce the input tensor across model parallel group."""
 
-    # Bypass the function if we are using only 1 GPU.
-    if get_tensor_model_parallel_world_size() == 1:
+    # Bypass the function if we are using only 1 GPU (both in scaling or realistic mode).
+    from megatron.training import get_args
+    args = get_args()
+    if args.is_scaling_mode:
+        tp_size = args.fake_tp
+    else:
+        tp_size = get_tensor_model_parallel_world_size()
+
+    if tp_size == 1:
         return input_
 
     group = get_tensor_model_parallel_group()
-
-    # All-reduce.
-    if async_op is True:
-        handle = torch.distributed.all_reduce(input_, op=op, group=group, async_op=True)
-        return handle
-    else:
-        torch.distributed.all_reduce(input_, op=op, group=group)
+    from megatron.profiler import reduce_wrapper
+    input_ = reduce_wrapper(input_, func=func, op=op, async_op=async_op, tp_group=group)
 
     return input_
 
@@ -235,7 +237,11 @@ class _ReduceFromModelParallelRegion(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input_, func='embedding_fwd'):
         nvtx.range_push("row_g_fwd")
-        reduce_result = _reduce(input_, func="embedding_fwd")
+        if get_tensor_model_parallel_world_size() == 1:
+            return input_
+        else:
+            # "embedding_fwd"
+            reduce_result = _reduce(input_, func=func)
         nvtx.range_pop()
         return reduce_result
 
@@ -456,7 +462,7 @@ class _ReduceScatterToTensorParallelRegion(torch.autograd.Function):
 
 @CMD.get_trace_decorator(
     attrs={'input_': ['shape', 'dtype']},
-    comm_func='all_to_all_single',
+    comm_func='all_to_all',
     dynamic_attrs={'group': 'group_type'}
 )
 def _profiled_all_to_all_single(input_, output_split_sizes, input_split_sizes, group, group_type, is_scaling_mode=False):

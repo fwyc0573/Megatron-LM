@@ -20,7 +20,7 @@ fi
 # fi
 
 # size variables
-MODEL_SIZE="tiny" # "tiny"
+MODEL_SIZE=13 # "tiny"
 
 # if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 # elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=80; NUM_LAYERS=80;
@@ -42,9 +42,9 @@ fi
 MAX_SEQ_LEN=2048
 
 # New variables for parallelism and batch sizes
-world_size=4
-pp=2
-tp=1
+world_size=64
+pp=8
+tp=4
 
 # Calculate dp and check if it's an integer
 dp=$((world_size / (tp * pp)))
@@ -66,7 +66,6 @@ python mg_test.py \
     --seq-length $MAX_SEQ_LEN \
     --hidden-size $HIDDEN_SIZE \
     --train-iters $train_iters \
-    --model-size $MODEL_SIZE \
     -pp $pp \
     -tp $tp \
     --trace-start $trace_start 

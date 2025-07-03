@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=6 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=7 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -44,7 +44,7 @@ if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
 fi
 
 # 创建统一的日志目录
-MODEL_SIZE=6.7  # "tiny" # 使用原脚本中的模型大小
+MODEL_SIZE="tiny"  # "tiny" # 使用原脚本中的模型大小
 LOG_NAME=SIM_GPT_${MODEL_SIZE}_FakeWS${FAKE_WORLD_SIZE}_TP${FAKE_TP}_PP${FAKE_PP}_EXP${FAKE_EXP}_EX${FAKE_NUM_EXPERTS}
 LOG_DIR=${BASE_PATH}/log/${LOG_NAME}
 
@@ -53,7 +53,7 @@ mkdir -p ${LOG_DIR}
 
 
 NUM_MICBATCH=1
-MICRO_BATCH_SIZE=1
+MICRO_BATCH_SIZE=2
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * FAKE_DP)) # 使用FAKE_DP计算全局批次大小
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;

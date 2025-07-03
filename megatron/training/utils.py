@@ -334,14 +334,17 @@ def print_rank_last(message):
 def get_batch_on_this_tp_rank(data_iterator):
 
     args = get_args() # load_batch_broadcast
-    # if args.simu_start:
-    #     args.simu_micro_batch_ids["load_batch_broadcast"] += 1
+    if args.is_scaling_mode:
+        tp_size = args.fake_tp
+    else:
+        tp_size = mpu.get_tensor_model_parallel_world_size()
 
-    @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='broadcast')
+    # @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='broadcast')
     def _broadcast(input_, func=None):
-       if input_ is not None:
-           torch.distributed.broadcast(input_, mpu.get_tensor_model_parallel_src_rank(), group=mpu.get_tensor_model_parallel_group())
-
+       from megatron.profiler import broadcast_wrapper
+       if tp_size > 1:
+           broadcast_wrapper(input_, func=func, tp_group=mpu.get_tensor_model_parallel_group(), tp_src_rank=mpu.get_tensor_model_parallel_src_rank())
+           
     if mpu.get_tensor_model_parallel_rank() == 0:
        nvtx.range_push("tprank0_get_batch_next_iterator")
        if data_iterator is not None:

@@ -471,7 +471,8 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             permutated_local_input_tokens,
             self.output_splits,
             self.input_splits,
-            func="all_to_all"
+            func="all_to_all",
+            group_type="exp"
         )
         print(f"[DEBUG] real all_to_all - global_input_tokens shape: {global_input_tokens.shape}, dtype: {global_input_tokens.dtype}")
 

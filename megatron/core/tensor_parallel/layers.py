@@ -497,8 +497,22 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         #     # YC: here scaling mode won't record the aync op (only record allreduce op through decorator); however, real running mode record both the aync op and allreduce op.
         #     unique_key = CMD.async_start_trace("embedding_bwd_async", {'input_': grad_input, 'func': 'embedding_bwd_async_all'}, {'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allreduce')
 
-        _, handle = allreduce_wrapper(grad_input, get_tensor_model_parallel_group(), async_op=False, func='embedding_bwd_allreduce')
+        def _allreduce(grad_input, group, async_op, func):
+            from megatron.training import get_args
+            args = get_args()
 
+            if args.is_scaling_mode:
+                tp_size = args.fake_tp
+            else:
+                tp_size = get_tensor_model_parallel_world_size()
+
+            if tp_size > 1:
+                _, handle = allreduce_wrapper(grad_input, group, async_op=async_op, func=func)
+            else:
+                handle = None
+            return handle
+        # _, handle = allreduce_wrapper(grad_input, get_tensor_model_parallel_group(), async_op=False, func='embedding_bwd_allreduce')
+        handle = _allreduce(grad_input, get_tensor_model_parallel_group(), async_op=False, func='embedding_bwd_allreduce')
 
         if ctx.sequence_parallel:
             assert not ctx.async_grad_allreduce
