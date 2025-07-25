@@ -5,7 +5,7 @@ alwaysApply: false
 ---
 
 # Rule content
-- Paper/doc related: [echo_paper.md](mdc:docs/echo_paper/echo_paper.md), [moe_layer.py](mdc:megatron/core/transformer/moe/moe_layer.py), [moe_utils.py](mdc:megatron/core/transformer/moe/moe_utils.py), @moe.rst
+- Paper/doc related: [echo_paper.md](mdc:Megatron-LM/docs/echo_paper/echo_paper.md), [moe_layer.py](mdc:Megatron-LM/megatron/core/transformer/moe/moe_layer.py), [moe_utils.py](mdc:Megatron-LM/megatron/core/transformer/moe/moe_utils.py), @moe.rst
 
 - Main Direction: You need to understand the high-level design of the workload tracer component as described in my paper (refer to Section 4: Workload Tracing). Specifically, I am working on transforming the original distributed architecture of Megatron-LM into a centralized one. This redesign aims to decouple execution from physical hardware constraints, enabling sequential execution of each rank’s workload on a single GPU while skipping communication phases. By adopting this ex-situ execution approach, we can capture the training workload under a given setting.
 

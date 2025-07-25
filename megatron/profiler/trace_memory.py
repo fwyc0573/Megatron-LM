@@ -139,10 +139,11 @@ def get_memory_tracker(args):
         # Distinguish the log's out dir for scaling mode
         output_dir = getattr(args, 'trace_memory_dir', 'memory_traces_scaling')
         sampling_interval = getattr(args, 'trace_memory_interval', 0.01)
+        args.num_micro_batches = args.global_batch_size // (args.micro_batch_size * args.fake_dp)
 
-        name_args = (f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}"
+        name_args = (f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_dp{args.fake_dp}"
                      f"_exp{args.fake_exp}_expNum{args.fake_num_experts}"
-                     f"_l{args.num_layers}_bs{args.micro_batch_size}")
+                     f"_l{args.num_layers}_mbs{args.micro_batch_size}_nmbs{args.num_micro_batches}_gbs{args.global_batch_size}")
     else:
         import torch.distributed as dist
         rank = dist.get_rank()

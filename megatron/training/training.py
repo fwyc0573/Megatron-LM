@@ -330,7 +330,7 @@ def pretrain(train_valid_test_dataset_provider,
         rank_id = current_fake_rank_id_int
         print_rank_0(f"===> Megatron-LM Single GPU Simulation: Processing Fake Rank {rank_id} <===")
 
-        warm_up_iter = 10 # args.train_iters
+        warm_up_iter = 3 # args.train_iters
         args.iteration=0
 
         # open profile mode

@@ -49,6 +49,8 @@ import threading
 from typing import Optional, Dict, List
 from threading import Lock
 import inspect
+import os
+import time
 
 # Global variables with thread safety
 cmd_var_lock = Lock()
@@ -455,14 +457,52 @@ class CMD:
 
 def write_list_to_file(stage_or_rank_id, list_to_write, file_path=None, name_args=None):
     """Write a list to file with proper naming and directory creation"""
+    from megatron.training import get_args
+    from megatron.core import parallel_state as mpu
+    args = get_args()
+
+    # Build a dynamic sub-directory name based on key parameters
+    if args.is_scaling_mode:
+        # For scaling mode, use fake args
+        if (args.fake_pp * args.fake_tp * args.fake_exp) > 0:
+            dp_size = args.fake_world_size // (args.fake_pp * args.fake_tp)
+        else:
+            dp_size = args.fake_world_size
+        run_config = (
+            f"pp{args.fake_pp}_"
+            f"tp{args.fake_tp}_"
+            f"ep{args.fake_exp}_"
+            f"expn{args.fake_num_experts}_"
+            f"dp{dp_size}_"
+            f"nl{args.num_layers}_"
+            f"hs{args.hidden_size}_"
+            f"sl{args.seq_length}"
+        )
+    else:
+        # For realistic mode, use actual mpu sizes
+        run_config = (
+            f"pp{mpu.get_pipeline_model_parallel_world_size()}_"
+            f"tp{mpu.get_tensor_model_parallel_world_size()}_"
+            f"exp{mpu.get_expert_model_parallel_world_size()}_"
+            f"expn{args.num_experts}_"
+            f"dp{mpu.get_data_parallel_world_size()}_"
+            f"nl{args.num_layers}_"
+            f"hs{args.hidden_size}_"
+            f"sl{args.seq_length}"
+        )
+
     log_file_name = f"{name_args}_rank{stage_or_rank_id}_{time.strftime('%Y%m%d%H%M%S')}.txt"
 
     if file_path is None:
-        os.makedirs("./realistic_trace", exist_ok=True)
-        filename = f"./realistic_trace/{log_file_name}"
+        # This corresponds to 'realistic_trace' which is the default
+        base_dir = "./realistic_trace"
+        full_path = os.path.join(base_dir, run_config)
     else:
-        os.makedirs(file_path, exist_ok=True)
-        filename = f"{file_path}/{log_file_name}"
+        # This corresponds to 'profiler_log' or other user-specified path
+        full_path = os.path.join(file_path, run_config)
+    
+    os.makedirs(full_path, exist_ok=True)
+    filename = os.path.join(full_path, log_file_name)
 
     with open(filename, 'w') as f:
         for item in list_to_write:

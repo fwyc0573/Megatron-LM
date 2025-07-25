@@ -55,3 +55,13 @@ logs/
 *.txt
 
 apex/
+
+memory_plots/
+my_comparison_plots/
+memory_traces_scaling/
+memory_traces/
+mg_scheduling_plan_log/
+profiler_log/
+realistic_trace/
+realistic_trace_numba1/
+run_log/

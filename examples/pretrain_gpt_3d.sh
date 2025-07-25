@@ -106,7 +106,7 @@ DATA_ARGS="
     --vocab-file $VOCAB_FILE \
     --merge-file $MERGE_FILE \
     --split 949,50,1 \
-    --vocab-size 1000 
+    --vocab-size 51200 
 "
 # --vocab-size 3200
 

@@ -44,7 +44,7 @@ if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
 fi
 
 # 创建统一的日志目录
-MODEL_SIZE="tiny"  # "tiny" # 使用原脚本中的模型大小
+MODEL_SIZE=6.7  # "tiny" # 使用原脚本中的模型大小
 LOG_NAME=SIM_GPT_${MODEL_SIZE}_FakeWS${FAKE_WORLD_SIZE}_TP${FAKE_TP}_PP${FAKE_PP}_EXP${FAKE_EXP}_EX${FAKE_NUM_EXPERTS}
 LOG_DIR=${BASE_PATH}/log/${LOG_NAME}
 
