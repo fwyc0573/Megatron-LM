@@ -391,9 +391,12 @@ def pretrain(train_valid_test_dataset_provider,
         memory_tracker = get_memory_tracker(args)
         if memory_tracker is not None:
             print_rank_0(f"Starting memory tracker for fake rank {rank_id}...")
-            torch.cuda.reset_peak_memory_stats()
+            # 确保在每个新配置开始时完全重置内存统计
+            torch.cuda.empty_cache()  # 清空缓存
+            torch.cuda.reset_peak_memory_stats()  # 重置峰值统计
+            torch.cuda.synchronize()  # 同步确保重置生效
             memory_tracker.start()
-            memory_tracker.next_iteration(0) # Scaling mode simulates one iteration
+            memory_tracker.next_iteration(0)  # Scaling mode simulates one iteration
     
         # forward_step_func()
         # get_batch / FWD (loss_func:dp_allreudce)
@@ -534,11 +537,13 @@ def pretrain(train_valid_test_dataset_provider,
 
         nvtx.range_pop()
 
-        # Stop memory tracker before exiting
-        if 'memory_tracker' in locals() and memory_tracker is not None:
+        if memory_tracker is not None:
+            theoretical_total_memory = report_theoretical_memory(args, num_microbatches=args.num_micro_batches, verbose=True)
             peak_memory_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
             memory_tracker.log_peak_memory(0, peak_memory_mb)
+            memory_tracker.log_theoretical_memory(0, theoretical_total_memory)
             memory_tracker.stop_tracking()
+            print_rank_0(f"Memory tracking stopped for fake rank {rank_id}, peak memory: {peak_memory_mb:.2f} MB, theoretical memory: {theoretical_total_memory:.2f} MB")
 
         name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_exp{args.fake_exp}_expNum{args.fake_num_experts}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
         write_list_to_file(rank_id, args.stage_operations_trace[rank_id], file_path="profiler_log", name_args=name_args)
@@ -1264,7 +1269,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, decoupled_learning_r
             # Report memory after optimizer state has been initialized.
             if torch.distributed.get_rank() == 0:
                 num_microbatches = get_num_microbatches()
-                report_theoretical_memory(args, num_microbatches=num_microbatches, verbose=True)
+                total_memory = report_theoretical_memory(args, num_microbatches=num_microbatches, verbose=True)
             report_memory('(after {} iterations)'.format(iteration))
             report_memory_flag = False
         timers.log(timers_to_log, normalizer=args.log_interval)
@@ -1473,9 +1478,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
 
         if memory_tracker is not None:
-            # torch.cuda.reset_peak_memory_stats()
-            # memory_tracker.next_iteration(iteration)
-            pass
+            memory_tracker.next_iteration(iteration)
 
 
         args.current_iter = iteration
@@ -1513,7 +1516,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         
         if torch.distributed.get_rank() == 0:
             num_microbatches = get_num_microbatches()
-            report_theoretical_memory(args, num_microbatches=num_microbatches, verbose=True)
+            total_memory = report_theoretical_memory(args, num_microbatches=num_microbatches, verbose=True)
 
     if memory_tracker is not None:
         memory_tracker.stop_tracking()

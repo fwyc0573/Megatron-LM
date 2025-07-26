@@ -35,6 +35,9 @@ class MemoryTracker(threading.Thread):
 
     def start_tracking(self, iteration):
         """Signal the tracker to start recording for a given iteration."""
+        # 在开始追踪前重置峰值内存统计
+        if hasattr(torch.cuda, 'reset_peak_memory_stats'):
+            torch.cuda.reset_peak_memory_stats()
         self.queue.put(('start_iter', iteration))
 
     def pause_tracking(self):
@@ -43,11 +46,17 @@ class MemoryTracker(threading.Thread):
 
     def next_iteration(self, iteration):
         """Signal the tracker to start recording for the next iteration."""
+        if hasattr(torch.cuda, 'reset_peak_memory_stats'):
+            torch.cuda.reset_peak_memory_stats()
         self.queue.put(('next_iter', iteration))
 
     def log_peak_memory(self, iteration, peak_memory_mb):
         """Signal the tracker to log the peak memory for an iteration."""
         self.queue.put(('log_peak', (iteration, peak_memory_mb)))
+
+    def log_theoretical_memory(self, iteration, theoretical_memory_mb):
+        """Signal the tracker to log the theoretical memory for an iteration."""
+        self.queue.put(('log_theoretical', (iteration, theoretical_memory_mb)))
 
     def stop_tracking(self):
         """Signal the tracker to stop recording and save the data."""
@@ -79,12 +88,20 @@ class MemoryTracker(threading.Thread):
                     if cmd == 'next_iter':
                         current_iter = val
                         if current_iter not in self.data:
-                            self.data[current_iter] = {'samples': [], 'peak_allocated_MB': -1}
+                            self.data[current_iter] = {
+                                'samples': [], 
+                                'peak_allocated_MB': -1,
+                                'theoretical_memory_MB': -1
+                            }
                         self.tracking = True
                     elif cmd == 'start_iter':
                         current_iter = val
                         if current_iter not in self.data:
-                            self.data[current_iter] = {'samples': [], 'peak_allocated_MB': -1}
+                            self.data[current_iter] = {
+                                'samples': [], 
+                                'peak_allocated_MB': -1,
+                                'theoretical_memory_MB': -1
+                            }
                         self.tracking = True
                     elif cmd == 'pause':
                         self.tracking = False
@@ -95,6 +112,10 @@ class MemoryTracker(threading.Thread):
                         iter_num, peak_mem = val
                         if iter_num in self.data:
                             self.data[iter_num]['peak_allocated_MB'] = round(peak_mem, 2)
+                    elif cmd == 'log_theoretical':
+                        iter_num, theoretical_mem = val
+                        if iter_num in self.data:
+                            self.data[iter_num]['theoretical_memory_MB'] = round(theoretical_mem, 2)
                 except queue.Empty:
                     break
             
@@ -131,6 +152,7 @@ def get_memory_tracker(args):
         return None
     
     import torch
+    import time
 
     # In scaling mode, we don't use torch.distributed, but simulate ranks.
     if getattr(args, 'is_scaling_mode', False):
@@ -141,9 +163,12 @@ def get_memory_tracker(args):
         sampling_interval = getattr(args, 'trace_memory_interval', 0.01)
         args.num_micro_batches = args.global_batch_size // (args.micro_batch_size * args.fake_dp)
 
+        # 添加时间戳确保文件名唯一性
+        timestamp = int(time.time() * 1000) % 100000  # 取后5位避免文件名过长
         name_args = (f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_dp{args.fake_dp}"
                      f"_exp{args.fake_exp}_expNum{args.fake_num_experts}"
-                     f"_l{args.num_layers}_mbs{args.micro_batch_size}_nmbs{args.num_micro_batches}_gbs{args.global_batch_size}")
+                     f"_l{args.num_layers}_mbs{args.micro_batch_size}_nmbs{args.num_micro_batches}_gbs{args.global_batch_size}"
+                     f"_ts{timestamp}")
     else:
         import torch.distributed as dist
         rank = dist.get_rank()
@@ -172,11 +197,11 @@ def _plot_allocated_memory_for_path(ax, json_path, label, style_kwargs):
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"Could not read or parse {json_path}: {e}")
-        return False
+        return False, None
     
     if not data:
         print(f"Warning: No data found in {json_path}")
-        return False
+        return False, None
 
     # Get the last iteration
     try:
@@ -184,12 +209,12 @@ def _plot_allocated_memory_for_path(ax, json_path, label, style_kwargs):
         iter_data = data[last_iter_key]
     except (ValueError, KeyError):
         print(f"Warning: Could not determine last iteration in {json_path}")
-        return False
+        return False, None
 
     samples = iter_data.get('samples', [])
     if not samples or 'allocated_memory_MB' not in samples[0]:
         print(f"Warning: No valid samples found for last iteration in {json_path}")
-        return False
+        return False, None
         
     timestamps = [s['timestamp_s'] for s in samples]
     allocated_mem = [s['allocated_memory_MB'] for s in samples]
@@ -199,7 +224,10 @@ def _plot_allocated_memory_for_path(ax, json_path, label, style_kwargs):
     relative_timestamps = [t - start_time for t in timestamps]
     
     ax.plot(relative_timestamps, allocated_mem, label=label, **style_kwargs)
-    return True
+    
+    # Return theoretical memory if available
+    theoretical_memory = iter_data.get('theoretical_memory_MB', -1)
+    return True, theoretical_memory
 
 def visualize_memory_comparison(paired_rank_files, output_dir='memory_plots'):
     """
@@ -223,23 +251,41 @@ def visualize_memory_comparison(paired_rank_files, output_dir='memory_plots'):
         fig, ax = plt.subplots(figsize=(18, 9))
         
         has_plot_data = False
+        theoretical_memories = {}
 
         # Plot Real Run data if available
         if 'real' in paths:
-            if _plot_allocated_memory_for_path(ax, paths['real'], 'Real Run', 
-                                               {'linestyle': '-', 'linewidth': 2.5, 'alpha': 0.8}):
+            success, theoretical_mem = _plot_allocated_memory_for_path(
+                ax, paths['real'], 'Real Run', 
+                {'linestyle': '-', 'linewidth': 2.5, 'alpha': 0.8}
+            )
+            if success:
                 has_plot_data = True
+                if theoretical_mem > 0:
+                    theoretical_memories['real'] = theoretical_mem
         
         # Plot Simulation data if available
         if 'sim' in paths:
-            if _plot_allocated_memory_for_path(ax, paths['sim'], 'Simulation', 
-                                               {'linestyle': '--', 'linewidth': 2.0, 'alpha': 1.0}):
+            success, theoretical_mem = _plot_allocated_memory_for_path(
+                ax, paths['sim'], 'Simulation', 
+                {'linestyle': '--', 'linewidth': 2.0, 'alpha': 1.0}
+            )
+            if success:
                 has_plot_data = True
+                if theoretical_mem > 0:
+                    theoretical_memories['sim'] = theoretical_mem
 
         if has_plot_data:
+            # Add theoretical memory as horizontal lines
+            for run_type, theo_mem in theoretical_memories.items():
+                line_style = '-' if run_type == 'real' else '--'
+                ax.axhline(y=theo_mem, color='red', linestyle=line_style, 
+                          alpha=0.7, linewidth=1.5, 
+                          label=f'Theoretical Memory ({run_type.title()})')
+
             ax.set_xlabel('Time in Iteration (seconds)', fontsize=14)
             ax.set_ylabel('Allocated Memory (MB)', fontsize=14)
-            ax.set_title(f'Allocated Memory Comparison for Rank {rank} (Last Iteration)', fontsize=16)
+            ax.set_title(f'Memory Comparison for Rank {rank} (Last Iteration)', fontsize=16)
             ax.legend(fontsize=12)
             ax.grid(True)
             

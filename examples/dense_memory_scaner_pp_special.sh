@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=2 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=1 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -18,7 +18,7 @@ GPUS_PER_NODE=1 # 修改为1，因为我们每次只使用一个GPU模拟一个r
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
 NODE_RANK=0
-MASTER_PORT=6002
+MASTER_PORT=6004
 MASTER_ADDR="localhost" #"localhost"
 
 # Parallelism variables 
@@ -32,7 +32,7 @@ BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/y
 FAKE_WORLD_SIZE=8192
 
 # 创建主日志目录
-MODEL_SIZE=175 # 使用原脚本中的模型大小
+MODEL_SIZE=540 # 使用原脚本中的模型大小
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 MAIN_LOG_DIR=${BASE_PATH}/log/CONFIG_SWEEP_WS${FAKE_WORLD_SIZE}_${MODEL_SIZE}_${TIMESTAMP}
 mkdir -p ${MAIN_LOG_DIR}
@@ -58,6 +58,7 @@ elif [[ ${MODEL_SIZE} == "tiny" ]]; then HIDDEN_SIZE=128;  NUM_HEAD=8; NUM_LAYER
 elif [[ ${MODEL_SIZE} == "2T" ]];  then HIDDEN_SIZE=25600;  NUM_HEAD=160; NUM_LAYERS=256;
 elif [[ ${MODEL_SIZE} == "1T" ]];  then HIDDEN_SIZE=25600;  NUM_HEAD=160; NUM_LAYERS=128;
 elif [[ ${MODEL_SIZE} == 485 ]];  then HIDDEN_SIZE=20480;  NUM_HEAD=160; NUM_LAYERS=96;
+elif [[ ${MODEL_SIZE} == 540 ]];  then HIDDEN_SIZE=18432;  NUM_HEAD=48; NUM_LAYERS=118; KV_CHANNELS=256;
 elif [[ ${MODEL_SIZE} == 30 ]];   then HIDDEN_SIZE=7680;  NUM_HEAD=48; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 40 ]];   then HIDDEN_SIZE=9216;  NUM_HEAD=72; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 6.7 ]];  then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=32;
@@ -132,9 +133,9 @@ for FAKE_TP in 1 2 4 8; do
     # 计算剩余卡数
     remaining=$((FAKE_WORLD_SIZE / FAKE_TP))
     
-    # 遍历所有可能的FAKE_PP值（2的倍数）
-    for FAKE_PP in $(seq 2 2 $remaining); do
+    for i in $(seq 1 $((remaining/2))); do
         # 检查FAKE_PP是否超过NUM_LAYERS
+        FAKE_PP=$((i * 2))
         if [ $FAKE_PP -gt $NUM_LAYERS ]; then
             echo "Skipping PP=${FAKE_PP} (exceeds NUM_LAYERS=${NUM_LAYERS})"
             continue
@@ -186,6 +187,7 @@ for FAKE_TP in 1 2 4 8; do
                     --pipeline-model-parallel-size $PP \
                     --num-layers $NUM_LAYERS \
                     --hidden-size $HIDDEN_SIZE \
+                    --kv-channels $KV_CHANNELS \
                     --num-attention-heads $NUM_HEAD \
                     --seq-length $MAX_SEQ_LEN \
                     --max-position-embeddings $MAX_POSITION_EMBEDDINGS \

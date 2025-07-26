@@ -1,9 +1,6 @@
 ---
-description: This project rule ensures the development of the profiling module for the MoE (Expert Parallelism, EP) dimension in the Megatron-LM project.
-globs: 
-alwaysApply: false
+alwaysApply: true
 ---
-
 # Rule content
 - Paper/doc related: [echo_paper.md](mdc:Megatron-LM/docs/echo_paper/echo_paper.md), [moe_layer.py](mdc:Megatron-LM/megatron/core/transformer/moe/moe_layer.py), [moe_utils.py](mdc:Megatron-LM/megatron/core/transformer/moe/moe_utils.py), @moe.rst
 
