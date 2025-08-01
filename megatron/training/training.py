@@ -545,7 +545,7 @@ def pretrain(train_valid_test_dataset_provider,
             memory_tracker.stop_tracking()
             print_rank_0(f"Memory tracking stopped for fake rank {rank_id}, peak memory: {peak_memory_mb:.2f} MB, theoretical memory: {theoretical_total_memory:.2f} MB")
 
-        name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_exp{args.fake_exp}_expNum{args.fake_num_experts}_numl{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
+        name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_exp{args.fake_exp}_expNum{args.fake_num_experts}_numl{args.num_layers}_bs{args.micro_batch_size}"
         write_list_to_file(rank_id, args.stage_operations_trace[rank_id], file_path="profiler_log", name_args=name_args)
 
         return
@@ -1524,7 +1524,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     if args.do_trace:
         # name_args = f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_{args.main_tokenizer_type}"
         # args.micro_batch_size args.main_tokenizer_type
-        name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_exp{args.expert_model_parallel_size}_expNum{args.num_experts}_l{args.num_layers}_bs{args.micro_batch_size}_{args.main_tokenizer_type}"
+        name_args = f"wd{args.world_size}_tp{args.tensor_model_parallel_size}_pp{args.pipeline_model_parallel_size}_exp{args.expert_model_parallel_size}_expNum{args.num_experts}_l{args.num_layers}_bs{args.micro_batch_size}"
         write_list_to_file(args.simu_rank, args.stage_operations_trace[args.simu_rank], name_args=name_args)
         print(f"rank:{args.simu_rank}, trace log has been written to txt...")
 
