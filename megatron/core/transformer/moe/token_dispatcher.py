@@ -371,16 +371,16 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                 if not num_global_tokens_per_expert.is_cuda:
                     num_global_tokens_per_expert = num_global_tokens_per_expert.cuda()
             else:
-                print(f"[DEBUG] berfore allgather, num_local_tokens_per_expert = {num_local_tokens_per_expert}, device: {num_local_tokens_per_expert.device}")
+                # print(f"[DEBUG] berfore allgather, num_local_tokens_per_expert = {num_local_tokens_per_expert}, device: {num_local_tokens_per_expert.device}")
                 num_global_tokens_per_expert = _gather_along_first_dim_expert_parallel(
                     num_local_tokens_per_expert, func="gather_along_first_dim_expert_parallel"
                 )#.reshape(ep_size, self.num_experts)
-                print(f"[DEBUG] after allgather, num_global_tokens_per_expert = {num_global_tokens_per_expert}, device: {num_global_tokens_per_expert.device}, dtype: {num_global_tokens_per_expert.dtype}")
+                # print(f"[DEBUG] after allgather, num_global_tokens_per_expert = {num_global_tokens_per_expert}, device: {num_global_tokens_per_expert.device}, dtype: {num_global_tokens_per_expert.dtype}")
 
             # Print shapes and dtypes for debugging
-            print(f"[DEBUG] input_splits shape: {self.input_splits.shape}")
-            print(f"[DEBUG] num_local_tokens_per_expert shape: {num_local_tokens_per_expert.shape}, device: {num_local_tokens_per_expert.device}")
-            print(f"[DEBUG] num_global_tokens_per_expert shape: {num_global_tokens_per_expert.shape}, device: {num_global_tokens_per_expert.device}, dtype: {num_global_tokens_per_expert.dtype}")
+            # print(f"[DEBUG] input_splits shape: {self.input_splits.shape}")
+            # print(f"[DEBUG] num_local_tokens_per_expert shape: {num_local_tokens_per_expert.shape}, device: {num_local_tokens_per_expert.device}")
+            # print(f"[DEBUG] num_global_tokens_per_expert shape: {num_global_tokens_per_expert.shape}, device: {num_global_tokens_per_expert.device}, dtype: {num_global_tokens_per_expert.dtype}")
 
             # get global routing table through allgather
             # num_global_tokens_per_expert的shape ->【ep_size, self.num_experts】类比为矩阵G【i，j】：第i个ep rank 需要第j个 expert 发送XX个tokens
@@ -474,7 +474,7 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             func="all_to_all",
             group_type="exp"
         )
-        print(f"[DEBUG] real all_to_all - global_input_tokens shape: {global_input_tokens.shape}, dtype: {global_input_tokens.dtype}")
+        # print(f"[DEBUG] real all_to_all - global_input_tokens shape: {global_input_tokens.shape}, dtype: {global_input_tokens.dtype}")
 
         # Permutation 2: AlltoAll output to expert input if num_local_experts > 1
         if self.num_local_experts > 1:
@@ -534,7 +534,7 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             group_type="exp"
         )
 
-        print(f"[DEBUG] real all_to_all - permutated_local_input_tokens shape: {permutated_local_input_tokens.shape}, dtype: {permutated_local_input_tokens.dtype}")
+        # print(f"[DEBUG] real all_to_all - permutated_local_input_tokens shape: {permutated_local_input_tokens.shape}, dtype: {permutated_local_input_tokens.dtype}")
 
         # Unpermutation 1: AlltoAll output to output
         output = unpermute(

@@ -116,89 +116,28 @@ def finalize_model_grads(model: List[torch.nn.Module], args):
     # All-reduce / reduce-scatter across DP replicas.
     if config.timers is not None:
         config.timers('all-grads-sync', log_level=1).start(barrier=config.barrier_with_L1_time)
-
-    # Check if MoE is enabled by examining if any model chunk has expert_parallel_buffers
-    has_moe = False
-    for model_chunk in model:
-        if hasattr(model_chunk, 'expert_parallel_buffers') and len(model_chunk.expert_parallel_buffers) > 0:
-            has_moe = True
-            break
-
-    if has_moe:
-        # Separate DP and EP_DP gradient synchronization for MoE models
-
-        # First: Regular DP gradient synchronization
-        dp_cmd = CMD(
-            rank_id=args.simu_rank,
-            mg_state=args.simu_state,
-            name_cmd="dp_allreduce",
-            use_cuda=True,
-            stage_operations_trace_dict=args.stage_operations_trace,
-            micro_batch_ids_dict=args.simu_micro_batch_ids,
-            stage_id=args.simu_stage_id,
-            simu_start=args.simu_start,
-            description="Regular DP gradient synchronization (non-expert parameters)",
-            group_kind="dp",
-            trace_start=args.trace_start,
-            current_iter=args.current_iter,
-            args=args
-        )
-        CMD.set_current_cmd(dp_cmd)
-        with dp_cmd:
-            nvtx.range_push(f"dp_allreduce_grads_sync")
-            for model_chunk in model:
-                # Only process regular DP buffers
-                for buffer in model_chunk.buffers:
-                    buffer.finish_grad_sync()
-            nvtx.range_pop()
-
-        # Second: Expert DP gradient synchronization
-        ep_dp_cmd = CMD(
-            rank_id=args.simu_rank,
-            mg_state=args.simu_state,
-            name_cmd="ep_dp_allreduce",
-            use_cuda=True,
-            stage_operations_trace_dict=args.stage_operations_trace,
-            micro_batch_ids_dict=args.simu_micro_batch_ids,
-            stage_id=args.simu_stage_id,
-            simu_start=args.simu_start,
-            description="Expert DP gradient synchronization (expert parameters)",
-            group_kind="ep_dp",
-            trace_start=args.trace_start,
-            current_iter=args.current_iter,
-            args=args
-        )
-        CMD.set_current_cmd(ep_dp_cmd)
-        with ep_dp_cmd:
-            nvtx.range_push(f"ep_dp_allreduce_grads_sync")
-            for model_chunk in model:
-                # Only process expert parallel buffers
-                for buffer in model_chunk.expert_parallel_buffers:
-                    buffer.finish_grad_sync()
-            nvtx.range_pop()
-    else:
-        # Non-MoE case: use original single CMD for backward compatibility
-        cmd = CMD(
-            rank_id=args.simu_rank,
-            mg_state=args.simu_state,
-            name_cmd="dp_allreduce",
-            use_cuda=True,
-            stage_operations_trace_dict=args.stage_operations_trace,
-            micro_batch_ids_dict=args.simu_micro_batch_ids,
-            stage_id=args.simu_stage_id,
-            simu_start=args.simu_start,
-            description="model_chunk.finish_grad_sync(), All-reduce / reduce-scatter across DP replicas",
-            group_kind="dp",
-            trace_start=args.trace_start,
-            current_iter=args.current_iter,
-            args=args
-        )
-        CMD.set_current_cmd(cmd)
-        with cmd:
-            nvtx.range_push(f"allreduce_grads_sync_model_chunk")
-            for model_chunk in model:
-                model_chunk.finish_grad_sync()
-            nvtx.range_pop()
+    cmd = CMD(
+        rank_id=args.simu_rank,
+        mg_state=args.simu_state,
+        name_cmd="dp_allreduce",
+        use_cuda=True,
+        stage_operations_trace_dict=args.stage_operations_trace,
+        micro_batch_ids_dict=args.simu_micro_batch_ids,
+        stage_id=args.simu_stage_id,
+        simu_start=args.simu_start,
+        description="model_chunk.finish_grad_sync(), All-reduce / reduce-scatter across DP replicas",
+        group_kind="dp",
+        trace_start=args.trace_start,
+        current_iter=args.current_iter,
+        args=args
+    )
+    CMD.set_current_cmd(cmd)
+    with cmd:
+        nvtx.range_push(f"allreduce_grads_sync_model_chunk")
+        # YC: check here, does it include ep optimizer's allreduce?
+        for model_chunk in model:
+            model_chunk.finish_grad_sync()
+        nvtx.range_pop()
 
     if config.timers is not None:
         config.timers('all-grads-sync').stop()

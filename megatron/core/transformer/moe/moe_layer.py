@@ -220,16 +220,16 @@ class MoELayer(BaseMoELayer):
 
 
         # Debug: Print scores and indices to check differences across ranks
-        print(f"[DEBUG] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} - scores (first 10): {scores.flatten()[:10].tolist()}")
-        print(f"[DEBUG] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} - indices (first 10): {indices.flatten()[:10].tolist()}")
+        # print(f"[DEBUG] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} - scores (first 10): {scores.flatten()[:10].tolist()}")
+        # print(f"[DEBUG] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} - indices (first 10): {indices.flatten()[:10].tolist()}")
         # [MoE Dispatch Info] Rank (1, 1, 0, 0)
         (dispatched_input, tokens_per_expert) = self.token_dispatcher.token_permutation(
             hidden_states, scores, indices
         )
-        print(f"[MoE Dispatch Info] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} (EP Rank {exp_rank}): "
-              f"tokens_per_expert={tokens_per_expert.tolist()} | "
-              f"total_tokens={tokens_per_expert.sum().item()} | "
-              f"dispatched_input_shape={dispatched_input.shape}")
+        # print(f"[MoE Dispatch Info] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} (EP Rank {exp_rank}): "
+        #       f"tokens_per_expert={tokens_per_expert.tolist()} | "
+        #       f"total_tokens={tokens_per_expert.sum().item()} | "
+        #       f"dispatched_input_shape={dispatched_input.shape}")
 
         expert_output, mlp_bias = self.experts(dispatched_input, tokens_per_expert)
         output, mlp_bias = self.token_dispatcher.token_unpermutation(expert_output, mlp_bias)

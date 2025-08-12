@@ -29,7 +29,8 @@ class SchedulingPlan:
         args.simu_micro_batch_ids = {
             "recv_forward": -1, "forward_step": -1, "send_forward": -1, "recv_backward": -1,
             "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
-            "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1
+            "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1,
+            'ep_dp_allreduce': -1, 'pep_allreduce': -1
         }
         self.initial_simu_micro_batch_ids = args.simu_micro_batch_ids.copy()
         self.stage_operations_trace = {}
@@ -202,14 +203,47 @@ class SchedulingPlan:
                     self.stage_operations_trace[stage_id].append(str(cmd))
 
         args.simu_state = "finalize"
-        args.simu_micro_batch_ids["dp_allreduce"] += 1
-        cmd = CMD(stage_id, args.simu_state, "dp_allreduce", args.simu_micro_batch_ids["dp_allreduce"], description='model_chunk.finish_grad_sync(), All-reduce / reduce-scatter across DP replicas', group_kind='dp')
-        self.stage_operations_trace[stage_id].append(str(cmd))
-        
-        if self.is_pipeline_first_stage(stage_id) or self.is_pipeline_last_stage(stage_id):
-            args.simu_micro_batch_ids["ep_allreduce"] += 1
-            cmd = CMD(stage_id, args.simu_state, "ep_allreduce", args.simu_micro_batch_ids["ep_allreduce"], description='_allreduce_embedding_grads, All-reduce embedding grads (for pipeline parallelism)', group_kind='ep')
+
+        # Check if MoE is enabled (simulate the same logic as finalize_model_grads.py)
+        has_moe = hasattr(args, 'num_experts') and args.num_experts is not None and args.num_experts > 0
+
+        if has_moe:
+            # Separate DP and EP_DP gradient synchronization for MoE models
+
+            # First: Regular DP gradient synchronization
+            args.simu_micro_batch_ids["dp_allreduce"] += 1
+            cmd = CMD(stage_id, args.simu_state, "dp_allreduce", args.simu_micro_batch_ids["dp_allreduce"],
+                     description='Regular DP gradient synchronization (non-expert parameters)', group_kind='dp')
             self.stage_operations_trace[stage_id].append(str(cmd))
+
+            # Second: Expert DP gradient synchronization
+            args.simu_micro_batch_ids["ep_dp_allreduce"] += 1
+            cmd = CMD(stage_id, args.simu_state, "ep_dp_allreduce", args.simu_micro_batch_ids["ep_dp_allreduce"],
+                     description='Expert DP gradient synchronization (expert parameters)', group_kind='ep_dp')
+            self.stage_operations_trace[stage_id].append(str(cmd))
+        else:
+            # Non-MoE case: use original single CMD for backward compatibility
+            args.simu_micro_batch_ids["dp_allreduce"] += 1
+            cmd = CMD(stage_id, args.simu_state, "dp_allreduce", args.simu_micro_batch_ids["dp_allreduce"],
+                     description='model_chunk.finish_grad_sync(), All-reduce / reduce-scatter across DP replicas', group_kind='dp')
+            self.stage_operations_trace[stage_id].append(str(cmd))
+
+        # All-reduce embedding grads (for pipeline parallelism) - matches finalize_model_grads.py logic
+        if self.is_pipeline_first_stage(stage_id) or self.is_pipeline_last_stage(stage_id):
+            # Simulate the need_embedding_allreduce check (assume True for scheduling purposes)
+            # In real implementation, this depends on share_embeddings_and_output_weights
+            args.simu_micro_batch_ids["ep_allreduce"] += 1
+            cmd = CMD(stage_id, args.simu_state, "ep_allreduce", args.simu_micro_batch_ids["ep_allreduce"],
+                     description='_allreduce_word_embedding_grads', group_kind='ep')
+            self.stage_operations_trace[stage_id].append(str(cmd))
+
+            # Add position embedding allreduce for T5 models (conditional)
+            # This simulates the pep_allreduce logic from finalize_model_grads.py
+            if hasattr(args, 'pipeline_model_parallel_split_rank') and args.pipeline_model_parallel_split_rank is not None:
+                args.simu_micro_batch_ids["pep_allreduce"] = args.simu_micro_batch_ids.get("pep_allreduce", -1) + 1
+                cmd = CMD(stage_id, args.simu_state, "pep_allreduce", args.simu_micro_batch_ids["pep_allreduce"],
+                         description='_allreduce_position_embedding_grads', group_kind='pep')
+                self.stage_operations_trace[stage_id].append(str(cmd))
 
 
     def write_list_to_file(self, stage_id, list_to_write):

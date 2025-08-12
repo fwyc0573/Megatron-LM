@@ -8,13 +8,13 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-# export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=4,5,6,7
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
 # Distributed training variables
 NNODES=1
-GPUS_PER_NODE=8
+GPUS_PER_NODE=4
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
 NODE_RANK=0
@@ -35,17 +35,19 @@ MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
 # size variables
-NUM_EXPERTS=8 # 专家总数（必须是EP的倍数）
+EP=2
+NUM_EXPERTS=2 # 专家总数（必须是EP的倍数）
 MODEL_SIZE="Mixtral_${NUM_EXPERTS}x1.75B"
-# if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
-# elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
-# elif [[ ${MODEL_SIZE} == 175 ]];  then HIDDEN_SIZE=12288;  NUM_HEAD=96; NUM_LAYERS=96;
-# elif [[ ${MODEL_SIZE} == "tiny" ]]; then HIDDEN_SIZE=128;  NUM_HEAD=8; NUM_LAYERS=4;
-# elif [[ ${MODEL_SIZE} == 30 ]];   then HIDDEN_SIZE=7680;  NUM_HEAD=48; NUM_LAYERS=40;
-# elif [[ ${MODEL_SIZE} == 40 ]];   then HIDDEN_SIZE=9216;  NUM_HEAD=72; NUM_LAYERS=40;
-# elif [[ ${MODEL_SIZE} == 6.7 ]];  then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=32;
-if [[ ${MODEL_SIZE} == "Mixtral_${NUM_EXPERTS}x1.75B" ]]; then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=8 ; FFN_HIDDEN_SIZE=14336;
-if [[ ${MODEL_SIZE} == "Mixtral_${NUM_EXPERTS}x22B" ]]; then HIDDEN_SIZE=6144;  NUM_HEAD=56; NUM_LAYERS=56; FFN_HIDDEN_SIZE=16384;
+if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
+elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
+elif [[ ${MODEL_SIZE} == 175 ]];  then HIDDEN_SIZE=12288;  NUM_HEAD=96; NUM_LAYERS=96;
+elif [[ ${MODEL_SIZE} == "tiny" ]]; then HIDDEN_SIZE=128;  NUM_HEAD=8; NUM_LAYERS=4;
+elif [[ ${MODEL_SIZE} == 30 ]];   then HIDDEN_SIZE=7680;  NUM_HEAD=48; NUM_LAYERS=40;
+elif [[ ${MODEL_SIZE} == 40 ]];   then HIDDEN_SIZE=9216;  NUM_HEAD=72; NUM_LAYERS=40;
+elif [[ ${MODEL_SIZE} == 6.7 ]];  then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=32;
+elif [[ ${MODEL_SIZE} == "Mixtral_${NUM_EXPERTS}x1.75B" ]]; then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=8 ; FFN_HIDDEN_SIZE=14336;
+elif [[ ${MODEL_SIZE} == "Mixtral_${NUM_EXPERTS}x7B" ]]; then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=32; FFN_HIDDEN_SIZE=14336;
+elif [[ ${MODEL_SIZE} == "Mixtral_${NUM_EXPERTS}x22B" ]]; then HIDDEN_SIZE=6144;  NUM_HEAD=56; NUM_LAYERS=56; FFN_HIDDEN_SIZE=16384;
 else echo "invalid MODEL_SIZE: ${MODEL_SIZE}"; exit 1
 fi
 # vocab_size=32000
@@ -58,7 +60,7 @@ TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
 
 
-MAX_SEQ_LEN=1024 # 4096 2048
+MAX_SEQ_LEN=4096 # 4096 2048
 MAX_POSITION_EMBEDDINGS=32768 # 4096 2048
 
 # 检查trace_iter_num是否在合理的范围内
@@ -96,7 +98,7 @@ SIM_ARGS=" \
        --fake-dp $FAKE_DP \
        --fake-tp $FAKE_TP \
        --trace-memory \
-       --trace-memory-interval 0.005 \
+       --trace-memory-interval 0.001 \
        "
     #    --trace-memory \
     #    --trace-memory-interval 0.005 \
@@ -112,7 +114,6 @@ if echo "$SIM_ARGS" | grep -q -- "--is-scaling-mode"; then
 fi
 
 
-EP=4 # 专家并行度
 
 if [ "$((NUM_EXPERTS % EP))" -ne "0" ]; then
     echo "Error: NUM_EXPERTS must be divisible by EP"

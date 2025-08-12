@@ -300,7 +300,8 @@ def pretrain(train_valid_test_dataset_provider,
         args.simu_micro_batch_ids = {
             "recv_forward": -1, "forward_step": -1, "send_forward": -1, "recv_backward": -1,
             "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
-            "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1
+            "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1,
+            'ep_dp_allreduce': -1, 'pep_allreduce': -1
         }
 
     if args.is_scaling_mode:
@@ -397,6 +398,11 @@ def pretrain(train_valid_test_dataset_provider,
             torch.cuda.synchronize()  # 同步确保重置生效
             memory_tracker.start()
             memory_tracker.next_iteration(0)  # Scaling mode simulates one iteration
+
+            # Measure static memory at the beginning of the iteration (before any forward computation)
+            static_memory_mb = torch.cuda.memory_allocated() / (1024 ** 2)
+            memory_tracker.log_static_memory(0, static_memory_mb)
+            print_rank_0(f"Static memory recorded for fake rank {rank_id}: {static_memory_mb:.2f} MB")
     
         # forward_step_func()
         # get_batch / FWD (loss_func:dp_allreudce)
@@ -467,6 +473,8 @@ def pretrain(train_valid_test_dataset_provider,
         if (args.is_rank_in_embedding_group and args.fake_pp > 1):
             ep_input__shape = None
             ep_input__dtype = None
+            need_embedding_allreduce = False
+
             if args.is_pre_process:
                 model_module = model[0]
             elif args.is_post_process:
@@ -474,30 +482,37 @@ def pretrain(train_valid_test_dataset_provider,
             else:  # We do not support the interleaved schedule for T5 yet.
                 model_module = model[0]
             model_module = get_attr_wrapped_model(model_module, 'pre_process', return_model_obj=True)
+
+            # 只有当 share_embeddings_and_output_weights=True 时才需要创建 ep_allreduce CMD
             if model_module.share_embeddings_and_output_weights:
                 weight = model_module.shared_embedding_or_output_weight()
                 grad = weight.main_grad
                 ep_input__shape = grad.shape
                 ep_input__dtype = grad.dtype
+                need_embedding_allreduce = True
 
-            cmd = CMD(
-            rank_id=rank_id,
-            mg_state=None,
-            name_cmd="ep_allreduce",
-            use_cuda=True,
-            stage_operations_trace_dict=args.stage_operations_trace,
-            micro_batch_ids_dict=args.simu_micro_batch_ids,
-            stage_id=args.pp_rank,
-            simu_start=args.simu_start,
-            description="simulation",
-            group_kind="ep",
-            trace_start=args.trace_start,
-            current_iter=args.trace_start,
-            args=args,
-            input__shape=ep_input__shape, 
-            input__dtype=ep_input__dtype,
-            )
-            cmd.no_trace_update(0,0)
+            # 只有在需要 embedding allreduce 时才创建 CMD
+            if need_embedding_allreduce:
+                cmd = CMD(
+                rank_id=rank_id,
+                mg_state=None,
+                name_cmd="ep_allreduce",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.pp_rank,
+                simu_start=args.simu_start,
+                description="simulation",
+                group_kind="ep",
+                trace_start=args.trace_start,
+                current_iter=args.trace_start,
+                args=args,
+                input__shape=ep_input__shape,
+                input__dtype=ep_input__dtype,
+                )
+                cmd.no_trace_update(0,0)
+            else:
+                print(f"Skipped ep_allreduce CMD creation for untied embeddings (share_embeddings_and_output_weights=False) in scaling mode")
 
         cmd = CMD(
         rank_id=rank_id,
@@ -917,6 +932,10 @@ def train_step(forward_step_func, data_iterator,
     if memory_tracker is not None:
         torch.cuda.reset_peak_memory_stats()
         memory_tracker.next_iteration(args.current_iter)
+
+        # Measure static memory at the beginning of the iteration (before any forward computation)
+        static_memory_mb = torch.cuda.memory_allocated() / (1024 ** 2)
+        memory_tracker.log_static_memory(args.current_iter, static_memory_mb)
 
 
     # Forward pass.
@@ -1456,7 +1475,8 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         args.simu_micro_batch_ids = {
             "recv_forward": -1, "forward_step": -1, "send_forward": -1, "recv_backward": -1,
             "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
-            "tp_allreduce": -1, "optimizer_step": -1, "loss_func": -1, 'get_batch': -1, "ep_allreduce": -1
+            "tp_allreduce": -1, "optimizer_step": -1, "loss_func": -1, 'get_batch': -1, "ep_allreduce": -1,
+            'ep_dp_allreduce': -1, 'pep_allreduce': -1
         }
         if iteration < args.trace_start:
             args.stage_operations_trace = {}

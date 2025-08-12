@@ -8,54 +8,41 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-# export CUDA_VISIBLE_DEVICES=0 #0,1,2,3
+# export CUDA_VISIBLE_DEVICES=4,5,6,7 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
 # Distributed training variables
-NNODES=1
+
+export NCCL_IB_DISABLE=0
+export NCCL_IB_HCA=mlx5_100,mlx5_101,mlx5_102,mlx5_103
+export NCCL_SOCKET_IFNAME=eth0
+export NCCL_DEBUG=INFO
+
+
+
+
+NNODES=2
 GPUS_PER_NODE=1
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
-NODE_RANK=0
-MASTER_PORT=6002
-MASTER_ADDR="localhost" #"localhost"
+NODE_RANK=1
+MASTER_PORT=6000
+MASTER_ADDR=10.233.93.5 # "localhost" #"localhost"
 
 
 # Parallelism variables 
-PP=1 # 实际使用的PP大小，设为1
-TP=1 # 实际使用的TP大小，设为1
+PP=2
+TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
-BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
-
-# 模拟的并行度设置
-FAKE_PP=4
-FAKE_TP=2
-FAKE_WORLD_SIZE=8
-FAKE_DP=$((${FAKE_WORLD_SIZE}/${FAKE_PP}/${FAKE_TP}))
-if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
-    echo "Error: FAKE_DP must be an integer."
-    exit 1
-fi
-
-# 创建统一的日志目录
-MODEL_SIZE=13 # 使用原脚本中的模型大小
 
 NUM_MICBATCH=1
 MICRO_BATCH_SIZE=1
-GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * FAKE_DP)) # 使用FAKE_DP计算全局批次大小
-
-
-LOG_NAME=SIM_GPT_${MODEL_SIZE}_FakeWS${FAKE_WORLD_SIZE}_TP${FAKE_TP}_PP${FAKE_PP}_DP${FAKE_DP}_nMICROB${NUM_MICBATCH}_MICROB_SIZE${MICRO_BATCH_SIZE}_GLOBAL_BATCH${GLOBAL_BATCH_SZIE}
-LOG_DIR=${BASE_PATH}/log/${LOG_NAME}
-
-# 确保日志目录存在
-mkdir -p ${LOG_DIR}
-
+GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
 # size variables
-# MODEL_SIZE="tiny" # "tiny" 6.7
+MODEL_SIZE="tiny" # 13 # "tiny" 6.7 "1T" 13
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
@@ -66,6 +53,14 @@ elif [[ ${MODEL_SIZE} == 40 ]];   then HIDDEN_SIZE=9216;  NUM_HEAD=72; NUM_LAYER
 elif [[ ${MODEL_SIZE} == 6.7 ]];  then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=32;
 else echo "invalid MODEL_SIZE: ${MODEL_SIZE}"; exit 1
 fi
+
+
+BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
+LOG_NAME=GPT_${MODEL_SIZE}_pretrain_WS${WORLD_SIZE}_TP${TP}_PP${PP}
+LOG_PATH=${BASE_PATH}/log/${LOG_NAME}/node${NODE_RANK}.log
+
+# 确保日志目录存在
+mkdir -p $(dirname ${LOG_PATH})
 
 
 DO_TRACE=True
@@ -91,13 +86,21 @@ TRACE_ARGS=" \
        --nsight-start $NSIGHT_START \
        "
 
-FAKE_GPUS_PER_NODE=8
+FAKE_WORLD_SIZE=8
 FAKE_WRANK=0
+FAKE_GPUS_PER_NODE=8
 FAKE_LOCAL_RANK=0
 # IS_SCALING_MODE=Falsef
+FAKE_PP=2
+FAKE_TP=4
+FAKE_DP=$((FAKE_WORLD_SIZE / FAKE_PP / FAKE_TP))
+if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
+    echo "Error: FAKE_DP must be an integer."
+    exit 1
+fi
 
+#        --is-scaling-mode \
 SIM_ARGS=" \
-       --is-scaling-mode \
        --fake-world-size $FAKE_WORLD_SIZE \
        --fake-wrank $FAKE_WRANK \
        --fake-gpus-per-node $FAKE_GPUS_PER_NODE \
@@ -110,6 +113,48 @@ SIM_ARGS=" \
        "
     #    --trace-memory \
     #    --trace-memory-interval 0.005 \
+
+# 当采用is-scaling-mode时,采用单个rank进行PROFILE
+if echo "$SIM_ARGS" | grep -q -- "--is-scaling-mode"; then
+    GPUS_PER_NODE=1
+    GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
+    WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
+    TP=1
+    PP=1
+    DP=$((${GPU_NUM}/${TP}/${PP}))
+fi
+
+
+
+# EP=2  # 专家并行度
+# NUM_EXPERTS=6  # 专家总数（必须是EP的倍数）
+
+# # 确保专家数量能被EP整除
+# if [ "$((NUM_EXPERTS % EP))" -ne "0" ]; then
+#     echo "Error: NUM_EXPERTS must be divisible by EP"
+#     exit 1
+# fi
+
+# MOE_ARGS="
+#     --num-experts $NUM_EXPERTS \
+#     --expert-model-parallel-size $EP \
+#     --moe-router-load-balancing-type aux_loss \
+#     --moe-router-topk 2 \
+#     --moe-aux-loss-coeff 1e-2 \
+#     --moe-token-dispatcher-type alltoall \
+#     --disable-bias-linear
+#     --moe-grouped-gemm \
+#     --bf16 
+# "
+    # 以下参数需要捆绑使用只使用, --moe-token-dispatcher-type默认是allgather，且可正常使用
+    # --moe-token-dispatcher-type alltoall \
+    # --disable-bias-linear
+
+    # --moe-grouped-gemm \
+    # --bf16 \
+
+    # 不开启moe_input_jitter_eps
+
 
 GPT_ARGS="
     --main-tokenizer-type GPT2BPETokenizer \
@@ -155,49 +200,30 @@ OUTPUT_ARGS="
     --eval-iters 1
 "
 
-# 添加迭代执行逻辑
-echo "============================================================"
-echo "Starting Megatron-LM Single GPU Simulation for ${FAKE_WORLD_SIZE} ranks"
-echo "Model: GPT-${MODEL_SIZE}, PP=${FAKE_PP}, TP=${FAKE_TP}, DP=${FAKE_DP}"
-echo "============================================================"
 
-# 迭代所有模拟的rank
-for current_fake_rank_id in $(seq 0 $((${FAKE_WORLD_SIZE} - 1)))
-do
-    echo "------------------------------------------------------------"
-    echo ">>> Simulating FAKE RANK ID: ${current_fake_rank_id} / $((${FAKE_WORLD_SIZE} - 1)) <<<"
-    echo "------------------------------------------------------------"
+# export CUDA_VISIBLE_DEVICES=0,1,2,3,4,6
+# mgpuretest_distopt_tpcomm_sequen_2tp2pp2dp_2connection
+# export HF_HOME="/research/d1/gds/ytyang/yichengfeng/.hf_saved_menu"
+# export PYTHONPATH="${PYTHONPATH}:/data/ytyang/yichengfeng/DeepSpeed/Megatron-DeepSpeed/megatron"
+# export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+# nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas  --force-overwrite=true  -x true -o optimzer_find_test—_tp2pp4 \
+torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/pretrain_llama.py \
+    $GPT_ARGS \
+    $DATA_ARGS \
+    $OUTPUT_ARGS \
+    $SIM_ARGS \
+    $TRACE_ARGS \
+    --distributed-backend nccl \
+    --use-mcore-models 2>&1 | tee ${LOG_PATH}
 
-    # 为当前rank创建日志文件
-    RANK_LOG_PATH="${LOG_DIR}/fake_rank_${current_fake_rank_id}.log"
-    
-    echo "Running simulation for rank ${current_fake_rank_id}, log: ${RANK_LOG_PATH}"
 
-    # 使用torchrun执行Python脚本，添加fake-current-rank-id参数
-    torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/pretrain_llama.py \
-        $GPT_ARGS \
-        $DATA_ARGS \
-        $OUTPUT_ARGS \
-        $SIM_ARGS \
-        $TRACE_ARGS \
-        --fake-current-rank-id ${current_fake_rank_id} \
-        --distributed-backend nccl \
-        --use-mcore-models \
-        --seed 42 2>&1 | tee ${RANK_LOG_PATH}
+    # --overlap-grad-reduce \
+    # --overlap-param-gather \
+    # --tp-comm-overlap \
+    # --sequence-parallel
+    # --use-distributed-optimizer \
 
-    # 检查执行状态
-    exit_status=${PIPESTATUS[0]}
-    if [ ${exit_status} -ne 0 ]; then
-        echo "ERROR: Python script failed for rank ${current_fake_rank_id} with status ${exit_status}"
-        echo "Check log: ${RANK_LOG_PATH}"
-        exit 1
-    fi
-
-    echo ">>> Finished simulation for FAKE RANK ID: ${current_fake_rank_id} <<<"
-done
-
-echo "============================================================"
-echo "All fake rank simulations completed successfully"
-echo "Log directory: ${LOG_DIR}"
-echo "Profiler logs in: ${BASE_PATH}/profiler_log/"
-echo "============================================================"
+    #  --sequence-parallel \
+    # --save $CHECKPOINT_PATH \
+    # --load $CHECKPOINT_PATH
+    # --overlap-param-gather \
