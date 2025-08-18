@@ -7,8 +7,9 @@ import torch
 
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.tensor_parallel.mappings import _gather_along_first_dim_expert_parallel
-from megatron.core.transformer.moe.moe_utils import permute, unpermute # moe_gather, moe_scatter, 
+from megatron.core.transformer.moe.moe_utils import permute, unpermute
 from megatron.core.transformer.transformer_config import TransformerConfig
+
 
 
 class MoETokenDispatcher:
@@ -106,14 +107,40 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
         # [S/TP, B, H] -> [S*B/TP, H]
         hidden_states = hidden_states.view(-1, self.hidden_shape[-1])
 
+        # Get tensor parallel size for scaling mode support
+        tp_size = self.config.fake_tp if self.config.is_scaling_mode else parallel_state.get_tensor_model_parallel_world_size()
+        exp_size = self.config.fake_exp if self.config.is_scaling_mode else parallel_state.get_expert_model_parallel_world_size()
         # Permute the tokens across the expert parallel devices.
-        if (self.config.tensor_model_parallel_size > 1) or (
-            self.config.expert_model_parallel_size > 1
-        ):
+        if (tp_size > 1) or (exp_size > 1):
+            # In scaling mode, we support TP>1 for tracing purposes
+            if tp_size > 1 and not self.config.is_scaling_mode:
+                # In real training, AllGather dispatcher supports TP>1 naturally
+                pass
             with torch.no_grad():
+                # Always call the communication function to record metadata
                 global_indices = tensor_parallel.gather_from_sequence_parallel_region_to_moe(
-                    max_ind
+                    max_ind, func="gather_from_sequence_parallel_region_to_moe"
                 )
+
+                if self.config.is_scaling_mode:
+                    # In scaling mode, override the communication result with pre-computed data
+                    # Use pre-computed routing results to ensure consistency
+                    ep_group_size = tp_size * exp_size
+
+                    # Get pre-computed indices for current rank
+                    pre_computed_indices = self.config.pre_fixed_routing_results[self.config.exp_rank]['indices']
+
+                    # Simulate the gather effect by replicating the pre-computed indices
+                    if pre_computed_indices.dim() == 1:
+                        global_indices = pre_computed_indices.repeat(ep_group_size)
+                    else:
+                        # For multi-dimensional tensors, repeat along the first dimension
+                        repeat_dims = [ep_group_size] + [1] * (pre_computed_indices.dim() - 1)
+                        global_indices = pre_computed_indices.repeat(*repeat_dims)
+
+                    # Move to the same device as max_ind
+                    global_indices = global_indices.to(max_ind.device)
+
                 # Create a mask of mapping between global and local tokens where each
                 # element is True if it's between the local_expert_indices
                 global_local_mask = (global_indices >= self.local_expert_indices[0]) & (
@@ -122,19 +149,51 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
                 local_indices = global_indices.masked_select(global_local_mask)
 
             if self.router_topk > 1:  # k > 1
-                global_probs = tensor_parallel.gather_from_sequence_parallel_region_to_moe(max_prob)
+                # Always call the communication function to record metadata
+                global_probs = tensor_parallel.gather_from_sequence_parallel_region_to_moe(
+                    max_prob, func="gather_from_sequence_parallel_region_to_moe"
+                )
+
+                if self.config.is_scaling_mode:
+                    # In scaling mode, override the communication result with pre-computed data
+                    ep_group_size = tp_size * exp_size
+
+                    # Get pre-computed scores for current rank
+                    pre_computed_scores = self.config.pre_fixed_routing_results[self.config.exp_rank]['scores']
+
+                    # Simulate the gather effect for probabilities
+                    if pre_computed_scores.dim() == 1:
+                        global_probs = pre_computed_scores.repeat(ep_group_size)
+                    else:
+                        # For multi-dimensional tensors, repeat along the first dimension
+                        repeat_dims = [ep_group_size] + [1] * (pre_computed_scores.dim() - 1)
+                        global_probs = pre_computed_scores.repeat(*repeat_dims)
+
+                    # Move to the same device as max_prob
+                    global_probs = global_probs.to(max_prob.device)
+
                 self.local_probs = global_probs.masked_select(global_local_mask)
             else:
                 self.local_probs = max_prob
 
-            # [S*B/TP, H] -> [S*B, H]
+            # [S*B/TP, H] -> [S*B, H] (always call communication function for metadata recording)
             global_hidden_states = tensor_parallel.gather_from_sequence_parallel_region_to_moe(
-                hidden_states, use_global_buffer=True
+                hidden_states, use_global_buffer=True, func="gather_from_sequence_parallel_region_to_moe"
             )
+
+            if self.config.is_scaling_mode:
+                # In scaling mode, override the communication result with simulated data
+                # Simulate the gather effect for hidden states
+                ep_group_size = tp_size * exp_size
+                global_hidden_states = hidden_states.repeat(ep_group_size, 1)
+
             # Reshape global_local_mask to be compatible with Tensor.gather
             global_local_map = global_local_mask.nonzero()[:, 0]
             self.global_local_map = global_local_map.view(-1, 1).expand(-1, hidden_states.shape[-1])
-            local_hidden_states = moe_gather.apply(global_hidden_states, self.global_local_map)
+            # Ensure global_local_map is on the same device as global_hidden_states
+            if self.global_local_map.device != global_hidden_states.device:
+                self.global_local_map = self.global_local_map.to(global_hidden_states.device)
+            local_hidden_states = torch.gather(global_hidden_states, 0, self.global_local_map)
         else:
             if self.router_topk > 1:
                 global_local_mask = torch.ones_like(max_ind).bool()
@@ -154,19 +213,32 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
         with torch.no_grad():
             # The indices of local_indices that give its sorted order along dim 0.
             self.indices = torch.argsort(local_indices, dim=0)
-            tokens_per_expert = torch.histc(
-                local_indices,
-                bins=self.num_local_experts,
-                min=self.local_expert_indices[0],
-                max=self.local_expert_indices[-1],
-            )
-            tokens_per_expert = tokens_per_expert.cpu().to(torch.long)
+
+            # Calculate tokens_per_expert with scaling mode support
+            if self.config.is_scaling_mode:
+                # In scaling mode, use pre-computed token distribution
+                num_local_tokens_per_expert = self.config.per_rank_dispatching_results[self.config.exp_rank]['num_local_tokens_per_expert']
+                if not num_local_tokens_per_expert.is_cuda:
+                    num_local_tokens_per_expert = num_local_tokens_per_expert.cuda()
+
+                # Extract tokens for local experts only
+                # num_local_tokens_per_expert has shape [num_experts], we need [num_local_experts]
+                tokens_per_expert = num_local_tokens_per_expert[self.local_expert_indices]
+                tokens_per_expert = tokens_per_expert.cpu().to(torch.long)
+            else:
+                tokens_per_expert = torch.histc(
+                    local_indices,
+                    bins=self.num_local_experts,
+                    min=self.local_expert_indices[0],
+                    max=self.local_expert_indices[-1],
+                )
+                tokens_per_expert = tokens_per_expert.cpu().to(torch.long)
 
         # Stage2: permute the tokens locally so that they are grouped by their expert assignment
         # Reshape indices to be compatible with Tensor.gather
         self.indices = self.indices.view(-1, 1).expand(-1, hidden_states.shape[-1])
         if self.num_local_experts > 1:
-            permuted_local_hidden_states = moe_gather.apply(local_hidden_states, self.indices)
+            permuted_local_hidden_states = torch.gather(local_hidden_states, 0, self.indices)
         else:
             permuted_local_hidden_states = local_hidden_states
         return (
@@ -195,7 +267,10 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
         scores = self.local_probs.to(dtype=hidden_states.dtype)
         if self.num_local_experts > 1:
             assert self.indices.shape == hidden_states.shape
-            unpermuted_local_hidden = moe_scatter.apply(hidden_states, self.indices)
+            unpermuted_local_hidden = torch.zeros_like(hidden_states)
+            # Ensure indices is on the same device as hidden_states
+            indices = self.indices.to(hidden_states.device)
+            unpermuted_local_hidden = unpermuted_local_hidden.scatter(0, indices, hidden_states)
         else:
             unpermuted_local_hidden = hidden_states
 
@@ -208,45 +283,86 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
             assert bias is not None
             unpermuted_local_bias = torch.zeros_like(hidden_states)
             assert self.indices.shape == bias.shape
-            unpermuted_local_bias = unpermuted_local_bias.scatter(0, self.indices, bias)
+            # Ensure indices is on the same device as bias
+            indices = self.indices.to(bias.device)
+            unpermuted_local_bias = unpermuted_local_bias.scatter(0, indices, bias)
             if self.router_topk > 1:
                 unpermuted_local_bias = unpermuted_local_bias * scores.view(-1, 1)
 
         output_total = unpermuted_local_hidden
         output_bias_total = unpermuted_local_bias
 
+        # Get tensor parallel size for scaling mode support
+        tp_size = self.config.fake_tp if self.config.is_scaling_mode else parallel_state.get_tensor_model_parallel_world_size()
+        exp_size = self.config.fake_exp if self.config.is_scaling_mode else parallel_state.get_expert_model_parallel_world_size()
+
         # Unpermute the tokens across expert parallel devices.
-        if (self.config.tensor_model_parallel_size > 1) or (
-            self.config.expert_model_parallel_size > 1
-        ):
+        if (tp_size > 1) or (exp_size > 1):
             assert (
                 self.global_local_map is not None
             ), "global_local_map is necessary for `AllGather`."
-            ep_group_size = parallel_state.get_tensor_and_expert_parallel_world_size()
+
+            # Get tensor and expert parallel group size with scaling mode support
+            if self.config.is_scaling_mode:
+                # In scaling mode, calculate ep_group_size from config values
+                ep_group_size = tp_size * exp_size
+            else:
+                # In real training mode, use actual parallel group size
+                ep_group_size = parallel_state.get_tensor_and_expert_parallel_world_size()
+
             # hidden_shape: [SeqLen/TP, MBS, HiddenSize], glboal_num_tokens = SeqLen/TP*MBS*(TP*EP)
             global_num_tokens = self.hidden_shape[0] * self.hidden_shape[1] * ep_group_size
             global_hidden_shape = [global_num_tokens, hidden_states.shape[-1]]
             assert self.global_local_map.shape == unpermuted_local_hidden.shape
-            unpermuted_global_hidden = moe_scatter.apply(
-                unpermuted_local_hidden, self.global_local_map, global_hidden_shape
+            unpermuted_global_hidden = torch.zeros(
+                global_hidden_shape,
+                dtype=hidden_states.dtype,
+                device=torch.cuda.current_device(),
             )
+            # Ensure global_local_map and unpermuted_local_hidden are on the same device as unpermuted_global_hidden
+            global_local_map = self.global_local_map.to(unpermuted_global_hidden.device)
+            unpermuted_local_hidden = unpermuted_local_hidden.to(unpermuted_global_hidden.device)
+            unpermuted_global_hidden = unpermuted_global_hidden.scatter_add(
+                0, global_local_map, unpermuted_local_hidden
+            )
+            # Always call the communication function to record metadata
             output_total = tensor_parallel.reduce_scatter_to_sequence_parallel_region_from_moe(
-                unpermuted_global_hidden
+                unpermuted_global_hidden, func="reduce_scatter_to_sequence_parallel_region_from_moe"
             )
+
+            if self.config.is_scaling_mode:
+                # In scaling mode, override the communication result with simulated data
+                # reduce_scatter would normally reduce the tensor size by ep_group_size factor
+                ep_group_size = tp_size * exp_size
+
+                # Simulate reduce_scatter by taking the first portion of the tensor
+                # that corresponds to the original input size
+                original_size = unpermuted_global_hidden.shape[0] // ep_group_size
+                output_total = unpermuted_global_hidden[:original_size]
+
             if self.add_bias:
                 # Unpermute the bias across expert parallel devices.
                 unpermuted_global_bias = torch.zeros_like(unpermuted_global_hidden)
+                # Ensure global_local_map is on the same device as unpermuted_global_bias
+                global_local_map = self.global_local_map.to(unpermuted_global_bias.device)
                 unpermuted_global_bias = unpermuted_global_bias.scatter_add(
-                    0, self.global_local_map, unpermuted_local_bias
+                    0, global_local_map, unpermuted_local_bias
                 )
+
+                # Always call the communication function to record metadata
                 output_bias_total = tensor_parallel.reduce_scatter_to_sequence_parallel_region_from_moe(
-                    unpermuted_global_bias
+                    unpermuted_global_bias, func="reduce_scatter_to_sequence_parallel_region_from_moe"
                 )
+
+                if self.config.is_scaling_mode:
+                    # In scaling mode, override the communication result with simulated data
+                    ep_group_size = tp_size * exp_size
+                    original_size = unpermuted_global_bias.shape[0] // ep_group_size
+                    output_bias_total = unpermuted_global_bias[:original_size]
+
                 # bias is duplicated across tensor parallelism ranks;
                 # reduce scatter reduces bias across tensor parallel_ranks
-                output_bias_total = (
-                    output_bias_total / parallel_state.get_tensor_model_parallel_world_size()
-                )
+                output_bias_total = output_bias_total / tp_size
         else:
             if self.router_topk > 1:
                 global_num_tokens = self.hidden_shape[0] * self.hidden_shape[1]
@@ -268,6 +384,7 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
         if self.router_topk == 1:
             output_total = output_total * scores
         output_total = output_total.view(self.hidden_shape)
+
         if self.add_bias:
             assert output_bias_total is not None
             if self.router_topk == 1:
@@ -331,9 +448,7 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             # Move tensor to GPU if it's not already there
             if not num_local_tokens_per_expert.is_cuda:
                 num_local_tokens_per_expert = num_local_tokens_per_expert.cuda()
-
         else:
-            # TODO-YC  : Here to compare the pre results with the real results?
             num_local_tokens_per_expert = torch.histc(
                 indices, bins=self.num_experts, min=0, max=self.num_experts
             )

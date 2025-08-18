@@ -277,7 +277,11 @@ class TransformerConfig(ModelParallelConfig):
     fake_pp = 0
     fake_dp = 0
     fake_tp = 0
+    fake_exp = 0
     is_scaling_mode = False
+    exp_rank = 0
+    per_rank_dispatching_results = None
+    num_global_tokens_per_expert = None
     
 
     def __post_init__(self):

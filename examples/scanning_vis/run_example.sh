@@ -23,6 +23,7 @@ python "$SCRIPT_DIR/visualize_memory_heatmap.py" \
   --memory-dir "$MEMORY_DIR" \
   --log-dir "$LOG_DIR" \
   --output "$OUTPUT_DIR/memory_heatmap_485B_academic" \
+    --figsize 8 3.1\
   --dpi 300
 
 echo "   ✓ Academic heatmap saved to: $OUTPUT_DIR/memory_heatmap_485B_academic.png/.pdf"
@@ -34,6 +35,7 @@ python "$SCRIPT_DIR/visualize_memory_heatmap.py" \
   --memory-dir "$MEMORY_DIR" \
   --log-dir "$LOG_DIR" \
   --output "$OUTPUT_DIR/memory_heatmap_485B_publication" \
+  --figsize 9 3.5\
   --dpi 600
 
 echo "   ✓ Publication heatmap saved to: $OUTPUT_DIR/memory_heatmap_485B_publication.png/.pdf"
@@ -45,7 +47,7 @@ python "$SCRIPT_DIR/visualize_memory_heatmap.py" \
   --memory-dir "$MEMORY_DIR" \
   --log-dir "$LOG_DIR" \
   --output "$OUTPUT_DIR/memory_heatmap_485B_custom" \
-  --figsize 12.0 5.0 \
+  --figsize 8 3 \
   --dpi 300
 
 echo "   ✓ Custom heatmap saved to: $OUTPUT_DIR/memory_heatmap_485B_custom.png/.pdf"

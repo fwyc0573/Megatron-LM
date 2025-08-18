@@ -323,10 +323,10 @@ class MemoryHeatmapVisualizer:
         ax.set_yticklabels(tp_values, fontsize=10)
 
         # Academic style labels and title
-        ax.set_xlabel('Pipeline Parallelism (PP)', fontsize=11, fontweight='normal')
-        ax.set_ylabel('Tensor Parallelism (TP)', fontsize=11, fontweight='normal')
-        ax.set_title('GPU Memory Scanning: 485B Model Training Using Megatron-LM\n(8192 GPUs, A800-SXM4-80GB, FP16)',
-                    fontsize=14, fontweight='normal', pad=8)
+        ax.set_xlabel('Pipeline Parallelism (PP)', fontsize=14, fontweight='normal')
+        ax.set_ylabel('Tensor Parallelism (TP)', fontsize=14, fontweight='normal')
+        ax.set_title('GPU Memory Scanning: GPT 485B Model Training\n(Megatron-LM, 8192 GPUs, A100-SXM-80GB, FP16)',
+                    fontsize=18, fontweight='normal', pad=8)
 
         # Add professional colorbar
         cbar = plt.colorbar(im, ax=ax, fraction=0.03, pad=0.02, aspect=30)

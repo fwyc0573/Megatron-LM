@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=6 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=7 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -117,7 +117,7 @@ MOE_ARGS="
     --moe-router-load-balancing-type aux_loss \
     --moe-router-topk 2 \
     --moe-aux-loss-coeff 1e-2 \
-    --moe-token-dispatcher-type alltoall \
+    --moe-token-dispatcher-type allgather \
     --disable-bias-linear \
     --moe-grouped-gemm \
     --bf16 \

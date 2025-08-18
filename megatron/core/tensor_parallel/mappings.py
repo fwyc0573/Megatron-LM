@@ -154,6 +154,7 @@ def _reduce_scatter_along_first_dim(input_, func=None):
     return output
 
 
+@CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='exp', comm_func='allgather')
 def _gather_along_first_dim_moe(input_):
     """Gather tensors and concatenate along the first dimension."""
     group = get_tensor_and_expert_parallel_group()
@@ -171,6 +172,7 @@ def _gather_along_first_dim_moe(input_):
     return output
 
 
+@CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='exp', comm_func='reduce_scatter')
 def _reduce_scatter_along_first_dim_moe(input_):
     """Reduce-scatter the input tensor across model parallel group."""
     group = get_tensor_and_expert_parallel_group()
@@ -613,12 +615,14 @@ def gather_from_sequence_parallel_region(input_, tensor_parallel_output_grad=Tru
 def reduce_scatter_to_sequence_parallel_region(input_):
     return _ReduceScatterToSequenceParallelRegion.apply(input_)
 
-
-def gather_from_sequence_parallel_region_to_moe(input_):
+# we should not add cmd here because it will case redudent ops.
+# @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype']}, group_type='exp', comm_func='allgather')
+def gather_from_sequence_parallel_region_to_moe(input_, use_global_buffer=False, func=None):
     return _GatherFromSequenceParallelRegionToMOE.apply(input_)
 
 
-def reduce_scatter_to_sequence_parallel_region_from_moe(input_):
+# @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype']}, group_type='exp', comm_func='reduce_scatter')
+def reduce_scatter_to_sequence_parallel_region_from_moe(input_, func=None):
     return _ReduceScatterToSequenceParallelRegionFromMOE.apply(input_)
 
 # @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allgather')
