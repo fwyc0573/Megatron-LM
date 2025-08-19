@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=4 #0,1,2,3
+export CUDA_VISIBLE_DEVICES=7 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -28,10 +28,9 @@ FIXED_TP=1 # 实际使用的TP大小，设为1
 FIXED_DP=$((${GPU_NUM}/${TP}/${PP}))
 
 BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
-
+    # "8192 32 4"   # world_size=8192, pp=32, tp=4
 # 额外需要测试的3个配置
 BATCH_CONFIGS=(
-    "8192 32 4"   # world_size=8192, pp=32, tp=4
     "8192 64 4"
     "8192 64 2"
 )

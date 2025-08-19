@@ -31,7 +31,7 @@ class SchedulingPlan:
             "recv_forward": -1, "forward_step": -1, "send_forward": -1, "recv_backward": -1,
             "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
             "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1,
-            'ep_dp_allreduce': -1, 'pep_allreduce': -1
+            'exp_dp_allreduce': -1, 'pep_allreduce': -1
         }
         self.initial_simu_micro_batch_ids = args.simu_micro_batch_ids.copy()
         self.stage_operations_trace = {}
@@ -44,7 +44,7 @@ class SchedulingPlan:
         print("megatron-lm scheduling meta info:")
         print(f"micro_batch_size:{self.args.micro_batch_size}")
         print(f"num_microbatches:{self.args.num_microbatches}")
-        print(f"pp size:{self.args.pipeline_model_parallel_size}, tp size: {self.args.tensor_model_parallel_size}, dp size: {self.args.data_parallel_size}, world_size: {self.args.world_size}")
+        print(f"pp size:{self.args.pipeline_model_parallel_size}, tp size: {self.args.tensor_model_parallel_size}, dp size: {self.args.data_parallel_size}, exp size: {self.args.expert_model_parallel_size}, exp_dp size: {self.args.exp_dp_size}, world_size: {self.args.world_size}")
         print(f"seq_length:{self.args.seq_length}, hidden_size:{self.args.hidden_size}, pipeline_dtype: {self.args.pipeline_dtype}")
 
 
@@ -206,10 +206,10 @@ class SchedulingPlan:
         args.simu_state = "finalize"
 
         # Check if MoE is enabled (simulate the same logic as finalize_model_grads.py)
-        has_moe = hasattr(args, 'num_experts') and args.num_experts is not None and args.num_experts > 0
+        need_exp_dp_comm = hasattr(args, 'exp_dp_size') and args.exp_dp_size > 1
 
-        if has_moe:
-            # Separate DP and EP_DP gradient synchronization for MoE models
+        if need_exp_dp_comm:
+            # Separate DP and exp_dp gradient synchronization for MoE models
 
             # First: Regular DP gradient synchronization
             args.simu_micro_batch_ids["dp_allreduce"] += 1
@@ -218,9 +218,9 @@ class SchedulingPlan:
             self.stage_operations_trace[stage_id].append(str(cmd))
 
             # Second: Expert DP gradient synchronization
-            args.simu_micro_batch_ids["ep_dp_allreduce"] += 1
-            cmd = CMD(stage_id, args.simu_state, "ep_dp_allreduce", args.simu_micro_batch_ids["ep_dp_allreduce"],
-                     description='Expert DP gradient synchronization (expert parameters)', group_kind='ep_dp')
+            args.simu_micro_batch_ids["exp_dp_allreduce"] += 1
+            cmd = CMD(stage_id, args.simu_state, "exp_dp_allreduce", args.simu_micro_batch_ids["exp_dp_allreduce"],
+                     description='Expert DP gradient synchronization (expert parameters)', group_kind='exp_dp')
             self.stage_operations_trace[stage_id].append(str(cmd))
         else:
             # Non-MoE case: use original single CMD for backward compatibility
@@ -231,26 +231,28 @@ class SchedulingPlan:
 
         # All-reduce embedding grads (for pipeline parallelism) - matches finalize_model_grads.py logic
         if self.is_pipeline_first_stage(stage_id) or self.is_pipeline_last_stage(stage_id):
-            # Simulate the need_embedding_allreduce check (assume True for scheduling purposes)
-            # In real implementation, this depends on share_embeddings_and_output_weights
-            args.simu_micro_batch_ids["ep_allreduce"] += 1
-            cmd = CMD(stage_id, args.simu_state, "ep_allreduce", args.simu_micro_batch_ids["ep_allreduce"],
-                     description='_allreduce_word_embedding_grads', group_kind='ep')
-            self.stage_operations_trace[stage_id].append(str(cmd))
-
-            # Add position embedding allreduce for T5 models (conditional)
-            # This simulates the pep_allreduce logic from finalize_model_grads.py
-            if hasattr(args, 'pipeline_model_parallel_split_rank') and args.pipeline_model_parallel_split_rank is not None:
-                args.simu_micro_batch_ids["pep_allreduce"] = args.simu_micro_batch_ids.get("pep_allreduce", -1) + 1
-                cmd = CMD(stage_id, args.simu_state, "pep_allreduce", args.simu_micro_batch_ids["pep_allreduce"],
-                         description='_allreduce_position_embedding_grads', group_kind='pep')
+            # mixtral不共享embediing
+            if not args.untie_embeddings_and_output_weights:
+                # Simulate the need_embedding_allreduce check (assume True for scheduling purposes)
+                # In real implementation, this depends on share_embeddings_and_output_weights
+                args.simu_micro_batch_ids["ep_allreduce"] += 1
+                cmd = CMD(stage_id, args.simu_state, "ep_allreduce", args.simu_micro_batch_ids["ep_allreduce"],
+                        description='_allreduce_word_embedding_grads', group_kind='ep')
                 self.stage_operations_trace[stage_id].append(str(cmd))
+
+                # Add position embedding allreduce for T5 models (conditional)
+                # This simulates the pep_allreduce logic from finalize_model_grads.py
+                if hasattr(args, 'pipeline_model_parallel_split_rank') and args.pipeline_model_parallel_split_rank is not None:
+                    args.simu_micro_batch_ids["pep_allreduce"] = args.simu_micro_batch_ids.get("pep_allreduce", -1) + 1
+                    cmd = CMD(stage_id, args.simu_state, "pep_allreduce", args.simu_micro_batch_ids["pep_allreduce"],
+                            description='_allreduce_position_embedding_grads', group_kind='pep')
+                    self.stage_operations_trace[stage_id].append(str(cmd))
 
 
     def write_list_to_file(self, stage_id, list_to_write):
         # 创建包含配置信息的目录名
         fp16_str = "fp16" if self.args.fp16 else "fp32"
-        dir_name = f"MODEL{self.args.model_size}_pp{self.args.pipeline_model_parallel_size}_tp{self.args.tensor_model_parallel_size}_dp{self.args.data_parallel_size}_seq{self.args.seq_length}_mbs{self.args.micro_batch_size}_gbs{self.args.global_batch_size}_{fp16_str}"
+        dir_name = f"MODEL{self.args.model_size}_pp{self.args.pipeline_model_parallel_size}_tp{self.args.tensor_model_parallel_size}_dp{self.args.data_parallel_size}_exp{self.args.expert_model_parallel_size}_seq{self.args.seq_length}_mbs{self.args.micro_batch_size}_gbs{self.args.global_batch_size}_{fp16_str}"
         
         # 创建完整的目录路径
         log_dir = f"./mg_scheduling_plan_log/{dir_name}"

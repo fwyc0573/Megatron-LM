@@ -301,7 +301,7 @@ def pretrain(train_valid_test_dataset_provider,
             "recv_forward": -1, "forward_step": -1, "send_forward": -1, "recv_backward": -1,
             "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
             "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1,
-            'ep_dp_allreduce': -1, 'pep_allreduce': -1
+            'exp_dp_allreduce': -1, 'pep_allreduce': -1
         }
 
     if args.is_scaling_mode:
@@ -447,34 +447,194 @@ def pretrain(train_valid_test_dataset_provider,
             #     print(f"rank:{rank_id}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
                 print(f"rank:{rank_id}, finish BWD profile ...")
 
-        # dp_allreduce
-        pos_p_t = (args.pp_rank,args.tp_rank)
-        used_dtype = torch.float16 if args.fp16 or args.bf16 else torch.float32
-        cmd = CMD(
-        rank_id=rank_id,
-        mg_state=None,
-        name_cmd="dp_allreduce",
-        use_cuda=True,
-        stage_operations_trace_dict=args.stage_operations_trace,
-        micro_batch_ids_dict=args.simu_micro_batch_ids,
-        stage_id=args.pp_rank,
-        simu_start=args.simu_start,
-        description="simulation", 
-        group_kind="dp",
-        trace_start=args.trace_start,
-        current_iter=args.trace_start,
-        args=args,
-        input__shape=[args.global_model_params_dict[pos_p_t]["elem_sum"]], 
-        input__dtype=used_dtype,
-        )
-        cmd.no_trace_update(0,0)
+        # Check if MoE is enabled by examining if any model chunk has expert_parallel_buffers
+        has_moe = False
+        for model_chunk in model:
+            if hasattr(model_chunk, 'expert_parallel_buffers') and len(model_chunk.expert_parallel_buffers) > 0:
+                has_moe = True
+                break
 
-        # ep_allreduce
+        if has_moe:
+            # MoE case: separate DP and Expert DP gradient synchronization
+            # First: Regular DP gradient synchronization (non-expert parameters)
+            dp_cmd = CMD(
+                rank_id=rank_id,
+                mg_state="finalize",
+                name_cmd="dp_allreduce",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.pp_rank,
+                simu_start=args.simu_start,
+                description="Regular DP gradient synchronization (non-expert parameters)",
+                group_kind="dp",
+                trace_start=args.trace_start,
+                current_iter=args.trace_start,
+                args=args
+            )
+            CMD.set_current_cmd(dp_cmd)
+            with dp_cmd:
+                nvtx.range_push(f"dp_allreduce_grads_sync")
+                # In scaling mode, we only need to extract tensor metadata, not perform actual sync
+                metadata_extracted = False
+                for model_chunk in model:
+                    if metadata_extracted:
+                        break
+                    # Only process regular DP buffers
+                    for buffer in model_chunk.buffers:
+                        # Extract tensor metadata from buffer without performing actual communication
+                        if hasattr(buffer, 'buckets') and len(buffer.buckets) > 0:
+                            # Use the first bucket to get representative tensor metadata
+                            first_bucket = buffer.buckets[0]
+                            if hasattr(first_bucket, 'grad_data') and first_bucket.grad_data is not None:
+                                try:
+                                    # Set tensor shape and dtype from actual gradient buffer
+                                    dp_cmd.set_tensor_shape_and_dtype(
+                                        first_bucket.grad_data.shape,
+                                        first_bucket.grad_data.dtype
+                                    )
+                                    metadata_extracted = True
+                                    break
+                                except Exception as e:
+                                    print(f"Warning: Failed to extract metadata from bucket grad_data: {e}")
+                                    continue
+                        # Fallback: try to get metadata from buffer's grad_data directly
+                        elif hasattr(buffer, 'grad_data') and buffer.grad_data is not None:
+                            try:
+                                dp_cmd.set_tensor_shape_and_dtype(
+                                    buffer.grad_data.shape,
+                                    buffer.grad_data.dtype
+                                )
+                                metadata_extracted = True
+                                break
+                            except Exception as e:
+                                print(f"Warning: Failed to extract metadata from buffer grad_data: {e}")
+                                continue
+
+                # Final fallback: use estimated metadata if extraction failed
+                if not metadata_extracted:
+                    print("Warning: Could not extract tensor metadata from buffers, using fallback estimation")
+                    # Use a reasonable default based on model configuration
+                    pos_p_t = (args.pp_rank, args.tp_rank)
+                    if hasattr(args, 'global_model_params_dict') and pos_p_t in args.global_model_params_dict:
+                        total_params = args.global_model_params_dict[pos_p_t]["elem_sum"]
+                        # For MoE, estimate non-expert parameters as 30% of total
+                        estimated_size = int(total_params * 0.3) if has_moe else total_params
+                        estimated_dtype = torch.float16 if args.fp16 else torch.float32
+                        dp_cmd.set_tensor_shape_and_dtype([estimated_size], estimated_dtype)
+                nvtx.range_pop()
+
+            # Second: Expert DP gradient synchronization (immediately after dp_allreduce for MoE)
+            exp_dp_cmd = CMD(
+                rank_id=rank_id,
+                mg_state="finalize",
+                name_cmd="exp_dp_allreduce",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.pp_rank,
+                simu_start=args.simu_start,
+                description="Expert DP gradient synchronization (expert parameters)",
+                group_kind="exp_dp",
+                trace_start=args.trace_start,
+                current_iter=args.trace_start,
+                args=args
+            )
+            CMD.set_current_cmd(exp_dp_cmd)
+            with exp_dp_cmd:
+                nvtx.range_push(f"exp_dp_allreduce_grads_sync")
+                # In scaling mode, we only need to extract tensor metadata, not perform actual sync
+                metadata_extracted = False
+                for model_chunk in model:
+                    if metadata_extracted:
+                        break
+                    # Only process expert parallel buffers
+                    for buffer in model_chunk.expert_parallel_buffers:
+                        # Extract tensor metadata from expert buffer without performing actual communication
+                        if hasattr(buffer, 'buckets') and len(buffer.buckets) > 0:
+                            # Use the first bucket to get representative tensor metadata
+                            first_bucket = buffer.buckets[0]
+                            if hasattr(first_bucket, 'grad_data') and first_bucket.grad_data is not None:
+                                try:
+                                    # Set tensor shape and dtype from actual expert gradient buffer
+                                    exp_dp_cmd.set_tensor_shape_and_dtype(
+                                        first_bucket.grad_data.shape,
+                                        first_bucket.grad_data.dtype
+                                    )
+                                    metadata_extracted = True
+                                    break
+                                except Exception as e:
+                                    print(f"Warning: Failed to extract metadata from expert bucket grad_data: {e}")
+                                    continue
+                        # Fallback: try to get metadata from buffer's grad_data directly
+                        elif hasattr(buffer, 'grad_data') and buffer.grad_data is not None:
+                            try:
+                                exp_dp_cmd.set_tensor_shape_and_dtype(
+                                    buffer.grad_data.shape,
+                                    buffer.grad_data.dtype
+                                )
+                                metadata_extracted = True
+                                break
+                            except Exception as e:
+                                print(f"Warning: Failed to extract metadata from expert buffer grad_data: {e}")
+                                continue
+
+                # Final fallback for expert parameters if extraction failed
+                if not metadata_extracted:
+                    print("Warning: Could not extract expert tensor metadata from buffers, using fallback estimation")
+                    pos_p_t = (args.pp_rank, args.tp_rank)
+                    if hasattr(args, 'global_model_params_dict') and pos_p_t in args.global_model_params_dict:
+                        total_params = args.global_model_params_dict[pos_p_t]["elem_sum"]
+                        # Estimate expert parameters as 70% of total, divided by expert parallelism
+                        estimated_size = int(total_params * 0.7 // args.fake_exp) if hasattr(args, 'fake_exp') and args.fake_exp > 1 else int(total_params * 0.7)
+                        estimated_dtype = torch.float16 if args.fp16 else torch.float32
+                        exp_dp_cmd.set_tensor_shape_and_dtype([estimated_size], estimated_dtype)
+                nvtx.range_pop()
+        else:
+            # Non-MoE case: use original single CMD for backward compatibility
+            cmd = CMD(
+                rank_id=rank_id,
+                mg_state=None,
+                name_cmd="dp_allreduce",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.pp_rank,
+                simu_start=args.simu_start,
+                description="model_chunk.finish_grad_sync(), All-reduce / reduce-scatter across DP replicas",
+                group_kind="dp",
+                trace_start=args.trace_start,
+                current_iter=args.trace_start,
+                args=args
+            )
+            CMD.set_current_cmd(cmd)
+            with cmd:
+                nvtx.range_push(f"dp_allreduce_grads_sync")
+                # In scaling mode, we only need to extract tensor metadata, not perform actual sync
+                for model_chunk in model:
+                    for buffer in model_chunk.buffers:
+                        # Extract tensor metadata from buffer without performing actual communication
+                        if hasattr(buffer, 'buckets') and len(buffer.buckets) > 0:
+                            # Use the first bucket to get representative tensor metadata
+                            first_bucket = buffer.buckets[0]
+                            if hasattr(first_bucket, 'grad_data') and first_bucket.grad_data is not None:
+                                # Set tensor shape and dtype from actual gradient buffer
+                                cmd.set_tensor_shape_and_dtype(
+                                    first_bucket.grad_data.shape,
+                                    first_bucket.grad_data.dtype
+                                )
+                                break
+                        # Fallback: try to get metadata from buffer's grad_data directly
+                        elif hasattr(buffer, 'grad_data') and buffer.grad_data is not None:
+                            cmd.set_tensor_shape_and_dtype(
+                                buffer.grad_data.shape,
+                                buffer.grad_data.dtype
+                            )
+                            break
+                nvtx.range_pop()
+
+        # ep_allreduce - Embedding parallel gradient synchronization
         if (args.is_rank_in_embedding_group and args.fake_pp > 1):
-            ep_input__shape = None
-            ep_input__dtype = None
-            need_embedding_allreduce = False
-
             if args.is_pre_process:
                 model_module = model[0]
             elif args.is_post_process:
@@ -485,34 +645,72 @@ def pretrain(train_valid_test_dataset_provider,
 
             # 只有当 share_embeddings_and_output_weights=True 时才需要创建 ep_allreduce CMD
             if model_module.share_embeddings_and_output_weights:
-                weight = model_module.shared_embedding_or_output_weight()
-                grad = weight.main_grad
-                ep_input__shape = grad.shape
-                ep_input__dtype = grad.dtype
-                need_embedding_allreduce = True
+                ep_cmd = CMD(
+                    rank_id=rank_id,
+                    mg_state="finalize",
+                    name_cmd="ep_allreduce",
+                    use_cuda=True,
+                    stage_operations_trace_dict=args.stage_operations_trace,
+                    micro_batch_ids_dict=args.simu_micro_batch_ids,
+                    stage_id=args.pp_rank,
+                    simu_start=args.simu_start,
+                    description="Embedding parallel gradient synchronization",
+                    group_kind="ep",
+                    trace_start=args.trace_start,
+                    current_iter=args.trace_start,
+                    args=args
+                )
+                CMD.set_current_cmd(ep_cmd)
+                with ep_cmd:
+                    nvtx.range_push(f"ep_allreduce_grads_sync")
+                    # Get the shared embedding weight and extract metadata safely
+                    weight = model_module.shared_embedding_or_output_weight()
+                    if hasattr(weight, 'main_grad') and weight.main_grad is not None:
+                        grad = weight.main_grad
+                        # Set tensor shape and dtype from actual gradient
+                        ep_cmd.set_tensor_shape_and_dtype(grad.shape, grad.dtype)
+                    else:
+                        # Fallback: use weight tensor metadata if gradient is not available
+                        ep_cmd.set_tensor_shape_and_dtype(weight.shape, weight.dtype)
+                    # In scaling mode, we don't perform actual allreduce to avoid NaN issues
+                    # The metadata extraction is sufficient for our profiling purposes
+                    nvtx.range_pop()
+            else:
+                print(f"Skipped ep_allreduce CMD creation for untied embeddings (share_embeddings_and_output_weights=False) in scaling mode")
 
-            # 只有在需要 embedding allreduce 时才创建 CMD
-            if need_embedding_allreduce:
-                cmd = CMD(
+        # pep_allreduce - Position Embedding Parallel gradient synchronization
+        if (hasattr(args, 'is_rank_in_position_embedding_group') and args.is_rank_in_position_embedding_group and
+            args.fake_pp > 1 and hasattr(args, 'pipeline_model_parallel_split_rank') and
+            args.pipeline_model_parallel_split_rank is not None):
+
+            pep_cmd = CMD(
                 rank_id=rank_id,
-                mg_state=None,
-                name_cmd="ep_allreduce",
+                mg_state="finalize",
+                name_cmd="pep_allreduce",
                 use_cuda=True,
                 stage_operations_trace_dict=args.stage_operations_trace,
                 micro_batch_ids_dict=args.simu_micro_batch_ids,
                 stage_id=args.pp_rank,
                 simu_start=args.simu_start,
-                description="simulation",
-                group_kind="ep",
+                description="Position embedding gradient synchronization",
+                group_kind="pep",
                 trace_start=args.trace_start,
                 current_iter=args.trace_start,
-                args=args,
-                input__shape=ep_input__shape,
-                input__dtype=ep_input__dtype,
-                )
-                cmd.no_trace_update(0,0)
-            else:
-                print(f"Skipped ep_allreduce CMD creation for untied embeddings (share_embeddings_and_output_weights=False) in scaling mode")
+                args=args
+            )
+            CMD.set_current_cmd(pep_cmd)
+            with pep_cmd:
+                nvtx.range_push(f"pep_allreduce_grads_sync")
+                # In real training, this would sync position embedding gradients
+                # For scaling mode, we simulate this by setting appropriate tensor metadata
+                # Position embeddings typically have shape [max_position_embeddings, hidden_size]
+                if hasattr(args, 'max_position_embeddings') and hasattr(args, 'hidden_size'):
+                    pep_shape = [args.max_position_embeddings, args.hidden_size]
+                    pep_dtype = torch.float16 if args.fp16 else torch.float32
+                    pep_cmd.set_tensor_shape_and_dtype(pep_shape, pep_dtype)
+                nvtx.range_pop()
+
+
 
         cmd = CMD(
         rank_id=rank_id,
@@ -1476,7 +1674,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             "recv_forward": -1, "forward_step": -1, "send_forward": -1, "recv_backward": -1,
             "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
             "tp_allreduce": -1, "optimizer_step": -1, "loss_func": -1, 'get_batch': -1, "ep_allreduce": -1,
-            'ep_dp_allreduce': -1, 'pep_allreduce': -1
+            'exp_dp_allreduce': -1, 'pep_allreduce': -1
         }
         if iteration < args.trace_start:
             args.stage_operations_trace = {}

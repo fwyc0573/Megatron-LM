@@ -22,6 +22,9 @@ def parse_arguments():
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-tp','--tensor-model-parallel-size', type=int, default=1, help='Tensor model parallelism size')
     parser.add_argument('-pp','--pipeline-model-parallel-size', type=int, default=1, help='Pipeline model parallelism size')
+    parser.add_argument('-exp','--expert-model-parallel-size', type=int, default=1, help='Expert model parallelism size')
+    parser.add_argument('-exp_num','--num-experts', type=int, default=1, help='Number of experts')
+    parser.add_argument('--untie-embeddings-and-output-weights', action='store_true', help='no embeding sharing, no ep allreduce')
     parser.add_argument("--local-size", type=int, default=None, help="Local rank of the process within the node")
     parser.add_argument("--world-size", type=int, default=None, help="Total number of processes in the execution")
     parser.add_argument("--micro-batch-size", type=int, default=None, help="Batch size per model instance")
@@ -46,6 +49,12 @@ def validate_and_calculate_parameters(args):
     # 计算num_micro_batches
     num_microbatches = args.global_batch_size // (args.micro_batch_size * dp)
     args.data_parallel_size = dp
+    assert args.data_parallel_size % args.expert_model_parallel_size == 0, "DP必须能被EP整除"
+
+    if args.expert_model_parallel_size > 1:
+        args.exp_dp_size = dp // args.expert_model_parallel_size
+    else:
+        args.exp_dp_size = 1
     args.num_microbatches = num_microbatches
     # print(args)
     return args

@@ -25,6 +25,42 @@ fi
 # WORLD_SIZE=8, PP=2, EP=4 (DP=4), NUM_EXPERTS=8, MOE_EXP_SIGNLE_SIZE=1.75 MAX_SEQ_LEN=4096 (8x1.75B)
 # ./examples/pretrain_gpt_moe-copy3.sh 1 0 6001 localhost 2 4 8 1.75 4096
 
+#                                                       pp2   ep2   num exp   model_zie     seq
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    2         8        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    2         8        1.75     1024
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    4         8        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    4         8        1.75     1024
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    8         8        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    8         8        1.75     1024
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    4         16        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    4         16        1.75     1024
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    8         16        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    8         16        1.75     1024
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   4    2         8        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   4    2         8        1.75     1024
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   4    4         8        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   4    4         8        1.75     4096
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   4    4         16        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   4    4         16        1.75     1024
+
+
+#  ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    8         8        7     1024
+#  ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    8         8        7     1024
+
+
 
 
 
@@ -187,6 +223,7 @@ GPT_ARGS="
     --weight-decay 1e-2 \
     --lr-warmup-fraction .01 \
     --clip-grad 1.0 \
+    --mock-data \
 "
     # --fp16
 

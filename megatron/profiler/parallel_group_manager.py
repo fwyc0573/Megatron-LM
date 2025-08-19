@@ -1,9 +1,10 @@
 class MPUInfo:
-    def __init__(self, dp_size, tp_size, pp_size, dp_groups, pp_groups, tp_groups, mp_groups, ep_groups=None, pep_groups=None, exp_groups=None, cp_groups=None, cp_size=1):
+    def __init__(self, dp_size, tp_size, pp_size, dp_groups, pp_groups, tp_groups, mp_groups, ep_groups=None, pep_groups=None, exp_groups=None, cp_groups=None, cp_size=1, exp_size=1, dp_modulo_exp_groups=None, tp_exp_groups=None, tp_dp_groups=None):
         self.dp_size = dp_size
         self.tp_size = tp_size
         self.pp_size = pp_size
         self.cp_size = cp_size
+        self.exp_size = exp_size
         self.mp_size = pp_size * tp_size
         self.world_size = self.mp_size * dp_size * cp_size
         self.dp_groups = dp_groups
@@ -14,6 +15,10 @@ class MPUInfo:
         self.pep_groups = pep_groups
         self.exp_groups = exp_groups
         self.cp_groups = cp_groups
+        # MoE相关的groups
+        self.dp_modulo_exp_groups = dp_modulo_exp_groups
+        self.tp_exp_groups = tp_exp_groups
+        self.tp_dp_groups = tp_dp_groups
 
     def __str__(self):
         return (
@@ -149,6 +154,7 @@ class ParallelGroupManager:
             tp_size=self.tp_size,
             pp_size=self.pp_size,
             cp_size=self.cp_size,
+            exp_size=self.exp_size,
             dp_groups=self.dp_groups,
             pp_groups=self.pp_groups,
             tp_groups=self.tp_groups,
@@ -156,7 +162,10 @@ class ParallelGroupManager:
             ep_groups=self.ep_groups,
             pep_groups=self.pep_groups,
             exp_groups=self.exp_groups,
-            cp_groups=self.cp_groups
+            cp_groups=self.cp_groups,
+            dp_modulo_exp_groups=self.dp_modulo_exp_groups,
+            tp_exp_groups=self.tp_exp_groups,
+            tp_dp_groups=self.tp_dp_groups
         )
         
     def get_dp_groups(self):
