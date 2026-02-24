@@ -6,6 +6,11 @@ from megatron.profiler.moe.sim_dispatching import sim_dispatching
 def set_pre_distribution_moe(config: TransformerConfig):
 
     config.pre_fixed_routing_results = sim_routing(config=config, hidden_states_shape=config.routing_hidden_states_shape)
+    for ep_rank in config.pre_fixed_routing_results:
+        rank_data = config.pre_fixed_routing_results[ep_rank]
+        rank_data['scores'] = rank_data['scores'].cuda(non_blocking=True)
+        rank_data['indices'] = rank_data['indices'].cuda(non_blocking=True)
+
     # print(f"[DEBUG] pre_fixed_routing_results: {config.pre_fixed_routing_results}")
     # 输出每个rank的scores和indices信息
     for ep_rank, rank_data in config.pre_fixed_routing_results.items():
@@ -24,4 +29,12 @@ def set_pre_distribution_moe(config: TransformerConfig):
         # print(f"[DEBUG] dispatching_results: {dispatching_results}")
 
         config.per_rank_dispatching_results = dispatching_results['per_rank_results']
+        for ep_rank in config.per_rank_dispatching_results:
+            config.per_rank_dispatching_results[ep_rank]['num_local_tokens_per_expert'] = \
+                config.per_rank_dispatching_results[ep_rank]['num_local_tokens_per_expert'].cuda(
+                    non_blocking=True
+                )
         config.num_global_tokens_per_expert = dispatching_results['num_global_tokens_per_expert']
+        config.num_global_tokens_per_expert = config.num_global_tokens_per_expert.cuda(
+            non_blocking=True
+        )

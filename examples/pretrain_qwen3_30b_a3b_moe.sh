@@ -32,8 +32,8 @@ MODE=${MODE:-distributed} # distributed | scaling
 MODEL_PROFILE=${MODEL_PROFILE:-smoke} # smoke | full
 TRACE_START=${TRACE_START:-1}
 TRAIN_ITERS=${TRAIN_ITERS:-3}
-TRACE_COMP_CALIBRATION=${TRACE_COMP_CALIBRATION:-0}
-TRACE_COMP_CALIBRATION_DIR=${TRACE_COMP_CALIBRATION_DIR:-realistic_trace}
+LR=${LR:-1.2e-4}
+MIN_LR=${MIN_LR:-1.2e-5}
 
 NNODES=${NNODES:-1}
 GPUS_PER_NODE=${GPUS_PER_NODE:-8}
@@ -131,8 +131,8 @@ COMMON_ARGS=(
   --micro-batch-size "${MICRO_BATCH_SIZE}"
   --global-batch-size "${GLOBAL_BATCH_SIZE}"
   --train-iters "${TRAIN_ITERS}"
-  --lr 1.2e-4
-  --min-lr 1.2e-5
+  --lr "${LR}"
+  --min-lr "${MIN_LR}"
   --lr-decay-style cosine
   --lr-decay-iters "${TRAIN_ITERS}"
   --lr-warmup-iters 1
@@ -161,19 +161,27 @@ elif [[ "${MODE}" == "scaling" ]]; then
     SCALE_GPU=$(pick_idle_gpu)
     echo "[Scaling Mode] auto-selected SCALE_GPU=${SCALE_GPU}"
   fi
+  FAKE_RANK_ORDER=${FAKE_RANK_ORDER:-}
   SCALING_OVERRIDE_ARGS=(
     --tensor-model-parallel-size 1
     --pipeline-model-parallel-size 1
     --expert-model-parallel-size 1
     --global-batch-size "$((MICRO_BATCH_SIZE * FAKE_DP))"
   )
-  if [[ "${TRACE_COMP_CALIBRATION}" == "1" ]]; then
-    SCALING_OVERRIDE_ARGS+=(
-      --trace-comp-calibration
-      --trace-comp-calibration-dir "${TRACE_COMP_CALIBRATION_DIR}"
-    )
+  RANK_IDS=()
+  if [[ -n "${FAKE_RANK_ORDER}" ]]; then
+    IFS=',' read -r -a RANK_IDS <<< "${FAKE_RANK_ORDER}"
+  else
+    for ((rank_id=0; rank_id<FAKE_WORLD_SIZE; rank_id++)); do
+      RANK_IDS+=("${rank_id}")
+    done
   fi
-  for ((FAKE_CURRENT_RANK_ID=0; FAKE_CURRENT_RANK_ID<FAKE_WORLD_SIZE; FAKE_CURRENT_RANK_ID++)); do
+
+  for FAKE_CURRENT_RANK_ID in "${RANK_IDS[@]}"; do
+    if (( FAKE_CURRENT_RANK_ID < 0 || FAKE_CURRENT_RANK_ID >= FAKE_WORLD_SIZE )); then
+      echo "[ERROR] Invalid rank ${FAKE_CURRENT_RANK_ID} in FAKE_RANK_ORDER for fake_world_size=${FAKE_WORLD_SIZE}"
+      exit 1
+    fi
     echo "[Scaling Mode] fake_current_rank_id=${FAKE_CURRENT_RANK_ID}/${FAKE_WORLD_SIZE}"
     CUDA_VISIBLE_DEVICES="${SCALE_GPU}" torchrun \
       --nproc_per_node=1 \

@@ -6,6 +6,8 @@
 | 2026-02-24 | Updated with router aux-loss fix verification and scaling NaN timing-impact assessment |
 | 2026-02-24 | Added 32-rank scaling rerun validation and 8-GPU distributed vs scaling rank0/rank7 comp-timing comparison |
 | 2026-02-24 | Added stage-1.5 calibration run and automated compare-script PASS evidence |
+| 2026-02-24 | Reverted calibration-based acceptance and added no-calibration root-cause rerun evidence |
+| 2026-02-24 | Added pipeline-state aligned + rank-aware replay no-calibration reruns (latest evidence) |
 
 ## Test Report: Stage-1 Port (Qwen3-MoE + DeepSeek-V3-Proxy)
 
@@ -206,6 +208,12 @@ python tests/performance/compare_qwen_trace_comp.py \
 | DeepSeek-V3-Proxy distributed | PASS | `deepseek_distributed_smoke.log` 包含 `[after training is done]` 和 rank0~7 trace write |
 | DeepSeek-V3-Proxy scaling | PASS | `deepseek_scaling_smoke.log` 包含 `fake_current_rank_id=0/8` 到 `7/8` 且每个 rank `finish optimizer.step profile` |
 
+**Post no-calibration code-change regression rerun**
+
+- DeepSeek-V3-Proxy distributed/scaling smoke rerun: PASS
+  - `deepseek_distributed_smoke_rootcause_fix.log`
+  - `deepseek_scaling_smoke_rootcause_fix.log`
+
 #### 3.3 Trace Structure Alignment
 
 | Model | Result | Evidence |
@@ -265,9 +273,60 @@ python tests/performance/compare_qwen_trace_comp.py \
 
 **Evidence source**: `qwen_trace_rank0_rank7_compare_stage15_calib.log` (automated script output, threshold=5%).
 
+#### 3.8 No-Calibration Root-Cause Reruns (Latest)
+
+- Calibration path intentionally removed from active verification flow.
+- Compare script now includes `optimizer_step` by default.
+
+| Run | Result | Evidence |
+|-----|--------|----------|
+| raw no-calibration rerun | FAIL | `qwen_trace_rank0_rank7_compare_rootcause_raw.log` |
+| no-calibration after scaling optimizer/scheduler consistency fix | FAIL | `qwen_trace_rank0_rank7_compare_rootcause_fix1.log` |
+| no-calibration after scaling all-to-all numeric stabilization | FAIL | `qwen_trace_rank0_rank7_compare_rootcause_fix2.log` |
+
+**Observed trend**
+
+- `optimizer_step` gap improved in部分case after scaling-path cleanup.
+- `forward_step/backward_step` comp gap remains above 5% in latest reruns.
+- Current findings indicate remaining mismatch is dominated by per-op decomposition instability (pipeline state + comm/comp boundary), not calibration availability.
+
+#### 3.9 Pipeline-State Aligned + Rank-Aware Replay Reruns (Current)
+
+- Additional code-path changes validated in this round:
+  - fixed scaling init-order crash (`args.is_post_process` access before rank context init);
+  - compare tool now aligns by `(op, mg_state)`;
+  - scaling `optimizer_step` timing boundary aligned to distributed (`optimizer.step()` only);
+  - scaling replay cache added for per-rank activation/grad reuse across reruns;
+  - scaling script supports `FAKE_RANK_ORDER` and `LR/MIN_LR` overrides for diagnostics.
+
+| Run | Result | Evidence |
+|-----|--------|----------|
+| state-aligned remap rerun | FAIL | `qwen_trace_rank0_rank7_compare_statealign_remap.log` |
+| long-warmup rerun | FAIL | `qwen_trace_rank0_rank7_compare_statealign_longwarmup.log` |
+| replay-cache rerun | FAIL | `qwen_trace_rank0_rank7_compare_statealign_replay_fix.log` |
+| idle-only replay rerun | FAIL | `qwen_trace_rank0_rank7_compare_statealign_idle_replay.log` |
+| custom-rank-order replay rerun | FAIL | `qwen_trace_rank0_rank7_compare_statealign_orderfix.log` |
+
+**Latest observation snapshot (`qwen_trace_rank0_rank7_compare_statealign_orderfix.log`)**
+
+- rank0:
+  - `forward_step`: `11.35 ms` vs `10.32 ms` (`9.07%`, FAIL)
+  - `backward_step`: `13.83 ms` vs `12.21 ms` (`11.71%`, FAIL)
+  - `optimizer_step`: `4.75 ms` vs `4.59 ms` (`3.37%`, PASS)
+- rank7:
+  - `forward_step`: `13.05 ms` vs `9.49 ms` (`27.28%`, FAIL)
+  - `backward_step`: `12.63 ms` vs `8.81 ms` (`30.25%`, FAIL)
+  - `optimizer_step`: `4.39 ms` vs `4.50 ms` (`2.51%`, PASS)
+
+**Conclusion for current round**
+
+- Pipeline-state alignment and replay-path fixes improved robustness (no crash, structured compare, repeatable command flow).
+- However, strict no-calibration target (`rank0/rank7`, all three ops <=5%) is still **not satisfied**.
+- Remaining gap is concentrated in stage-specific `forward_step/backward_step` comp decomposition.
+
 ### Final Status
 
 - **Stage-1 acceptance for porting/tracing objective**: PASS.
-- **Stage-1.5 comp-timing calibration objective (rank0/rank7 forward/backward <=5%)**: PASS (automated compare script).
+- **No-calibration comp-accuracy objective (rank0/rank7 forward/backward/optimizer <=5%)**: IN PROGRESS (latest reruns still FAIL).
 - **Router unit tests in stage-1 targeted scope**: PASS (including `test_aux_loss`).
 - **Checkpoint loading / MLA / DeepSeek full router semantics**: out of stage-1 scope (planned for stage-2).

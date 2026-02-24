@@ -3,15 +3,12 @@
 """Pretrain utilities."""
 
 import dataclasses
-import ast
 from datetime import datetime
 import gc
 import logging
 import math
 import os
-import re
 import sys
-from pathlib import Path
 from .log_handler import CustomHandler
 # Make default logging level INFO, but filter out all log messages not from MCore.
 logging.basicConfig(handlers=[CustomHandler()], level=logging.INFO)
@@ -291,6 +288,8 @@ def pretrain(train_valid_test_dataset_provider,
 
         args.is_pre_process = rank_instance.is_pre_process() if rank_instance is not None else None
         args.is_post_process = rank_instance.is_post_process() if rank_instance is not None else None
+        args.pp_prev_rank = rank_instance._get_pp_previous_world_rank() if rank_instance is not None else None
+        args.pp_next_rank = rank_instance._get_pp_next_world_rank() if rank_instance is not None else None
         args.pp_rank = rank_instance._get_pp_local_rank() if rank_instance is not None else None
         args.dp_rank = rank_instance._get_dp_local_rank() if rank_instance is not None else None
         args.tp_rank = rank_instance._get_tp_local_rank() if rank_instance is not None else None
@@ -306,77 +305,70 @@ def pretrain(train_valid_test_dataset_provider,
             "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1
         }
 
-    def _sum_subop_durations_from_raw(raw_sub_operations: str) -> float:
-        sub_operations = ast.literal_eval(raw_sub_operations)
-        total = 0.0
-        for sub_operation in sub_operations:
-            match = re.search(r"duration=([-0-9.]+)", sub_operation)
-            if match is not None:
-                total += float(match.group(1))
-        return total
-
-    def _extract_comp_targets_from_trace_file(trace_file: Path):
-        targets = {}
-        for line in trace_file.read_text().splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            op_match = re.match(r"rank:(\d+):(\w+)\((.*)\)$", line)
-            if op_match is None:
-                continue
-            op_name = op_match.group(2)
-            if op_name not in ("forward_step", "backward_step"):
-                continue
-            body = op_match.group(3)
-            duration_match = re.search(r"duration=([0-9.]+)", body)
-            subops_match = re.search(r"sub_operations=(\[.*\])", body)
-            if duration_match is None or subops_match is None:
-                continue
-            total_ms = float(duration_match.group(1))
-            comm_ms = _sum_subop_durations_from_raw(subops_match.group(1))
-            targets[op_name] = total_ms - comm_ms
-
-        if "forward_step" not in targets or "backward_step" not in targets:
-            raise RuntimeError(
-                f"Missing forward/backward targets in calibration trace file: {trace_file}"
-            )
-        return targets
-
-    def _load_trace_comp_targets(rank_id: int):
-        run_config = (
-            f"pp{args.fake_pp}_"
-            f"tp{args.fake_tp}_"
-            f"exp{args.fake_exp}_"
-            f"expn{args.fake_num_experts}_"
-            f"dp{args.fake_dp}_"
-            f"nl{args.num_layers}_"
-            f"hs{args.hidden_size}_"
-            f"sl{args.seq_length}"
+    def _get_scaling_pipeline_states(rank_instance=None):
+        is_post_process = (
+            rank_instance.is_post_process()
+            if rank_instance is not None
+            else bool(getattr(args, "is_post_process", False))
         )
-        trace_dir = Path(args.trace_comp_calibration_dir) / run_config
-        if not trace_dir.exists():
-            raise RuntimeError(
-                f"trace_comp_calibration enabled but directory does not exist: {trace_dir}"
+        if is_post_process:
+            return "steady", "steady"
+        return "warmup", "cooldown"
+
+    def _build_scaling_output_tensor_grad(output_tensor, step_tag):
+        if args.is_post_process:
+            return [None]
+        grad_cache_path = _get_grad_cache_path(args.fake_current_rank_id)
+        if os.path.exists(grad_cache_path):
+            replay_grad = torch.load(grad_cache_path, map_location="cpu")
+            replay_grad = replay_grad.to(
+                device=output_tensor.device, dtype=output_tensor.dtype, non_blocking=True
             )
+            if replay_grad.shape != output_tensor.shape:
+                raise RuntimeError(
+                    f"Cached grad shape mismatch for rank {args.fake_current_rank_id}: "
+                    f"expected {list(output_tensor.shape)}, got {list(replay_grad.shape)}"
+                )
+            return [replay_grad]
+        seed = (
+            args.seed
+            + args.fake_current_rank_id * 100003
+            + args.pp_rank * 1009
+            + args.dp_rank * 101
+            + args.tp_rank * 31
+            + args.exp_rank * 17
+            + args.iteration * 13
+            + step_tag * 7
+        ) % (2**31)
+        # Use deterministic rank-aware replay grads for scaling-mode backward.
+        with torch.random.fork_rng(devices=[torch.cuda.current_device()]):
+            torch.manual_seed(seed)
+            grad = torch.randn_like(output_tensor)
+        grad = grad.mul_(1.0 / math.sqrt(max(output_tensor.numel(), 1)))
+        return [grad]
 
-        latest_file = None
-        latest_ts = ""
-        rank_pattern = re.compile(rf".*_rank{rank_id}_(\d{{14}})\.txt$")
-        for candidate in trace_dir.glob(f"*rank{rank_id}_*.txt"):
-            match = rank_pattern.match(candidate.name)
-            if match is None:
-                continue
-            ts = match.group(1)
-            if ts > latest_ts:
-                latest_ts = ts
-                latest_file = candidate
+    def _scaling_optimizer_step(optimizer):
+        update_successful, _, _ = optimizer.step()
+        return update_successful
 
-        if latest_file is None:
-            raise RuntimeError(
-                f"trace_comp_calibration enabled but no distributed trace file found for rank {rank_id} in {trace_dir}"
-            )
+    def _scaling_scheduler_step(opt_param_scheduler, update_successful):
+        if update_successful:
+            increment = get_num_microbatches() * args.micro_batch_size * args.fake_dp
+            opt_param_scheduler.step(increment=increment)
 
-        return _extract_comp_targets_from_trace_file(latest_file)
+    def _get_scaling_replay_cache_dir():
+        cache_tag = (
+            f"wd{args.fake_world_size}_tp{args.fake_tp}_pp{args.fake_pp}_exp{args.fake_exp}"
+            f"_expNum{args.fake_num_experts}_numl{args.num_layers}_bs{args.micro_batch_size}"
+            f"_sl{args.seq_length}_hs{args.hidden_size}"
+        )
+        return os.path.join("profiler_log", "scaling_replay_cache", cache_tag)
+
+    def _get_activation_cache_path(dst_rank):
+        return os.path.join(args.scaling_replay_cache_dir, f"activation_to_rank{dst_rank}.pt")
+
+    def _get_grad_cache_path(dst_rank):
+        return os.path.join(args.scaling_replay_cache_dir, f"grad_to_rank{dst_rank}.pt")
 
     if args.is_scaling_mode:
         if not hasattr(args, 'fake_current_rank_id') or args.fake_current_rank_id is None:
@@ -405,12 +397,10 @@ def pretrain(train_valid_test_dataset_provider,
         rank_id = current_fake_rank_id_int
         print_rank_0(f"===> Megatron-LM Single GPU Simulation: Processing Fake Rank {rank_id} <===")
 
-        args.trace_comp_targets = {}
-        if args.trace_comp_calibration:
-            args.trace_comp_targets = _load_trace_comp_targets(rank_id)
-            print_rank_0(
-                f"[TraceCalibration] rank={rank_id}, targets={args.trace_comp_targets}"
-            )
+        add_extra_args_kwargs(rank_instance=rank_instance, is_scaling_mode=args.is_scaling_mode)
+        args.scaling_replay_cache_dir = _get_scaling_replay_cache_dir()
+        os.makedirs(args.scaling_replay_cache_dir, exist_ok=True)
+        fwd_state, bwd_state = _get_scaling_pipeline_states(rank_instance=rank_instance)
 
         # Keep scaling-mode kernel/runtime warmup depth aligned with trace_start
         # so measured iterations are comparable with distributed tracing runs.
@@ -419,8 +409,6 @@ def pretrain(train_valid_test_dataset_provider,
 
         # open profile mode
         CMD.set_current_profile_sign(True)
-
-        add_extra_args_kwargs(rank_instance=rank_instance, is_scaling_mode=args.is_scaling_mode)
 
         # TODO-YC: why the mock-data cannot work in scaling-mode?
         args.iteration=0
@@ -440,16 +428,26 @@ def pretrain(train_valid_test_dataset_provider,
         if args.simu_start == False:
             for _ in range(warm_up_iter):
                 # forward_step_func()
+                args.simu_state = fwd_state
                 output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
                 output_tensor = output_tensor.contiguous()
-                output_tensor_grad = [torch.randn_like(output_tensor)]
+                if not args.is_post_process and args.pp_next_rank is not None:
+                    torch.save(output_tensor.detach().cpu(), _get_activation_cache_path(args.pp_next_rank))
+                output_tensor_grad = _build_scaling_output_tensor_grad(output_tensor, step_tag=0)
                 deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
 
                 # backward_step_func()
+                args.simu_state = bwd_state
                 input_tensor_grad = sim_backward_step(rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config)
+                if not args.is_pre_process and args.pp_prev_rank is not None:
+                    grad_tensor = input_tensor_grad[0] if isinstance(input_tensor_grad, list) else input_tensor_grad
+                    if grad_tensor is not None:
+                        torch.save(grad_tensor.detach().cpu(), _get_grad_cache_path(args.pp_prev_rank))
 
                 # optimizer.step()
-                optimizer.step()
+                args.simu_state = "finalize"
+                update_successful = _scaling_optimizer_step(optimizer)
+                _scaling_scheduler_step(opt_param_scheduler, update_successful)
 
                 for model_chunk in model:
                     model_chunk.zero_grad_buffer()
@@ -484,20 +482,24 @@ def pretrain(train_valid_test_dataset_provider,
     
         # forward_step_func()
         # get_batch / FWD (loss_func:dp_allreudce)
+        args.simu_state = fwd_state
         output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
         output_tensor = output_tensor.contiguous()
+        if not args.is_post_process and args.pp_next_rank is not None:
+            torch.save(output_tensor.detach().cpu(), _get_activation_cache_path(args.pp_next_rank))
         print(f"rank_id = {rank_id}, finish FWD profile ...")
         
         nvtx.range_pop()
 
         # backward_step_func()
         # 生成模拟的 output_tensor_grad(recv grad)
-        output_tensor_grad = [torch.randn_like(output_tensor)]
+        args.simu_state = bwd_state
+        output_tensor_grad = _build_scaling_output_tensor_grad(output_tensor, step_tag=1)
         deallocate_output_tensor(output_tensor, config.deallocate_pipeline_outputs)
 
         cmd = CMD(
         rank_id=rank_id,
-        mg_state=None,
+        mg_state=args.simu_state,
         name_cmd="backward_step",
         use_cuda=True,
         stage_operations_trace_dict=args.stage_operations_trace,
@@ -516,6 +518,10 @@ def pretrain(train_valid_test_dataset_provider,
             # stop_event = torch.cuda.Event(enable_timing=True)
             # start_event.record()
             input_tensor_grad = sim_backward_step(rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config)
+            if not args.is_pre_process and args.pp_prev_rank is not None:
+                grad_tensor = input_tensor_grad[0] if isinstance(input_tensor_grad, list) else input_tensor_grad
+                if grad_tensor is not None:
+                    torch.save(grad_tensor.detach().cpu(), _get_grad_cache_path(args.pp_prev_rank))
             # stop_event.record()
             # torch.cuda.synchronize()
             # duration = start_event.elapsed_time(stop_event)
@@ -530,7 +536,7 @@ def pretrain(train_valid_test_dataset_provider,
         used_dtype = torch.float16 if args.fp16 or args.bf16 else torch.float32
         cmd = CMD(
         rank_id=rank_id,
-        mg_state=None,
+        mg_state="finalize",
         name_cmd="dp_allreduce",
         use_cuda=True,
         stage_operations_trace_dict=args.stage_operations_trace,
@@ -566,7 +572,7 @@ def pretrain(train_valid_test_dataset_provider,
 
             cmd = CMD(
             rank_id=rank_id,
-            mg_state=None,
+            mg_state="finalize",
             name_cmd="ep_allreduce",
             use_cuda=True,
             stage_operations_trace_dict=args.stage_operations_trace,
@@ -585,7 +591,7 @@ def pretrain(train_valid_test_dataset_provider,
 
         cmd = CMD(
         rank_id=rank_id,
-        mg_state=None,
+        mg_state="finalize",
         name_cmd="optimizer_step",
         use_cuda=True,
         stage_operations_trace_dict=args.stage_operations_trace,
@@ -599,25 +605,10 @@ def pretrain(train_valid_test_dataset_provider,
         )
         with cmd:
             nvtx.range_push(f"rank:{rank_id}, optimizer_step")
-            params = optimizer.get_parameters()  # 获取所有参数
-            total_param_count = sum(param.numel() for param in params)  # 计算参数总量
-            grads_for_norm = optimizer.get_main_grads_for_grad_norm()  # 获取所有梯度
-            total_grad_count = sum(grad.numel() for grad in grads_for_norm)  # 计算梯度总量
-            # start_event = torch.cuda.Event(enable_timing=True)
-            # stop_event = torch.cuda.Event(enable_timing=True)
-            # print(f"Finish warmup and Optimizer structure is {optimizer}")
-
-            # start_event.record()
-            optimizer.step()
-            # stop_event.record()
-            # torch.cuda.synchronize()
-            # duration = start_event.elapsed_time(stop_event)
+            update_successful = _scaling_optimizer_step(optimizer)
             nvtx.range_pop()
-
-            # if args.simu_start == True:
-            #     print(f"rank:{rank_id},optimizer_step time: {duration}, optimizer_total_param_count: {total_param_count}, optimizer_total_grad_count: {total_grad_count}")
+        _scaling_scheduler_step(opt_param_scheduler, update_successful)
         print(f"rank:{rank_id}, finish optimizer.step profile ...")
-        del params,total_param_count,grads_for_norm,total_grad_count
 
         nvtx.range_pop()
 

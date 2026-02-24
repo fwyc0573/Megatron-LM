@@ -32,8 +32,6 @@ MODE=${MODE:-distributed} # distributed | scaling
 MODEL_PROFILE=${MODEL_PROFILE:-smoke} # smoke | proxy
 TRACE_START=${TRACE_START:-1}
 TRAIN_ITERS=${TRAIN_ITERS:-3}
-TRACE_COMP_CALIBRATION=${TRACE_COMP_CALIBRATION:-0}
-TRACE_COMP_CALIBRATION_DIR=${TRACE_COMP_CALIBRATION_DIR:-realistic_trace}
 
 NNODES=${NNODES:-1}
 GPUS_PER_NODE=${GPUS_PER_NODE:-8}
@@ -168,12 +166,6 @@ elif [[ "${MODE}" == "scaling" ]]; then
     --expert-model-parallel-size 1
     --global-batch-size "$((MICRO_BATCH_SIZE * FAKE_DP))"
   )
-  if [[ "${TRACE_COMP_CALIBRATION}" == "1" ]]; then
-    SCALING_OVERRIDE_ARGS+=(
-      --trace-comp-calibration
-      --trace-comp-calibration-dir "${TRACE_COMP_CALIBRATION_DIR}"
-    )
-  fi
   for ((FAKE_CURRENT_RANK_ID=0; FAKE_CURRENT_RANK_ID<FAKE_WORLD_SIZE; FAKE_CURRENT_RANK_ID++)); do
     echo "[Scaling Mode] fake_current_rank_id=${FAKE_CURRENT_RANK_ID}/${FAKE_WORLD_SIZE}"
     CUDA_VISIBLE_DEVICES="${SCALE_GPU}" torchrun \

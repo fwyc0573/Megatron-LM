@@ -1,3 +1,4 @@
+import os
 import torch
 from megatron.core.enums import ModelType
 from torch.autograd.variable import Variable
@@ -369,11 +370,30 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
     # 1. set_input_tensor(tensor recv)
     input_tensor_shapes = []
     if not args.is_pre_process:
-        # simulate recv tensor
-        input_tensor_shapes = get_input_tensor_shape(rank=rank_id, model_type=model_type, seq_length=args.seq_length,
-                                                     micro_batch_size=args.micro_batch_size, decoder_seq_length=args.decoder_seq_length,
-                                                     config=config, parallel_state=parallel_state)
-        input_tensor = get_input_tensor(input_tensor_shapes=input_tensor_shapes, config=config)
+        cache_dir = getattr(args, "scaling_replay_cache_dir", None)
+        replay_path = None
+        if cache_dir is not None:
+            replay_path = os.path.join(cache_dir, f"activation_to_rank{rank_id}.pt")
+        if replay_path is not None and os.path.exists(replay_path):
+            replay_tensor = torch.load(replay_path, map_location="cpu")
+            replay_tensor = replay_tensor.to(
+                device=torch.cuda.current_device(), dtype=config.pipeline_dtype, non_blocking=True
+            )
+            replay_tensor = replay_tensor.contiguous()
+            replay_tensor.requires_grad_(True)
+            input_tensor = [replay_tensor]
+        else:
+            # simulate recv tensor
+            input_tensor_shapes = get_input_tensor_shape(
+                rank=rank_id,
+                model_type=model_type,
+                seq_length=args.seq_length,
+                micro_batch_size=args.micro_batch_size,
+                decoder_seq_length=args.decoder_seq_length,
+                config=config,
+                parallel_state=parallel_state,
+            )
+            input_tensor = get_input_tensor(input_tensor_shapes=input_tensor_shapes, config=config)
         # set attr
         set_input_tensor = get_attr_wrapped_model(model[0], "set_input_tensor")
         set_input_tensor(input_tensor)
@@ -387,7 +407,7 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
     if args.is_pre_process or args.is_post_process:
         cmd = CMD(
             rank_id=rank_id,
-            mg_state=None,
+            mg_state=args.simu_state,
             name_cmd="get_batch",
             use_cuda=True,
             stage_operations_trace_dict=args.stage_operations_trace,
@@ -441,7 +461,7 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
     # with profile_timer(rank_id, "model_fwd"):
     cmd = CMD(
     rank_id=rank_id,
-    mg_state=None,
+    mg_state=args.simu_state,
     name_cmd="forward_step",
     use_cuda=True,
     stage_operations_trace_dict=args.stage_operations_trace,
@@ -482,7 +502,7 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
         # with profile_timer(rank_id, "loss_func"):
         cmd = CMD(
         rank_id=rank_id,
-        mg_state=None,
+        mg_state=args.simu_state,
         name_cmd="loss_func",
         use_cuda=True,
         stage_operations_trace_dict=args.stage_operations_trace,

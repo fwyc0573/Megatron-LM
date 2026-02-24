@@ -7,6 +7,8 @@
 | 2026-02-24 | Updated with NaN timing-impact conclusion and router test-path fixes |
 | 2026-02-24 | Added 32-rank scaling validation findings and rank0/rank7 comp-timing gap root-cause notes |
 | 2026-02-24 | Added stage-1.5 calibration dependency notes and compare-script automation |
+| 2026-02-24 | Replaced calibration risk notes with raw comp-gap root-cause findings |
+| 2026-02-24 | Added pipeline-state compare and rank-aware replay rerun findings (no-calibration still unstable) |
 
 # Issues and Risks
 
@@ -33,10 +35,35 @@
    - Some tests require `LOCAL_RANK` and can hang when `torch.cuda.device_count()` > launched world size.
    - Mitigation: run with `CUDA_VISIBLE_DEVICES=0`, `LOCAL_RANK=0`, `RANK=0`, `WORLD_SIZE=1`, `MASTER_ADDR`, `MASTER_PORT`.
 
-5. **trace comp calibration depends on distributed baseline traces**
-   - Stage-1.5 calibration reads latest distributed trace per rank (`realistic_trace/...`) as comp target.
-   - If calibration is enabled but baseline trace is missing, run fails fast by design.
-   - Mitigation: keep calibration opt-in (`TRACE_COMP_CALIBRATION=1`) for compare workflows; default path remains baseline scaling trace.
+5. **Raw comp comparison is still unstable and >5% for forward/backward**
+   - In no-calibration compare reruns, `rank0/rank7` forward/backward comp gaps remain above threshold.
+   - Observation:
+     - `optimizer_step` gap improved after scaling optimizer-path cleanup, but forward/backward remains unstable.
+     - distributed run-to-run comp decomposition fluctuates strongly (single-iteration sample sensitivity).
+   - Current root-cause hypotheses:
+     - pipeline state mismatch (warmup/steady/cooldown) for rank-level op slicing;
+     - communication sub-op attribution vs compute boundary mismatch in per-op decomposition.
+   - Mitigation in progress: continue systematic no-calibration debugging and keep automated compare script as hard gate.
+
+6. **Per-op timing sensitivity to run context is high (single-iteration sample)**
+   - `rank0/rank7` comp diffs vary significantly across reruns even under same smoke config.
+   - Evidence: latest reports show forward/backward gaps moving between ~2% and >30% depending run context.
+   - Mitigation:
+     - keep `(op, mg_state)` aligned compare;
+     - record exact command + runtime context in report;
+     - avoid using a single run as final acceptance evidence.
+
+7. **Scaling replay fidelity remains limited for backward causality**
+   - Activation replay for non-first pipeline stages can be sourced from cached upstream outputs.
+   - Backward replay for first pipeline stages still relies on delayed/cached downstream grads and is order-sensitive.
+   - Impact: `rank0 backward_step` remains the most unstable mismatch source.
+   - Mitigation:
+     - use second-pass replay reruns;
+     - test custom `FAKE_RANK_ORDER` to refresh target rank caches before measurement.
+
+8. **Scaling loop `MASTER_PORT + rank` can hit occupied ports**
+   - When base port collides with existing services, later fake ranks fail with TCPStore bind errors.
+   - Mitigation: use high, sparse `MASTER_PORT` ranges for sequential scaling runs and document exact ports in report.
 
 ## Resolved During Stage-1
 
@@ -49,6 +76,5 @@
 - **Scaling mode default GPU contention bias** mitigated by auto idle-GPU selection in Qwen3/DeepSeek scaling scripts.
 - **MoE trace-time debug perturbation** mitigated by removing hot-path debug prints from `moe_layer.py` and `token_dispatcher.py`.
 - **Fixed-routing NaN cascade in scaling/debug path** mitigated by finite-guard (`nan_to_num`) before score softmax in `moe_layer.py`.
-- **rank0/rank7 comp gap (>5%)** resolved for stage-1.5 compare flow by opt-in trace calibration:
-  - `--trace-comp-calibration` + `--trace-comp-calibration-dir`.
-  - Verified by automated script `tests/performance/compare_qwen_trace_comp.py` with threshold 5%.
+- **Stage-1.5 calibration path** intentionally removed from active validation flow after user review:
+  - no longer used as acceptance evidence for comp-accuracy.

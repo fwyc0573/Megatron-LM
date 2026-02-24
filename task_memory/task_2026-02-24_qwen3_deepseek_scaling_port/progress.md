@@ -7,6 +7,8 @@
 | 2026-02-24 | Completed scaling NaN timing-impact assessment and restored router unit tests to green |
 | 2026-02-24 | Added 32-rank scaling validation rerun and distributed-vs-scaling rank0/rank7 comp-timing investigation with fixes |
 | 2026-02-24 | Implemented stage-1.5 trace comp calibration and automated rank0/rank7 compare script |
+| 2026-02-24 | Removed stage-1.5 calibration path and switched back to raw comp-gap root-cause debugging |
+| 2026-02-24 | Added pipeline-state aligned compare, rank-aware replay cache path, and repeated no-calibration reruns |
 
 # Progress
 
@@ -76,11 +78,56 @@
   - command: `TRACE_COMP_CALIBRATION=1 ... MODE=scaling ... examples/pretrain_qwen3_30b_a3b_moe.sh`
   - compare report: `qwen_trace_rank0_rank7_compare_stage15_calib.log`
   - result: rank0/rank7 forward/backward all within 5% (PASS, current run is 0% diff by design calibration).
+- User requested to stop stage-1.5 calibration path and return to real comp-gap root-cause fixing.
+- Reverted stage-1.5 calibration code paths:
+  - removed `--trace-comp-calibration*` arguments from `arguments.py`;
+  - removed calibration injection in `CMD.__exit__`;
+  - removed calibration toggles from Qwen3/DeepSeek scripts.
+- Strengthened scaling optimizer path consistency with distributed train loop:
+  - scaling path now steps LR scheduler together with `optimizer.step()`;
+  - removed non-essential parameter/gradient counting from traced optimizer hot path.
+- Added deterministic scaling backward seed path:
+  - replaced random `output_tensor_grad` with deterministic tensor construction to reduce gradient-range jitter between fake ranks/runs.
+- Improved scaling all-to-all simulation numerical stability:
+  - replaced uninitialized `empty` payload in scaling all-to-all with zero-initialized buffer + bounded copy from input (avoid random garbage propagation).
+- Updated compare automation scope to include `optimizer_step` by default.
+- Re-ran distributed/scaling raw comparison (without calibration) multiple times:
+  - reports:
+    - `qwen_trace_rank0_rank7_compare_rootcause_raw.log`
+    - `qwen_trace_rank0_rank7_compare_rootcause_fix1.log`
+    - `qwen_trace_rank0_rank7_compare_rootcause_fix2.log`
+  - current status: optimizer gap improved in部分run，但forward/backward comp gap仍超5%阈值（未收敛）。
+- Fixed scaling-mode pipeline-state init ordering bug:
+  - moved `add_extra_args_kwargs(...)` ahead of state derivation to avoid `args.is_post_process` missing attribute crash.
+- Added pipeline-state-aligned comparison support:
+  - `tests/performance/compare_qwen_trace_comp.py` now supports `(op, mg_state)` bucket comparison.
+- Refined scaling optimizer timing boundary:
+  - scaling trace `optimizer_step` now times `optimizer.step()` only;
+  - scheduler stepping moved outside traced `optimizer_step` scope to match distributed timing boundary.
+- Added scaling replay-cache path for rank-aware data reuse:
+  - save/load activation replay tensors per fake rank (`activation_to_rank*.pt`);
+  - save/load backward grad replay tensors per fake rank (`grad_to_rank*.pt`);
+  - keep deterministic fallback path when cache is absent.
+- Added scaling rank-order control in script:
+  - `examples/pretrain_qwen3_30b_a3b_moe.sh` now supports `FAKE_RANK_ORDER=...`.
+- Added script-level LR override for targeted timing diagnostics:
+  - `examples/pretrain_qwen3_30b_a3b_moe.sh` supports `LR` / `MIN_LR` env override.
+- Repeated no-calibration reruns with state-aligned compare under multiple settings:
+  - GPU remap / idle-only rerun
+  - long warmup rerun
+  - replay pass-1/pass-2 rerun
+  - custom rank-order rerun
+  - current best evidence still not consistently <=5% on rank0/rank7 `forward_step/backward_step/optimizer_step`.
+- Re-validated router unit test target:
+  - `LOCAL_RANK=0 RANK=0 WORLD_SIZE=1 CUDA_VISIBLE_DEVICES=0 PYTHONPATH=$(pwd) pytest -q tests/unit_tests/transformer/moe/test_routers.py::TestTop2Router::test_aux_loss`
+  - result: PASS
 
 ### In Progress
 
-- None.
+- Root-cause isolation for remaining no-calibration comp gap (>5%) between distributed and scaling:
+  - focus shifted to stage-specific forward/backward boundary mismatch and replay fidelity limits.
 
 ### Pending
 
-- Evaluate whether calibration should be default-enabled for specific CI comparison jobs or stay opt-in at script level.
+- Finalize no-calibration solution that makes rank0/rank7 `forward_step/backward_step/optimizer_step` comp gap <=5%.
+- Update test report conclusions after no-calibration path reaches stable PASS.
