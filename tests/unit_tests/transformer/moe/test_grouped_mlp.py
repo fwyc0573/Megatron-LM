@@ -29,6 +29,7 @@ class TestParallelGroupedMLP:
         num_layers = 1 # 2
         self.hidden_size = 16 # must be an multiple of 16, otherwise trigger CUTLASS misaligned issue
         self.num_experts = 2
+        self.moe_ffn_hidden_size = 24
         self.gated_linear_unit = swiglu
         self.activation_func = F.silu if swiglu else F.gelu
         self.use_cpu_initialization = use_cpu_initialization
@@ -39,10 +40,11 @@ class TestParallelGroupedMLP:
             add_bias_linear=False, gated_linear_unit=self.gated_linear_unit,
             activation_func=self.activation_func,
             bias_activation_fusion=False,
-            bf16=True, params_dtype=torch.bfloat16, moe_router_load_balancing_type="sinkhorn", moe_router_topk=1)
+            bf16=True, params_dtype=torch.bfloat16, moe_router_load_balancing_type="sinkhorn",
+            moe_router_topk=1, moe_ffn_hidden_size=self.moe_ffn_hidden_size)
 
-        self.fc1_ffn_hidden_size = tf_config.ffn_hidden_size
-        self.fc2_ffn_hidden_size = tf_config.ffn_hidden_size
+        self.fc1_ffn_hidden_size = tf_config.moe_ffn_hidden_size
+        self.fc2_ffn_hidden_size = tf_config.moe_ffn_hidden_size
         # If using swiglu double the output width, see https://arxiv.org/pdf/2002.05202.pdf
         if self.gated_linear_unit:
             self.fc1_ffn_hidden_size *= 2

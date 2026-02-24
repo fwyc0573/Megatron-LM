@@ -28,6 +28,7 @@ from megatron.training.utils import (
 from megatron.training.arguments import core_transformer_config_from_args
 from megatron.training.yaml_arguments import core_transformer_config_from_yaml
 from megatron.core.models.gpt.gpt_layer_specs import (
+    get_gpt_decoder_block_spec,
     get_gpt_layer_local_spec,
     get_gpt_layer_with_transformer_engine_spec,
 )
@@ -91,7 +92,12 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
 
         if config.expert_model_parallel_size > 1:
             # get global routing table
-            config.routing_hidden_states_shape = (args.seq_length/args.fake_tp, args.micro_batch_size, args.hidden_size)
+            tp_size_for_routing = args.fake_tp if config.is_scaling_mode else args.tensor_model_parallel_size
+            config.routing_hidden_states_shape = (
+                args.seq_length // tp_size_for_routing,
+                args.micro_batch_size,
+                args.hidden_size,
+            )
 
             # get each ep rank's routing results (scores and indices)
             # we transfer scores and indices tensor from GPU to CPU
@@ -112,10 +118,19 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
         if args.spec is not None:
             transformer_layer_spec = import_module(args.spec)
         else:
-            if use_te:
-                transformer_layer_spec = get_gpt_layer_with_transformer_engine_spec(num_experts, args.moe_grouped_gemm)
+            if config.num_moe_experts is not None:
+                transformer_layer_spec = get_gpt_decoder_block_spec(
+                    config=config, use_transformer_engine=use_te
+                )
             else:
-                transformer_layer_spec = get_gpt_layer_local_spec(num_experts, args.moe_grouped_gemm)
+                if use_te:
+                    transformer_layer_spec = get_gpt_layer_with_transformer_engine_spec(
+                        num_experts, args.moe_grouped_gemm
+                    )
+                else:
+                    transformer_layer_spec = get_gpt_layer_local_spec(
+                        num_experts, args.moe_grouped_gemm
+                    )
 
         # Note: pre_process和post_process在传入参数时已经根据MODE修正
         model = GPTModel(
@@ -130,6 +145,7 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
             share_embeddings_and_output_weights=not args.untie_embeddings_and_output_weights,
             position_embedding_type=args.position_embedding_type,
             rotary_percent=args.rotary_percent,
+            rotary_base=args.rotary_base,
         )
         print_rank_0(f"use mcore models, use_te = {use_te}")
     else:

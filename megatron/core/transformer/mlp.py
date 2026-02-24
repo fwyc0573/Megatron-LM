@@ -58,8 +58,12 @@ class MLP(MegatronModule):
 
         self.input_size = input_size if input_size != None else self.config.hidden_size
 
+        hidden_size_for_mlp = (
+            self.config.moe_ffn_hidden_size if is_expert else self.config.ffn_hidden_size
+        )
+
         # If this is a gated linear unit we double the output width, see https://arxiv.org/pdf/2002.05202.pdf
-        ffn_hidden_size = self.config.ffn_hidden_size
+        ffn_hidden_size = hidden_size_for_mlp
         if self.config.gated_linear_unit:
             ffn_hidden_size *= 2
 
@@ -80,7 +84,7 @@ class MLP(MegatronModule):
 
         self.linear_fc2 = build_module(
             submodules.linear_fc2,
-            self.config.ffn_hidden_size,
+            hidden_size_for_mlp,
             self.config.hidden_size,
             config=self.config,
             init_method=self.config.output_layer_init_method,

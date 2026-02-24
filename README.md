@@ -108,6 +108,39 @@ However, steps 1 and 2 can be replaced by using one of the pretrained models men
 
 We've provided several scripts for pretraining both BERT and GPT in the [`examples`](./examples) directory, as well as scripts for both zero-shot and fine-tuned downstream tasks including MNLI, RACE, WikiText103, and LAMBADA evaluation. There is also a script for GPT interactive text generation.
 
+## MoE Stage-1 Port Status (Tracing/Scaling)
+
+The repository includes a stage-1 port for Qwen3-MoE and DeepSeek-V3-Proxy on top of the existing tracing/scaling framework.
+
+| Model | Stage-1 Status | Distributed tracing | Scaling-mode sequential tracing | Script |
+| --- | --- | --- | --- | --- |
+| Qwen3-30B-A3B | Supported (stage-1 subset) | Yes | Yes | `examples/pretrain_qwen3_30b_a3b_moe.sh` |
+| DeepSeek-V3-Proxy | Supported (stage-1 subset) | Yes | Yes | `examples/pretrain_deepseek_v3_proxy_moe.sh` |
+
+### Stage-1 Simplifications
+
+- DeepSeek-V3-Proxy uses **MHA simplification** (MLA is not included in stage-1).
+- Routing keeps **Mixtral-style top-k + aux_loss** semantics for both distributed and scaling modes.
+- Checkpoint conversion/loading is out of scope in stage-1 (mock/random initialization path only).
+
+### Running the new scripts
+
+```bash
+# Qwen3 distributed tracing
+MODE=distributed bash examples/pretrain_qwen3_30b_a3b_moe.sh
+
+# Qwen3 scaling-mode tracing (single GPU, sequential fake ranks)
+MODE=scaling bash examples/pretrain_qwen3_30b_a3b_moe.sh
+
+# DeepSeek-V3-Proxy distributed tracing
+MODE=distributed bash examples/pretrain_deepseek_v3_proxy_moe.sh
+
+# DeepSeek-V3-Proxy scaling-mode tracing
+MODE=scaling bash examples/pretrain_deepseek_v3_proxy_moe.sh
+```
+
+Set `MODEL_PROFILE=full` (Qwen) or `MODEL_PROFILE=proxy` (DeepSeek) for larger stage-1 configurations.
+
 # Training
 ## Data Preprocessing
 The training data requires preprocessing. First, place your training data in a loose json format, with one json containing a text sample per line. For example:

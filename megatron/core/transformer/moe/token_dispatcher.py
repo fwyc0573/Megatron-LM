@@ -7,8 +7,24 @@ import torch
 
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.tensor_parallel.mappings import _gather_along_first_dim_expert_parallel
-from megatron.core.transformer.moe.moe_utils import permute, unpermute # moe_gather, moe_scatter, 
+from megatron.core.transformer.moe.moe_utils import permute, unpermute
 from megatron.core.transformer.transformer_config import TransformerConfig
+
+
+def _gather_by_indices(hidden_states: torch.Tensor, gather_indices: torch.Tensor) -> torch.Tensor:
+    """Gather rows from `hidden_states` along dim-0 using expanded row indices."""
+    return torch.gather(hidden_states, 0, gather_indices)
+
+
+def _scatter_add_by_indices(
+    source: torch.Tensor, scatter_indices: torch.Tensor, output_shape: Optional[Tuple[int, int]] = None
+) -> torch.Tensor:
+    """Scatter-add rows from `source` to dim-0 locations in `scatter_indices`."""
+    if output_shape is None:
+        output = torch.zeros_like(source)
+    else:
+        output = torch.zeros(output_shape, device=source.device, dtype=source.dtype)
+    return output.scatter_add(0, scatter_indices, source)
 
 
 class MoETokenDispatcher:
@@ -134,7 +150,7 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
             # Reshape global_local_mask to be compatible with Tensor.gather
             global_local_map = global_local_mask.nonzero()[:, 0]
             self.global_local_map = global_local_map.view(-1, 1).expand(-1, hidden_states.shape[-1])
-            local_hidden_states = moe_gather.apply(global_hidden_states, self.global_local_map)
+            local_hidden_states = _gather_by_indices(global_hidden_states, self.global_local_map)
         else:
             if self.router_topk > 1:
                 global_local_mask = torch.ones_like(max_ind).bool()
@@ -166,7 +182,7 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
         # Reshape indices to be compatible with Tensor.gather
         self.indices = self.indices.view(-1, 1).expand(-1, hidden_states.shape[-1])
         if self.num_local_experts > 1:
-            permuted_local_hidden_states = moe_gather.apply(local_hidden_states, self.indices)
+            permuted_local_hidden_states = _gather_by_indices(local_hidden_states, self.indices)
         else:
             permuted_local_hidden_states = local_hidden_states
         return (
@@ -195,7 +211,7 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
         scores = self.local_probs.to(dtype=hidden_states.dtype)
         if self.num_local_experts > 1:
             assert self.indices.shape == hidden_states.shape
-            unpermuted_local_hidden = moe_scatter.apply(hidden_states, self.indices)
+            unpermuted_local_hidden = _scatter_add_by_indices(hidden_states, self.indices)
         else:
             unpermuted_local_hidden = hidden_states
 
@@ -227,8 +243,8 @@ class MoEAllGatherTokenDispatcher(MoETokenDispatcher):
             global_num_tokens = self.hidden_shape[0] * self.hidden_shape[1] * ep_group_size
             global_hidden_shape = [global_num_tokens, hidden_states.shape[-1]]
             assert self.global_local_map.shape == unpermuted_local_hidden.shape
-            unpermuted_global_hidden = moe_scatter.apply(
-                unpermuted_local_hidden, self.global_local_map, global_hidden_shape
+            unpermuted_global_hidden = _scatter_add_by_indices(
+                unpermuted_local_hidden, self.global_local_map, output_shape=global_hidden_shape
             )
             output_total = tensor_parallel.reduce_scatter_to_sequence_parallel_region_from_moe(
                 unpermuted_global_hidden

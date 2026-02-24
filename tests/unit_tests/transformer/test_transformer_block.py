@@ -9,9 +9,14 @@ from megatron.core import dist_checkpointing
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from megatron.core.transformer.transformer_block import TransformerBlock
+from megatron.core.transformer.mlp import MLP
+from megatron.core.transformer.moe.moe_layer import MoELayer
 from tests.unit_tests.test_utilities import Utils
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
-from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
+from megatron.core.models.gpt.gpt_layer_specs import (
+    get_gpt_decoder_layer_specs,
+    get_gpt_layer_with_transformer_engine_spec,
+)
 
 class TestParallelTransformerBlock:
 
@@ -105,3 +110,33 @@ class TestParallelTransformerBlock:
         assert hidden_states.shape[0] == sequence_length
         assert hidden_states.shape[1] == micro_batch_size
         assert hidden_states.shape[2] == config.hidden_size
+
+
+def test_moe_layer_freq_pattern_from_list():
+    config = TransformerConfig(
+        num_layers=6,
+        hidden_size=256,
+        num_attention_heads=8,
+        num_moe_experts=8,
+        moe_layer_freq=[0, 1, 0, 1, 0, 1],
+        moe_ffn_hidden_size=128,
+        use_cpu_initialization=True,
+    )
+    layer_specs = get_gpt_decoder_layer_specs(config, use_transformer_engine=False)
+    layer_modules = [layer_spec.submodules.mlp.module for layer_spec in layer_specs]
+    assert layer_modules == [MLP, MoELayer, MLP, MoELayer, MLP, MoELayer]
+
+
+def test_moe_layer_freq_pattern_from_int():
+    config = TransformerConfig(
+        num_layers=6,
+        hidden_size=256,
+        num_attention_heads=8,
+        num_moe_experts=8,
+        moe_layer_freq=2,
+        moe_ffn_hidden_size=128,
+        use_cpu_initialization=True,
+    )
+    layer_specs = get_gpt_decoder_layer_specs(config, use_transformer_engine=False)
+    layer_modules = [layer_spec.submodules.mlp.module for layer_spec in layer_specs]
+    assert layer_modules == [MoELayer, MLP, MoELayer, MLP, MoELayer, MLP]

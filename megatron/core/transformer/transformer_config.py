@@ -2,7 +2,7 @@
 
 import types
 from dataclasses import dataclass
-from typing import Callable, Optional, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
@@ -84,6 +84,8 @@ class TransformerConfig(ModelParallelConfig):
     rotary_interleaved: bool = False
     """True is rotate pairs of even and odd dimensions (RoFormer style), False is rotate pairs of
     first half and second half (LLaMa style). Default to False."""
+    rotary_base: int = 10000
+    """Base period for rotary position embeddings."""
 
     window_size: Optional[Tuple[int, int]] = None
     """If not None, then will use sliding window attention. The size of the window is specified by
@@ -222,6 +224,12 @@ class TransformerConfig(ModelParallelConfig):
     balancing loss used in GShard and SwitchTransformer, "sinkhorn" corresponds to the balancing
     algorithm used in S-BASE, and "none" implies no load balancing."""
 
+    moe_layer_freq: Union[int, List[int]] = 1
+    """Frequency pattern for MoE layers. Int N means one MoE layer every N layers."""
+
+    moe_ffn_hidden_size: Optional[int] = None
+    """FFN hidden size used by MoE experts. Defaults to ffn_hidden_size when MoE is enabled."""
+
     moe_router_topk: int = 2
     """Number of experts to route to for each token."""
 
@@ -319,6 +327,33 @@ class TransformerConfig(ModelParallelConfig):
 
         if self.num_moe_experts is not None and self.num_moe_experts <= 0:
             raise ValueError(f'num_moe_experts must be non-negative.')
+
+        if self.num_moe_experts is not None:
+            if self.moe_ffn_hidden_size is None:
+                self.moe_ffn_hidden_size = self.ffn_hidden_size
+            if isinstance(self.moe_layer_freq, list):
+                if len(self.moe_layer_freq) != self.num_layers:
+                    raise ValueError(
+                        f"moe_layer_freq list length ({len(self.moe_layer_freq)}) "
+                        f"must equal num_layers ({self.num_layers})."
+                    )
+                invalid_items = [item for item in self.moe_layer_freq if item not in (0, 1)]
+                if invalid_items:
+                    raise ValueError(
+                        "moe_layer_freq list only supports 0/1 entries, "
+                        f"got invalid values: {invalid_items}"
+                    )
+            elif isinstance(self.moe_layer_freq, int):
+                if self.moe_layer_freq <= 0:
+                    raise ValueError(f"moe_layer_freq must be positive, got {self.moe_layer_freq}")
+            else:
+                raise ValueError(
+                    "moe_layer_freq must be an int or a list of 0/1 values, "
+                    f"got {type(self.moe_layer_freq)}"
+                )
+        else:
+            if self.moe_ffn_hidden_size is not None:
+                raise ValueError("moe_ffn_hidden_size is only valid when num_moe_experts is set.")
 
         if self.cpu_offloading and (
             self.cpu_offloading_num_layers < 0 or self.cpu_offloading_num_layers >= self.num_layers

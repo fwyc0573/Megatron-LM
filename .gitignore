@@ -65,3 +65,5 @@ profiler_log/
 realistic_trace/
 realistic_trace_numba1/
 run_log/
+latest-megatron/
+vTrain/

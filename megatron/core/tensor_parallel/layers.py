@@ -498,10 +498,14 @@ class LinearWithGradAccumulationAndAsyncCommunication(torch.autograd.Function):
         #     unique_key = CMD.async_start_trace("embedding_bwd_async", {'input_': grad_input, 'func': 'embedding_bwd_async_all'}, {'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allreduce')
 
         def _allreduce(grad_input, group, async_op, func):
-            from megatron.training import get_args
-            args = get_args()
+            try:
+                from megatron.training import get_args
 
-            if args.is_scaling_mode:
+                args = get_args()
+            except (AssertionError, ImportError):
+                args = None
+
+            if args is not None and getattr(args, "is_scaling_mode", False):
                 tp_size = args.fake_tp
             else:
                 tp_size = get_tensor_model_parallel_world_size()

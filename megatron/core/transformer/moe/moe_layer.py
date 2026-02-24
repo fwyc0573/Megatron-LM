@@ -164,33 +164,8 @@ class MoELayer(BaseMoELayer):
         # TODO-YC:
         # hidden_states = self.config.hidden_states[exp_rank]
 
-        scores, indices = self.router(hidden_states)
-
-        # print(f"[DEBUG] Before fixed routing - scores shape: {scores.shape}, dtype: {scores.dtype}")
-        # print(f"[DEBUG] Before fixed routing - indices shape: {indices.shape}, dtype: {indices.dtype}")
-        # print(f"[DEBUG] Before fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
-
-        #################### replaced by fixed routing results ##############
-        # if self.config.pre_fixed_routing_results:
-
-        #     # scores = self.config.pre_fixed_routing_results[exp_rank]['scores']
-        #     indices = self.config.pre_fixed_routing_results[exp_rank]['indices']
-        #     # hidden_states = self.config.pre_fixed_routing_results[exp_rank]['hidden_states']
-            
-        #     # Move tensors to GPU if they're not already there
-        #     if not scores.is_cuda:
-        #         scores = scores.cuda()
-        #     if not indices.is_cuda:
-        #         indices = indices.cuda()
-        #     if not hidden_states.is_cuda:
-        #         hidden_states = hidden_states.cuda()
-
-        #     # print(f"[DEBUG] After fixed routing - scores shape: {scores.shape}, dtype: {scores.dtype}")
-        #     # print(f"[DEBUG] After fixed routing - indices shape: {indices.shape}, dtype: {indices.dtype}")
-        #     # print(f"[DEBUG] After fixed routing - hidden_states shape: {hidden_states.shape}, dtype: {hidden_states.dtype}")
-
-        
-        if self.config.pre_fixed_routing_results:
+        pre_fixed_routing_results = getattr(self.config, "pre_fixed_routing_results", None)
+        if pre_fixed_routing_results:
             # --- START of a new block to fix the graph ---
             # 1. DO NOT replace hidden_states. Use the real one from the previous layer.
             # 2. Run router's gating to get logits. This keeps the graph connected to router weights.
@@ -201,7 +176,7 @@ class MoELayer(BaseMoELayer):
             logits = self.router.apply_z_loss(logits)
             
             # 4. Use the pre-computed indices.
-            indices = self.config.pre_fixed_routing_results[exp_rank]['indices']
+            indices = pre_fixed_routing_results[exp_rank]['indices']
             if not indices.is_cuda:
                 indices = indices.cuda()
 

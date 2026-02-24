@@ -6,6 +6,7 @@ import argparse
 import dataclasses
 import json
 import os
+import re
 import torch
 import types
 
@@ -15,6 +16,38 @@ from megatron.core.models.retro.utils import (
     get_gpt_data_dir as get_retro_data_dir,
 )
 from megatron.core.transformer import TransformerConfig
+
+
+def _eval_pattern(pattern: str):
+    """Validate and evaluate a list expression used by CLI pattern arguments."""
+    assert isinstance(pattern, str)
+    if bool(re.compile(r'[^,\d\[\]\(\)\+\*\s]').search(pattern)):
+        raise ValueError(f"Invalid pattern: {pattern}")
+    return eval(pattern, {"__builtins__": {}}, {})
+
+
+def moe_freq_type(x):
+    """Parse frequency between MoE and dense layers.
+
+    Accepts:
+    - int N: one MoE layer every N layers (N=1 means all MoE)
+    - str N: same as int
+    - list expression string, e.g. "([0]*3+[1]*11)"
+    """
+    if isinstance(x, int):
+        value = x
+    else:
+        assert isinstance(x, str)
+        if '[' in x:
+            value = _eval_pattern(x)
+            if not isinstance(value, list):
+                raise ValueError(f"Invalid moe-layer-freq pattern result type: {type(value)}")
+            return value
+        value = int(x)
+
+    if value <= 0:
+        raise ValueError(f"moe-layer-freq must be positive, got {value}")
+    return value
 
 
 def parse_args(extra_args_provider=None, ignore_unknown_args=False):
@@ -509,6 +542,15 @@ def validate_args(args, defaults={}):
         if args.tensor_model_parallel_size > 1:
             assert args.sequence_parallel, \
                 "When using MoE and tensor parallelism, sequence parallelism must be used."
+        if isinstance(args.moe_layer_freq, list):
+            assert len(args.moe_layer_freq) == args.num_layers, \
+                "When --moe-layer-freq is a list, its length must equal --num-layers."
+            invalid_items = [item for item in args.moe_layer_freq if item not in (0, 1)]
+            assert not invalid_items, \
+                f"--moe-layer-freq list only supports 0/1 entries, got invalid values: {invalid_items}"
+    else:
+        if args.moe_ffn_hidden_size is not None:
+            raise RuntimeError('--moe-ffn-hidden-size requires --num-experts to be set.')
 
     # Expert parallelism check
     if args.expert_model_parallel_size  > 1:
@@ -745,6 +787,8 @@ def _add_network_size_args(parser):
                        'Deprecated: use --position-embedding-type')
     group.add_argument('--rotary-percent', type=float, default=1.0,
                        help='Percent of rotary dimension to use, default 100%%')
+    group.add_argument('--rotary-base', type=int, default=10000,
+                       help='Base period for rotary position embeddings.')
     group.add_argument('--rotary-interleaved', action='store_true',
                           help='Use interleaved rotary embedding.')
     group.add_argument('--rotary-seq-len-interpolation-factor', type=int, default=None,
@@ -1620,6 +1664,12 @@ def _add_moe_args(parser):
                        help='Degree of expert model parallelism.')
     group.add_argument('--num-experts', type=int, default=None,
                        help='Number of Experts in MoE (None means no MoE)')
+    group.add_argument('--moe-layer-freq', type=moe_freq_type, default=1,
+                       help='Frequency between MoE and dense layers. Accepts an integer N '
+                       '(one MoE layer every N layers) or a list expression string such as '
+                       '"([0]*3+[1]*11)".')
+    group.add_argument('--moe-ffn-hidden-size', type=int, default=None,
+                       help='Expert FFN hidden size. Defaults to --ffn-hidden-size when MoE is enabled.')
     group.add_argument('--moe-router-load-balancing-type', type=str,
                        choices=['aux_loss', 'sinkhorn', "none"],
                        default='aux_loss',

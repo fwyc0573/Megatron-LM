@@ -1,6 +1,11 @@
+import sys
 from types import SimpleNamespace
+from unittest import mock
+
+import torch
 
 from megatron.training.global_vars import set_args
+from megatron.training.arguments import core_transformer_config_from_args, parse_args
 from megatron.training.training import build_train_valid_test_data_iterators
 from tests.unit_tests.test_utilities import Utils
 
@@ -38,6 +43,65 @@ class TestTraining:
         )
 
         assert (train_iter, valid_iter, test_iter) == (1, 2, 3)
+
+    def test_parse_new_moe_cli_args(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "14",
+            "--hidden-size", "1024",
+            "--num-attention-heads", "16",
+            "--num-experts", "32",
+            "--moe-layer-freq", "([0]*3+[1]*11)",
+            "--moe-ffn-hidden-size", "512",
+            "--rotary-base", "1000000",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+
+        assert args.moe_layer_freq == [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        assert args.moe_ffn_hidden_size == 512
+        assert args.rotary_base == 1000000
+
+    def test_core_transformer_config_injects_new_fields(self):
+        args = SimpleNamespace(
+            # Dataclass fields used in this test.
+            num_layers=4,
+            hidden_size=128,
+            num_attention_heads=8,
+            num_query_groups=8,
+            ffn_hidden_size=512,
+            num_moe_experts=16,
+            moe_layer_freq=[0, 1, 0, 1],
+            moe_ffn_hidden_size=192,
+            rotary_base=1000000,
+            moe_grouped_gemm=False,
+            qk_layernorm=False,
+            normalization="LayerNorm",
+            expert_model_parallel_size=1,
+            tensor_model_parallel_size=1,
+            pipeline_model_parallel_size=1,
+            sequence_parallel=False,
+            params_dtype=torch.float32,
+            fp16=False,
+            bf16=False,
+            # Extra arguments consumed by core_transformer_config_from_args.
+            no_persist_layer_norm=False,
+            apply_layernorm_1p=False,
+            norm_epsilon=1e-5,
+            overlap_p2p_comm=False,
+            num_experts=16,
+            rotary_interleaved=False,
+            swiglu=False,
+            bias_swiglu_fusion=False,
+            bias_gelu_fusion=False,
+            squared_relu=False,
+            init_method_xavier_uniform=False,
+            group_query_attention=False,
+        )
+        config = core_transformer_config_from_args(args)
+        assert config.moe_layer_freq == [0, 1, 0, 1]
+        assert config.moe_ffn_hidden_size == 192
+        assert config.rotary_base == 1000000
 
     def teardown_method(self, method):
         Utils.destroy_model_parallel()

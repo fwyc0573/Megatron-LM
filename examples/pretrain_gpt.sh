@@ -8,13 +8,13 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=4,5,6,7 #0,1,2,3
+# export CUDA_VISIBLE_DEVICES=4,5,6,7 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
 # Distributed training variables
 NNODES=1
-GPUS_PER_NODE=4
+GPUS_PER_NODE=8
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
 NODE_RANK=0
@@ -23,13 +23,13 @@ MASTER_ADDR="localhost" #"localhost"
 
 
 # Parallelism variables 
-PP=2
-TP=2
+PP=8
+TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
 
 NUM_MICBATCH=1
-MICRO_BATCH_SIZE=1
+MICRO_BATCH_SIZE=2
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
 # size variables
@@ -62,8 +62,8 @@ TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
 
 
-MAX_SEQ_LEN=4096 # 4096 2048 1024
-MAX_POSITION_EMBEDDINGS=4096 # 4096 2048 1024
+MAX_SEQ_LEN=2048 # 4096 2048 1024
+MAX_POSITION_EMBEDDINGS=2048 # 4096 2048 1024
 
 # 检查trace_iter_num是否在合理的范围内
 if [ $TRACE_ITER_NUM -gt $((TRAIN_ITERS - 1)) ]; then
@@ -163,8 +163,7 @@ GPT_ARGS="
     --min-lr 1.0e-5 \
     --weight-decay 1e-2 \
     --lr-warmup-fraction .01 \
-    --clip-grad 1.0 \
-    --fp16 \
+    --clip-grad 1.0
 "
     # --fp16
     # --mock-data
@@ -179,7 +178,7 @@ DATA_ARGS="
     --vocab-file $VOCAB_FILE \
     --merge-file $MERGE_FILE \
     --split 949,50,1 \
-    --vocab-size 1000 
+    --vocab-size 3200 
 "
 # --vocab-size 3200
 
@@ -197,7 +196,7 @@ OUTPUT_ARGS="
 # export PYTHONPATH="${PYTHONPATH}:/data/ytyang/yichengfeng/DeepSpeed/Megatron-DeepSpeed/megatron"
 # export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 # nsys profile -w true -t cuda,nvtx,osrt,cudnn,cublas  --force-overwrite=true  -x true -o optimzer_find_test—_tp2pp4 \
-torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/report_theoretical_memory.py \
+torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/pretrain_llama.py \
     $GPT_ARGS \
     $DATA_ARGS \
     $OUTPUT_ARGS \
