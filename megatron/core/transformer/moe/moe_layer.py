@@ -182,11 +182,17 @@ class MoELayer(BaseMoELayer):
 
             # 5. Re-compute scores from real logits and fixed indices.
             top_logits = torch.gather(logits, 1, indices)
+            if not torch.isfinite(top_logits).all():
+                # Keep fixed-routing runs numerically stable in scaling/debug mode.
+                top_logits = torch.nan_to_num(top_logits, nan=0.0, posinf=1e4, neginf=-1e4)
             scores = torch.softmax(top_logits, dim=-1, dtype=torch.float32).type_as(logits)
 
             # 6. Re-apply load balancing loss to keep it in the backward pass.
             if self.config.moe_router_load_balancing_type == 'aux_loss':
-                probs = torch.softmax(logits, dim=-1, dtype=torch.float32)
+                finite_logits = logits
+                if not torch.isfinite(finite_logits).all():
+                    finite_logits = torch.nan_to_num(finite_logits, nan=0.0, posinf=1e4, neginf=-1e4)
+                probs = torch.softmax(finite_logits, dim=-1, dtype=torch.float32)
                 scores = self.router.apply_load_balancing_loss(probs, indices, activation=scores)
             # --- END of the new block ---
         else:
@@ -194,17 +200,9 @@ class MoELayer(BaseMoELayer):
             scores, indices = self.router(hidden_states)
 
 
-        # Debug: Print scores and indices to check differences across ranks
-        print(f"[DEBUG] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} - scores (first 10): {scores.flatten()[:10].tolist()}")
-        print(f"[DEBUG] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} - indices (first 10): {indices.flatten()[:10].tolist()}")
-        # [MoE Dispatch Info] Rank (1, 1, 0, 0)
         (dispatched_input, tokens_per_expert) = self.token_dispatcher.token_permutation(
             hidden_states, scores, indices
         )
-        print(f"[MoE Dispatch Info] Rank {(pp_rank, dp_rank, tp_rank, exp_rank)} (EP Rank {exp_rank}): "
-              f"tokens_per_expert={tokens_per_expert.tolist()} | "
-              f"total_tokens={tokens_per_expert.sum().item()} | "
-              f"dispatched_input_shape={dispatched_input.shape}")
 
         expert_output, mlp_bias = self.experts(dispatched_input, tokens_per_expert)
         output, mlp_bias = self.token_dispatcher.token_unpermutation(expert_output, mlp_bias)

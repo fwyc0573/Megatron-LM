@@ -7,6 +7,27 @@ export CUDA_DEVICE_MAX_CONNECTIONS=${CUDA_DEVICE_MAX_CONNECTIONS:-1}
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd -- "${SCRIPT_DIR}/.." && pwd)
 
+pick_idle_gpu() {
+  if ! command -v nvidia-smi >/dev/null 2>&1; then
+    echo "[ERROR] nvidia-smi not found. Please set SCALE_GPU explicitly." >&2
+    return 1
+  fi
+
+  local candidate
+  candidate=$(
+    nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits \
+      | sort -t',' -k2,2n \
+      | head -n1 \
+      | cut -d',' -f1 \
+      | tr -d ' '
+  )
+  if [[ -z "${candidate}" ]]; then
+    echo "[ERROR] Failed to auto-select idle GPU. Please set SCALE_GPU explicitly." >&2
+    return 1
+  fi
+  echo "${candidate}"
+}
+
 MODE=${MODE:-distributed} # distributed | scaling
 MODEL_PROFILE=${MODEL_PROFILE:-smoke} # smoke | full
 TRACE_START=${TRACE_START:-1}
@@ -133,7 +154,11 @@ if [[ "${MODE}" == "distributed" ]]; then
     "${COMMON_ARGS[@]}" \
     "${TRACE_ARGS[@]}"
 elif [[ "${MODE}" == "scaling" ]]; then
-  SCALE_GPU=${SCALE_GPU:-0}
+  SCALE_GPU=${SCALE_GPU:-}
+  if [[ -z "${SCALE_GPU}" ]]; then
+    SCALE_GPU=$(pick_idle_gpu)
+    echo "[Scaling Mode] auto-selected SCALE_GPU=${SCALE_GPU}"
+  fi
   SCALING_OVERRIDE_ARGS=(
     --tensor-model-parallel-size 1
     --pipeline-model-parallel-size 1

@@ -4,6 +4,7 @@
 |------------|--------------------|
 | 2026-02-24 | Added stage-1 test execution report for Qwen3-MoE + DeepSeek-V3-Proxy scaling-mode port |
 | 2026-02-24 | Updated with router aux-loss fix verification and scaling NaN timing-impact assessment |
+| 2026-02-24 | Added 32-rank scaling rerun validation and 8-GPU distributed vs scaling rank0/rank7 comp-timing comparison |
 
 ## Test Report: Stage-1 Port (Qwen3-MoE + DeepSeek-V3-Proxy)
 
@@ -102,6 +103,32 @@ PY
   - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/trace_alignment.log`
   - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/nan_timing_impact_analysis.log`
 
+#### 32-rank Scaling + Rank0/Rank7 Comp-Timing Comparison (Latest)
+
+- Commands:
+
+```bash
+# Qwen3 scaling, 32 fake ranks, auto idle GPU selection
+MODE=scaling MODEL_PROFILE=smoke TRAIN_ITERS=2 TRACE_START=2 SEQ_LEN=128 \
+  FAKE_WORLD_SIZE=32 FAKE_PP=4 FAKE_TP=1 FAKE_EXP=2 MASTER_PORT=6290 \
+  bash examples/pretrain_qwen3_30b_a3b_moe.sh
+
+# Qwen3 distributed 8-GPU for compare
+MODE=distributed MODEL_PROFILE=smoke TRAIN_ITERS=8 TRACE_START=8 SEQ_LEN=128 MASTER_PORT=6300 \
+  bash examples/pretrain_qwen3_30b_a3b_moe.sh
+
+# Qwen3 scaling 8 fake ranks for compare (auto idle GPU selection)
+MODE=scaling MODEL_PROFILE=smoke TRAIN_ITERS=8 TRACE_START=8 SEQ_LEN=128 FAKE_WORLD_SIZE=8 MASTER_PORT=6310 \
+  bash examples/pretrain_qwen3_30b_a3b_moe.sh
+```
+
+- Logs:
+  - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_scaling_32cards_smoke_idlegpu.log`
+  - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_scaling_32cards_validation_idlegpu.log`
+  - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_distributed_smoke_compare_idlegpu.log`
+  - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_scaling_smoke_compare_idlegpu.log`
+  - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_trace_rank0_rank7_compare_syncfix.log`
+
 ### 2) Validation Criteria
 
 - CLI 新增参数可解析并注入 `TransformerConfig`。
@@ -174,8 +201,36 @@ PY
 - Scaling NaN 出现在 debug `scores`，但 fixed routing 的 indices 和 token dispatch pattern 未变化，trace结构与distributed仍可对齐。
 - 结论：**当前 NaN 不阻塞 stage-1 trace耗时准确性目标**（结构层面准确，时间数值允许误差）。
 
+#### 3.5 Qwen3 Scaling 32-rank Validation (Latest)
+
+| Check | Result | Evidence |
+|------|--------|----------|
+| rank coverage (0..31) | PASS | `qwen_scaling_32cards_validation_idlegpu.log`: `latest_files=32`, stage count 8/8/8/8 |
+| trace line format | PASS | 同日志 `status=PASS`（逐行正则检查） |
+| stage op sequence legality | PASS | stage0/1/2/3 op序列全匹配 |
+| duration sanity | PASS | `duration_max=5.02ms`（无负值、无极端异常） |
+
+#### 3.6 Distributed vs Scaling (rank0/rank7, comp-only) Latest
+
+- Compare definition:
+  - `comp_ms = op_duration_ms - sum(sub_operations_duration_ms)`
+  - threshold: `|scaling - distributed| / distributed <= 5%`
+
+| Rank | Op | Result | Evidence |
+|------|----|--------|----------|
+| rank0 | `backward_step` | PASS | diff `2.57%` |
+| rank0 | `optimizer_step` | PASS | diff `0.63%` |
+| rank0 | `forward_step` | FAIL | diff `273.55%` |
+| rank7 | `forward_step` | FAIL | diff `7.93%` |
+| rank7 | `backward_step` | FAIL | diff `29.92%` |
+
+- Root-cause notes (current stage):
+  1. 已排除默认忙卡偏置（scaling脚本自动选择idle GPU）。
+  2. 已移除MoE热路径debug `tolist()`打印，避免trace测量扰动。
+  3. 仍有结构性差异：scaling-mode simulation dispatch/permute开销与distributed路径在comp/comm归类上不完全一致，导致部分op超阈值。
+
 ### Final Status
 
-- **Stage-1 acceptance for porting/tracing objective**: PASS (with documented known risks/limitations).
+- **Stage-1 acceptance for porting/tracing objective**: PASS (功能可运行、trace可生成、32-rank scaling格式验证通过；comp-time完全对齐仍为已记录限制).
 - **Router unit tests in stage-1 targeted scope**: PASS (including `test_aux_loss`).
 - **Checkpoint loading / MLA / DeepSeek full router semantics**: out of stage-1 scope (planned for stage-2).

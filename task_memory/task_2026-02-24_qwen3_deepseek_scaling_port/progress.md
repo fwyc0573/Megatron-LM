@@ -5,6 +5,7 @@
 | 2026-02-24 | Recorded stage-1 implementation progress and checkpoints |
 | 2026-02-24 | Completed stage-1 validation matrix and captured trace-alignment evidence |
 | 2026-02-24 | Completed scaling NaN timing-impact assessment and restored router unit tests to green |
+| 2026-02-24 | Added 32-rank scaling validation rerun and distributed-vs-scaling rank0/rank7 comp-timing investigation with fixes |
 
 # Progress
 
@@ -44,11 +45,28 @@
   - trace op structure remains aligned with distributed;
   - no additional code fix applied for NaN specifically in stage-1.
 - Router-related targeted unit tests restored to green (`test_aux_loss` included).
+- Ran Qwen3 scaling-mode 32-rank rerun (single-GPU sequential fake ranks `0..31`) and validated:
+  - trace output completeness (32 files, rank coverage完整)
+  - per-line trace format correctness
+  - stage-specific op sequence correctness (stage0/1/2/3 pattern)
+  - duration sanity (non-negative, no extreme outlier)
+- Completed non-scaling 8-GPU vs scaling-mode (8 fake ranks) comp-timing comparison for rank0/rank7:
+  - target compare scope: `forward_step`, `backward_step`, `optimizer_step` (plus `loss_func/get_batch` if present)
+  - evidence log: `qwen_trace_rank0_rank7_compare_syncfix.log`
+- Root-cause investigation and fixes applied:
+  - Removed hot-path debug prints (`tolist()` + large tensor string formatting) in MoE forward/dispatcher to avoid trace-time sync perturbation.
+  - Added fixed-routing numeric-stability guard (`nan_to_num`) in `moe_layer.py` to prevent router score NaN cascade in scaling/debug path.
+  - Added auto idle-GPU selection for scaling scripts (`pretrain_qwen3_30b_a3b_moe.sh`, `pretrain_deepseek_v3_proxy_moe.sh`) to avoid contention bias from busy default GPU.
+- Captured latest validation logs:
+  - `qwen_scaling_32cards_smoke_idlegpu.log`
+  - `qwen_scaling_32cards_validation_idlegpu.log`
+  - `qwen_distributed_smoke_compare_idlegpu.log`
+  - `qwen_scaling_smoke_compare_idlegpu.log`
 
 ### In Progress
 
-- None.
+- Residual rank0/rank7 comp timing gap analysis (>5% on部分操作) still open as stage-1 limitation characterization.
 
 ### Pending
 
-- None in stage-1 scope.
+- Decide whether to introduce stage-1.5 calibration for scaling-mode comp timing (simulation-dispatch overhead accounting).
