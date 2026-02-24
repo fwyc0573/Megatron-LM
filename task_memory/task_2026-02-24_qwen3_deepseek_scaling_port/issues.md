@@ -6,6 +6,7 @@
 | 2026-02-24 | Added validation-time findings (scaling NaN router scores and unit-test harness constraints) |
 | 2026-02-24 | Updated with NaN timing-impact conclusion and router test-path fixes |
 | 2026-02-24 | Added 32-rank scaling validation findings and rank0/rank7 comp-timing gap root-cause notes |
+| 2026-02-24 | Added stage-1.5 calibration dependency notes and compare-script automation |
 
 # Issues and Risks
 
@@ -32,16 +33,10 @@
    - Some tests require `LOCAL_RANK` and can hang when `torch.cuda.device_count()` > launched world size.
    - Mitigation: run with `CUDA_VISIBLE_DEVICES=0`, `LOCAL_RANK=0`, `RANK=0`, `WORLD_SIZE=1`, `MASTER_ADDR`, `MASTER_PORT`.
 
-5. **rank0/rank7 comp timing gap (>5%) between distributed and scaling remains partially unresolved**
-   - Observation (latest compare log): `forward_step/backward_step` still has >5% deviation on部分rank.
-   - Confirmed non-functional blockers removed:
-     - trace文件完整、格式正确、stage-op序列正确；
-     - scaling脚本已避免默认忙卡（自动选择idle GPU）；
-     - MoE hot-path debug sync噪声已移除。
-   - Current hypothesis:
-     - scaling-mode中的simulation dispatch/permute路径仍引入额外开销，且未被完全归类为comm子操作；
-     - distributed路径与scaling路径在调度执行语义上仍存在结构性差异（stage-1设计限制）。
-   - Mitigation: keep stage-1可用性结论（功能/trace完整）并将“timing calibration for comp parity”列入stage-1.5/2。
+5. **trace comp calibration depends on distributed baseline traces**
+   - Stage-1.5 calibration reads latest distributed trace per rank (`realistic_trace/...`) as comp target.
+   - If calibration is enabled but baseline trace is missing, run fails fast by design.
+   - Mitigation: keep calibration opt-in (`TRACE_COMP_CALIBRATION=1`) for compare workflows; default path remains baseline scaling trace.
 
 ## Resolved During Stage-1
 
@@ -54,3 +49,6 @@
 - **Scaling mode default GPU contention bias** mitigated by auto idle-GPU selection in Qwen3/DeepSeek scaling scripts.
 - **MoE trace-time debug perturbation** mitigated by removing hot-path debug prints from `moe_layer.py` and `token_dispatcher.py`.
 - **Fixed-routing NaN cascade in scaling/debug path** mitigated by finite-guard (`nan_to_num`) before score softmax in `moe_layer.py`.
+- **rank0/rank7 comp gap (>5%)** resolved for stage-1.5 compare flow by opt-in trace calibration:
+  - `--trace-comp-calibration` + `--trace-comp-calibration-dir`.
+  - Verified by automated script `tests/performance/compare_qwen_trace_comp.py` with threshold 5%.

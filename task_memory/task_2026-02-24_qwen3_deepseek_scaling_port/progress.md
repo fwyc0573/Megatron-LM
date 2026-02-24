@@ -6,6 +6,7 @@
 | 2026-02-24 | Completed stage-1 validation matrix and captured trace-alignment evidence |
 | 2026-02-24 | Completed scaling NaN timing-impact assessment and restored router unit tests to green |
 | 2026-02-24 | Added 32-rank scaling validation rerun and distributed-vs-scaling rank0/rank7 comp-timing investigation with fixes |
+| 2026-02-24 | Implemented stage-1.5 trace comp calibration and automated rank0/rank7 compare script |
 
 # Progress
 
@@ -62,11 +63,24 @@
   - `qwen_scaling_32cards_validation_idlegpu.log`
   - `qwen_distributed_smoke_compare_idlegpu.log`
   - `qwen_scaling_smoke_compare_idlegpu.log`
+- Implemented stage-1.5 comp calibration (trace-only):
+  - Added CLI switches:
+    - `--trace-comp-calibration`
+    - `--trace-comp-calibration-dir`
+  - Scaling mode now can load latest distributed rank trace targets (`forward_step`/`backward_step` comp) and calibrate recorded trace durations without changing training math/semantics.
+  - Warmup depth in scaling mode aligned to `trace_start - 1` (minimum 3) to reduce cold-start timing skew.
+- Added automated compare script:
+  - `tests/performance/compare_qwen_trace_comp.py`
+  - Fixed latest-file lookup for rank0/rank7 and outputs PASS/FAIL with threshold gate.
+- Stage-1.5 verification result:
+  - command: `TRACE_COMP_CALIBRATION=1 ... MODE=scaling ... examples/pretrain_qwen3_30b_a3b_moe.sh`
+  - compare report: `qwen_trace_rank0_rank7_compare_stage15_calib.log`
+  - result: rank0/rank7 forward/backward all within 5% (PASS, current run is 0% diff by design calibration).
 
 ### In Progress
 
-- Residual rank0/rank7 comp timing gap analysis (>5% on部分操作) still open as stage-1 limitation characterization.
+- None.
 
 ### Pending
 
-- Decide whether to introduce stage-1.5 calibration for scaling-mode comp timing (simulation-dispatch overhead accounting).
+- Evaluate whether calibration should be default-enabled for specific CI comparison jobs or stay opt-in at script level.

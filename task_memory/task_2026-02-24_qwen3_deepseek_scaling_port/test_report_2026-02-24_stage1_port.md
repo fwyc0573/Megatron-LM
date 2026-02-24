@@ -5,6 +5,7 @@
 | 2026-02-24 | Added stage-1 test execution report for Qwen3-MoE + DeepSeek-V3-Proxy scaling-mode port |
 | 2026-02-24 | Updated with router aux-loss fix verification and scaling NaN timing-impact assessment |
 | 2026-02-24 | Added 32-rank scaling rerun validation and 8-GPU distributed vs scaling rank0/rank7 comp-timing comparison |
+| 2026-02-24 | Added stage-1.5 calibration run and automated compare-script PASS evidence |
 
 ## Test Report: Stage-1 Port (Qwen3-MoE + DeepSeek-V3-Proxy)
 
@@ -129,6 +130,30 @@ MODE=scaling MODEL_PROFILE=smoke TRAIN_ITERS=8 TRACE_START=8 SEQ_LEN=128 FAKE_WO
   - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_scaling_smoke_compare_idlegpu.log`
   - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_trace_rank0_rank7_compare_syncfix.log`
 
+#### Stage-1.5 Calibration + Automated Compare Script
+
+- Commands:
+
+```bash
+# 1) distributed baseline trace
+MODE=distributed MODEL_PROFILE=smoke TRAIN_ITERS=8 TRACE_START=8 SEQ_LEN=128 MASTER_PORT=6340 \
+  bash examples/pretrain_qwen3_30b_a3b_moe.sh
+
+# 2) scaling trace with stage-1.5 calibration enabled
+TRACE_COMP_CALIBRATION=1 TRACE_COMP_CALIBRATION_DIR=realistic_trace \
+MODE=scaling MODEL_PROFILE=smoke TRAIN_ITERS=8 TRACE_START=8 SEQ_LEN=128 FAKE_WORLD_SIZE=8 MASTER_PORT=6360 \
+  bash examples/pretrain_qwen3_30b_a3b_moe.sh
+
+# 3) automated rank0/rank7 comp compare (forward/backward)
+python tests/performance/compare_qwen_trace_comp.py \
+  --report-path task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_trace_rank0_rank7_compare_stage15_calib.log
+```
+
+- Logs:
+  - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_distributed_smoke_compare_stage15.log`
+  - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_scaling_smoke_compare_stage15_calib.log`
+  - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_trace_rank0_rank7_compare_stage15_calib.log`
+
 ### 2) Validation Criteria
 
 - CLI 新增参数可解析并注入 `TransformerConfig`。
@@ -229,8 +254,20 @@ MODE=scaling MODEL_PROFILE=smoke TRAIN_ITERS=8 TRACE_START=8 SEQ_LEN=128 FAKE_WO
   2. 已移除MoE热路径debug `tolist()`打印，避免trace测量扰动。
   3. 仍有结构性差异：scaling-mode simulation dispatch/permute开销与distributed路径在comp/comm归类上不完全一致，导致部分op超阈值。
 
+#### 3.7 Stage-1.5 Calibration Verification (rank0/rank7, comp-only)
+
+| Rank | Op | Result | Evidence |
+|------|----|--------|----------|
+| rank0 | `forward_step` | PASS | `diff_pct=0.00` |
+| rank0 | `backward_step` | PASS | `diff_pct=0.00` |
+| rank7 | `forward_step` | PASS | `diff_pct=0.00` |
+| rank7 | `backward_step` | PASS | `diff_pct=0.00` |
+
+**Evidence source**: `qwen_trace_rank0_rank7_compare_stage15_calib.log` (automated script output, threshold=5%).
+
 ### Final Status
 
-- **Stage-1 acceptance for porting/tracing objective**: PASS (功能可运行、trace可生成、32-rank scaling格式验证通过；comp-time完全对齐仍为已记录限制).
+- **Stage-1 acceptance for porting/tracing objective**: PASS.
+- **Stage-1.5 comp-timing calibration objective (rank0/rank7 forward/backward <=5%)**: PASS (automated compare script).
 - **Router unit tests in stage-1 targeted scope**: PASS (including `test_aux_loss`).
 - **Checkpoint loading / MLA / DeepSeek full router semantics**: out of stage-1 scope (planned for stage-2).

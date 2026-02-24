@@ -3,12 +3,15 @@
 """Pretrain utilities."""
 
 import dataclasses
+import ast
 from datetime import datetime
 import gc
 import logging
 import math
 import os
+import re
 import sys
+from pathlib import Path
 from .log_handler import CustomHandler
 # Make default logging level INFO, but filter out all log messages not from MCore.
 logging.basicConfig(handlers=[CustomHandler()], level=logging.INFO)
@@ -303,6 +306,78 @@ def pretrain(train_valid_test_dataset_provider,
             "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1
         }
 
+    def _sum_subop_durations_from_raw(raw_sub_operations: str) -> float:
+        sub_operations = ast.literal_eval(raw_sub_operations)
+        total = 0.0
+        for sub_operation in sub_operations:
+            match = re.search(r"duration=([-0-9.]+)", sub_operation)
+            if match is not None:
+                total += float(match.group(1))
+        return total
+
+    def _extract_comp_targets_from_trace_file(trace_file: Path):
+        targets = {}
+        for line in trace_file.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            op_match = re.match(r"rank:(\d+):(\w+)\((.*)\)$", line)
+            if op_match is None:
+                continue
+            op_name = op_match.group(2)
+            if op_name not in ("forward_step", "backward_step"):
+                continue
+            body = op_match.group(3)
+            duration_match = re.search(r"duration=([0-9.]+)", body)
+            subops_match = re.search(r"sub_operations=(\[.*\])", body)
+            if duration_match is None or subops_match is None:
+                continue
+            total_ms = float(duration_match.group(1))
+            comm_ms = _sum_subop_durations_from_raw(subops_match.group(1))
+            targets[op_name] = total_ms - comm_ms
+
+        if "forward_step" not in targets or "backward_step" not in targets:
+            raise RuntimeError(
+                f"Missing forward/backward targets in calibration trace file: {trace_file}"
+            )
+        return targets
+
+    def _load_trace_comp_targets(rank_id: int):
+        run_config = (
+            f"pp{args.fake_pp}_"
+            f"tp{args.fake_tp}_"
+            f"exp{args.fake_exp}_"
+            f"expn{args.fake_num_experts}_"
+            f"dp{args.fake_dp}_"
+            f"nl{args.num_layers}_"
+            f"hs{args.hidden_size}_"
+            f"sl{args.seq_length}"
+        )
+        trace_dir = Path(args.trace_comp_calibration_dir) / run_config
+        if not trace_dir.exists():
+            raise RuntimeError(
+                f"trace_comp_calibration enabled but directory does not exist: {trace_dir}"
+            )
+
+        latest_file = None
+        latest_ts = ""
+        rank_pattern = re.compile(rf".*_rank{rank_id}_(\d{{14}})\.txt$")
+        for candidate in trace_dir.glob(f"*rank{rank_id}_*.txt"):
+            match = rank_pattern.match(candidate.name)
+            if match is None:
+                continue
+            ts = match.group(1)
+            if ts > latest_ts:
+                latest_ts = ts
+                latest_file = candidate
+
+        if latest_file is None:
+            raise RuntimeError(
+                f"trace_comp_calibration enabled but no distributed trace file found for rank {rank_id} in {trace_dir}"
+            )
+
+        return _extract_comp_targets_from_trace_file(latest_file)
+
     if args.is_scaling_mode:
         if not hasattr(args, 'fake_current_rank_id') or args.fake_current_rank_id is None:
             print_rank_0("ERROR: In scaling mode, --fake-current-rank-id must be provided via command line.")
@@ -330,7 +405,16 @@ def pretrain(train_valid_test_dataset_provider,
         rank_id = current_fake_rank_id_int
         print_rank_0(f"===> Megatron-LM Single GPU Simulation: Processing Fake Rank {rank_id} <===")
 
-        warm_up_iter = 3 # args.train_iters
+        args.trace_comp_targets = {}
+        if args.trace_comp_calibration:
+            args.trace_comp_targets = _load_trace_comp_targets(rank_id)
+            print_rank_0(
+                f"[TraceCalibration] rank={rank_id}, targets={args.trace_comp_targets}"
+            )
+
+        # Keep scaling-mode kernel/runtime warmup depth aligned with trace_start
+        # so measured iterations are comparable with distributed tracing runs.
+        warm_up_iter = max(3, args.trace_start - 1)
         args.iteration=0
 
         # open profile mode

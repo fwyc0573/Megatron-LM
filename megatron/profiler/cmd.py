@@ -41,6 +41,7 @@
         print(f"rank:{args.simu_rank}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
 
 """
+import re
 import time
 import torch
 import os
@@ -133,6 +134,44 @@ class CMD:
             self.stage_operations_trace_dict[self.rank_id] = []
         self.stage_operations_trace_dict[self.rank_id].append(str(self))
 
+    @staticmethod
+    def _sum_sub_operation_duration(sub_operations):
+        total = 0.0
+        for sub_op in sub_operations:
+            match = re.search(r"duration=([-0-9.]+)", sub_op)
+            if match is not None:
+                total += float(match.group(1))
+        return total
+
+    def _apply_trace_comp_calibration(self):
+        if self.args is None:
+            return
+        if not getattr(self.args, "is_scaling_mode", False):
+            return
+        if not getattr(self.args, "trace_comp_calibration", False):
+            return
+        if self.name_cmd not in ("forward_step", "backward_step"):
+            return
+
+        comp_targets = getattr(self.args, "trace_comp_targets", None)
+        if not isinstance(comp_targets, dict):
+            raise RuntimeError(
+                "trace_comp_calibration is enabled but trace_comp_targets is not initialized."
+            )
+        if self.name_cmd not in comp_targets:
+            raise RuntimeError(
+                f"trace_comp_calibration missing target for op={self.name_cmd}, rank={self.rank_id}, stage={self.stage_id}."
+            )
+
+        target_comp_ms = float(comp_targets[self.name_cmd])
+        comm_ms = CMD._sum_sub_operation_duration(self.sub_operations)
+        calibrated_total_ms = target_comp_ms + comm_ms
+        if calibrated_total_ms < 0:
+            raise RuntimeError(
+                f"Invalid calibrated duration {calibrated_total_ms} for {self.name_cmd}."
+            )
+        self.duration = calibrated_total_ms
+
     def __enter__(self):
         """Context manager entry with proper error handling"""
         if not self.simu_start or (self.current_iter < self.trace_start - 1):
@@ -179,6 +218,8 @@ class CMD:
                 else:
                     self.duration = 0.0
             
+            self.duration = round(self.duration, 2)
+            self._apply_trace_comp_calibration()
             self.duration = round(self.duration, 2)
             self.time_stamp = round(self.stop_time * 1000, 2)
 
@@ -507,7 +548,5 @@ def write_list_to_file(stage_or_rank_id, list_to_write, file_path=None, name_arg
     with open(filename, 'w') as f:
         for item in list_to_write:
             f.write(f"{item}\n")
-
-
 
 

@@ -1721,6 +1721,10 @@ def _add_trace_args(parser):
     # 添加 --nsight-start 参数
     group.add_argument('--nsight-start', type=int, default=0,
                        help='The iteration to start Nsight Systems profiling.')
+    group.add_argument('--trace-comp-calibration', action='store_true',
+                       help='Calibrate scaling-mode comp trace durations using the latest distributed rank trace targets.')
+    group.add_argument('--trace-comp-calibration-dir', type=str, default='realistic_trace',
+                       help='Base directory that stores distributed traces used for comp-duration calibration.')
 
     return parser
 
