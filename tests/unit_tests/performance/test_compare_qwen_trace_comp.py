@@ -64,3 +64,59 @@ def test_parse_csv_ints_empty_fails_fast():
     with pytest.raises(ValueError, match="Empty rank list"):
         compare_module.parse_csv_ints("")
 
+
+def test_compute_trimmed_mean_reduces_outlier_impact():
+    values = [1.0, 2.0, 3.0, 4.0, 100.0]
+
+    trimmed = compare_module._compute_trimmed_mean(values, trim_ratio=0.2)
+
+    assert trimmed == pytest.approx(3.0)
+
+
+def test_build_repeat_summary_supports_trimmed_rows_key():
+    records = [
+        {
+            "rows": [
+                {
+                    "rank": 0,
+                    "op": "forward_step",
+                    "mg_state": "ALL",
+                    "diff_pct": 50.0,
+                }
+            ],
+            "trimmed_rows": [
+                {
+                    "rank": 0,
+                    "op": "forward_step",
+                    "mg_state": "ALL",
+                    "diff_pct": 4.0,
+                }
+            ],
+        },
+        {
+            "rows": [
+                {
+                    "rank": 0,
+                    "op": "forward_step",
+                    "mg_state": "ALL",
+                    "diff_pct": 60.0,
+                }
+            ],
+            "trimmed_rows": [
+                {
+                    "rank": 0,
+                    "op": "forward_step",
+                    "mg_state": "ALL",
+                    "diff_pct": 3.0,
+                }
+            ],
+        },
+    ]
+
+    lines, failed_checks = compare_module.build_repeat_summary(
+        records, threshold_pct=5.0, row_key="trimmed_rows"
+    )
+
+    assert any("median_diff_pct" in line for line in lines)
+    assert any("| 0 | forward_step | ALL | 2 | 3.50 | PASS |" in line for line in lines)
+    assert failed_checks == 0

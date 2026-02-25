@@ -376,8 +376,10 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
             replay_path = os.path.join(cache_dir, f"activation_to_rank{rank_id}.pt")
         if replay_path is not None and os.path.exists(replay_path):
             replay_tensor = torch.load(replay_path, map_location="cpu")
+            # Keep replay copy completion outside forward_step CMD timing window.
+            # This aligns scaling with distributed where recv_forward is timed separately.
             replay_tensor = replay_tensor.to(
-                device=torch.cuda.current_device(), dtype=config.pipeline_dtype, non_blocking=True
+                device=torch.cuda.current_device(), dtype=config.pipeline_dtype, non_blocking=False
             )
             replay_tensor = replay_tensor.contiguous()
             replay_tensor.requires_grad_(True)

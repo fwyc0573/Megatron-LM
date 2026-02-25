@@ -14,6 +14,7 @@
 | 2026-02-25 | Added Qwen3 seq2048 mbs4/8 6-GPU findings: sequence-parallel path mismatch and TP allreduce attribution drift |
 | 2026-02-25 | Added scaling-parity probe findings (RoPE mismatch under forced SP), trace-entry count mismatch, and latest high-variance compare evidence |
 | 2026-02-25 | Added 8-GPU trace4 rerun findings after backward I/O timing fix, plus full-profile model-size escalation OOM/alignment evidence |
+| 2026-02-25 | Added forward/optimizer decomposition + compare trimmed-mean auxiliary report findings and minimal forward-fidelity trial outcome |
 
 # Issues and Risks
 
@@ -198,6 +199,17 @@
    - Mitigation:
      - treat model-size scaling as secondary lever;
      - prioritize residual forward/optimizer path-fidelity investigation.
+
+22. **Single-boundary forward-fidelity tweak yields only marginal aggregate improvement and mixed rank impact**
+   - Trial change: scaling replay H2D activation copy switched to blocking before `forward_step` timing window.
+   - 8-GPU regression result:
+     - aggregate forward/backward/optimizer diff slightly improved on average,
+     - but per-rank PASS count did not consistently improve.
+   - Impact:
+     - this boundary alone is insufficient to reach <=5% acceptance gate.
+   - Mitigation:
+     - keep this tweak as diagnostic evidence, not final fix;
+     - continue isolating rank2-5 forward path-fidelity differences.
 
 ## Resolved During Stage-1
 

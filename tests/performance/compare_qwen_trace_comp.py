@@ -47,6 +47,31 @@ class BucketStats:
     sub_op_count: float
 
 
+def _compute_trimmed_mean(values: List[float], trim_ratio: float) -> float:
+    if not values:
+        raise ValueError("trimmed mean requires non-empty values")
+    if trim_ratio <= 0.0 or len(values) < 3:
+        return mean(values)
+    trim_each_side = int(len(values) * trim_ratio)
+    if trim_each_side <= 0:
+        trim_each_side = 1
+    if trim_each_side * 2 >= len(values):
+        trim_each_side = (len(values) - 1) // 2
+    if trim_each_side <= 0:
+        return mean(values)
+    sorted_values = sorted(values)
+    trimmed_values = sorted_values[trim_each_side : len(values) - trim_each_side]
+    if not trimmed_values:
+        return mean(values)
+    return mean(trimmed_values)
+
+
+def _bucket_reduce(values: List[float], trim_ratio: Optional[float]) -> float:
+    if trim_ratio is None:
+        return mean(values)
+    return _compute_trimmed_mean(values, trim_ratio)
+
+
 def parse_csv_ints(raw: str) -> List[int]:
     values: List[int] = []
     for token in raw.split(","):
@@ -135,28 +160,32 @@ def parse_trace_file(path: Path, subtract_comm: bool) -> Dict[str, List[OpStats]
     return result
 
 
-def aggregate_by_state(op_stats: List[OpStats]) -> Dict[str, BucketStats]:
+def aggregate_by_state(
+    op_stats: List[OpStats], trim_ratio: Optional[float] = None
+) -> Dict[str, BucketStats]:
     values: Dict[str, List[OpStats]] = defaultdict(list)
     for stat in op_stats:
         values[stat.mg_state].append(stat)
     buckets: Dict[str, BucketStats] = {}
     for state, state_stats in values.items():
         buckets[state] = BucketStats(
-            total_ms=mean([x.total_ms for x in state_stats]),
-            comm_ms=mean([x.comm_ms for x in state_stats]),
-            comp_ms=mean([x.comp_ms for x in state_stats]),
-            sub_op_count=mean([x.sub_op_count for x in state_stats]),
+            total_ms=_bucket_reduce([x.total_ms for x in state_stats], trim_ratio),
+            comm_ms=_bucket_reduce([x.comm_ms for x in state_stats], trim_ratio),
+            comp_ms=_bucket_reduce([x.comp_ms for x in state_stats], trim_ratio),
+            sub_op_count=_bucket_reduce([x.sub_op_count for x in state_stats], trim_ratio),
         )
     return buckets
 
 
-def aggregate_all(op_stats: List[OpStats]) -> Dict[str, BucketStats]:
+def aggregate_all(
+    op_stats: List[OpStats], trim_ratio: Optional[float] = None
+) -> Dict[str, BucketStats]:
     return {
         "ALL": BucketStats(
-            total_ms=mean([x.total_ms for x in op_stats]),
-            comm_ms=mean([x.comm_ms for x in op_stats]),
-            comp_ms=mean([x.comp_ms for x in op_stats]),
-            sub_op_count=mean([x.sub_op_count for x in op_stats]),
+            total_ms=_bucket_reduce([x.total_ms for x in op_stats], trim_ratio),
+            comm_ms=_bucket_reduce([x.comm_ms for x in op_stats], trim_ratio),
+            comp_ms=_bucket_reduce([x.comp_ms for x in op_stats], trim_ratio),
+            sub_op_count=_bucket_reduce([x.sub_op_count for x in op_stats], trim_ratio),
         )
     }
 
@@ -183,11 +212,11 @@ def load_repeat_records(repeat_path: Path) -> List[dict]:
 
 
 def build_repeat_summary(
-    records: List[dict], threshold_pct: float
+    records: List[dict], threshold_pct: float, row_key: str
 ) -> Tuple[List[str], int]:
     grouped: Dict[Tuple[int, str, str], List[float]] = defaultdict(list)
     for record in records:
-        for row in record.get("rows", []):
+        for row in record.get(row_key, []):
             key = (row["rank"], row["op"], row["mg_state"])
             grouped[key].append(row["diff_pct"])
 
@@ -265,6 +294,15 @@ def main() -> int:
         action="store_true",
         help="Disable (op, mg_state) bucket alignment and compare all states jointly.",
     )
+    parser.add_argument(
+        "--trim-ratio",
+        type=float,
+        default=0.2,
+        help=(
+            "Auxiliary trimmed-mean ratio for per-run robust summary. "
+            "Primary PASS/FAIL remains mean-based."
+        ),
+    )
     parser.add_argument("--report-path", type=Path, default=None)
     args = parser.parse_args()
 
@@ -285,6 +323,9 @@ def main() -> int:
         except ValueError:
             print(f"[ERROR] Invalid --pair-timestamp: {args.pair_timestamp}")
             return 2
+    if args.trim_ratio < 0.0 or args.trim_ratio >= 0.5:
+        print(f"[ERROR] Invalid --trim-ratio: {args.trim_ratio} (expected 0 <= r < 0.5)")
+        return 2
 
     missing_dirs = [str(p) for p in (args.distributed_dir, args.scaling_dir) if not p.exists()]
     if missing_dirs:
@@ -292,7 +333,9 @@ def main() -> int:
         return 2
 
     rows: List[str] = []
+    trimmed_rows: List[str] = []
     row_records: List[dict] = []
+    trimmed_row_records: List[dict] = []
     failed_checks = 0
 
     header = (
@@ -304,6 +347,8 @@ def main() -> int:
     sep = "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"
     rows.append(header)
     rows.append(sep)
+    trimmed_rows.append(header)
+    trimmed_rows.append(sep)
 
     for rank in ranks:
         dist_file = find_latest_rank_file(
@@ -323,19 +368,37 @@ def main() -> int:
                 rows.append(
                     f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (missing op) |"
                 )
+                trimmed_rows.append(
+                    f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (missing op) |"
+                )
                 failed_checks += 1
                 continue
 
             if args.no_align_by_state:
                 dist_buckets = aggregate_all(dist_ops[op])
                 scale_buckets = aggregate_all(scale_ops[op])
+                dist_trimmed_buckets = aggregate_all(
+                    dist_ops[op], trim_ratio=args.trim_ratio
+                )
+                scale_trimmed_buckets = aggregate_all(
+                    scale_ops[op], trim_ratio=args.trim_ratio
+                )
             else:
                 dist_buckets = aggregate_by_state(dist_ops[op])
                 scale_buckets = aggregate_by_state(scale_ops[op])
+                dist_trimmed_buckets = aggregate_by_state(
+                    dist_ops[op], trim_ratio=args.trim_ratio
+                )
+                scale_trimmed_buckets = aggregate_by_state(
+                    scale_ops[op], trim_ratio=args.trim_ratio
+                )
             common_states = sorted(set(dist_buckets.keys()) & set(scale_buckets.keys()))
 
             if not common_states:
                 rows.append(
+                    f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (no common mg_state) |"
+                )
+                trimmed_rows.append(
                     f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (no common mg_state) |"
                 )
                 failed_checks += 1
@@ -382,6 +445,46 @@ def main() -> int:
                     }
                 )
 
+                dist_trimmed_bucket = dist_trimmed_buckets[state]
+                scale_trimmed_bucket = scale_trimmed_buckets[state]
+                if dist_trimmed_bucket.comp_ms == 0:
+                    trimmed_diff_pct = (
+                        0.0 if scale_trimmed_bucket.comp_ms == 0 else 100.0
+                    )
+                else:
+                    trimmed_diff_pct = (
+                        abs(scale_trimmed_bucket.comp_ms - dist_trimmed_bucket.comp_ms)
+                        / dist_trimmed_bucket.comp_ms
+                        * 100.0
+                    )
+                trimmed_status = (
+                    "PASS" if trimmed_diff_pct <= args.threshold_pct else "FAIL"
+                )
+                trimmed_rows.append(
+                    "| "
+                    f"{rank} | {op} | {state} | "
+                    f"{dist_trimmed_bucket.total_ms:.4f} | {dist_trimmed_bucket.comm_ms:.4f} | {dist_trimmed_bucket.comp_ms:.4f} | {dist_trimmed_bucket.sub_op_count:.2f} | "
+                    f"{scale_trimmed_bucket.total_ms:.4f} | {scale_trimmed_bucket.comm_ms:.4f} | {scale_trimmed_bucket.comp_ms:.4f} | {scale_trimmed_bucket.sub_op_count:.2f} | "
+                    f"{trimmed_diff_pct:.2f} | {trimmed_status} |"
+                )
+                trimmed_row_records.append(
+                    {
+                        "rank": rank,
+                        "op": op,
+                        "mg_state": state,
+                        "dist_total_ms": dist_trimmed_bucket.total_ms,
+                        "dist_comm_ms": dist_trimmed_bucket.comm_ms,
+                        "dist_comp_ms": dist_trimmed_bucket.comp_ms,
+                        "dist_subops": dist_trimmed_bucket.sub_op_count,
+                        "scale_total_ms": scale_trimmed_bucket.total_ms,
+                        "scale_comm_ms": scale_trimmed_bucket.comm_ms,
+                        "scale_comp_ms": scale_trimmed_bucket.comp_ms,
+                        "scale_subops": scale_trimmed_bucket.sub_op_count,
+                        "diff_pct": trimmed_diff_pct,
+                        "status": trimmed_status,
+                    }
+                )
+
     report_lines: List[str] = []
     report_lines.append(f"threshold_pct={args.threshold_pct:.2f}")
     report_lines.append(f"distributed_dir={args.distributed_dir}")
@@ -391,8 +494,14 @@ def main() -> int:
     report_lines.append(f"distributed_subtract_comm={args.distributed_subtract_comm}")
     report_lines.append(f"scaling_subtract_comm={args.scaling_subtract_comm}")
     report_lines.append(f"align_by_state={not args.no_align_by_state}")
+    report_lines.append(f"trim_ratio={args.trim_ratio:.4f}")
     report_lines.append(f"pair_timestamp={args.pair_timestamp}")
     report_lines.extend(rows)
+    report_lines.append("")
+    report_lines.append(
+        f"trimmed_mean_aux_summary(trim_ratio={args.trim_ratio:.4f}, non-gating):"
+    )
+    report_lines.extend(trimmed_rows)
 
     if args.repeat_report is not None:
         series_key = (
@@ -406,6 +515,7 @@ def main() -> int:
             "threshold_pct": args.threshold_pct,
             "run_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             "rows": row_records,
+            "trimmed_rows": trimmed_row_records,
         }
         append_repeat_record(args.repeat_report, run_record)
         all_records = [
@@ -413,10 +523,18 @@ def main() -> int:
             for record in load_repeat_records(args.repeat_report)
             if record.get("series_key") == series_key
         ]
-        repeat_lines, repeat_failed = build_repeat_summary(all_records, args.threshold_pct)
+        repeat_lines, repeat_failed = build_repeat_summary(
+            all_records, args.threshold_pct, row_key="rows"
+        )
+        repeat_trimmed_lines, _ = build_repeat_summary(
+            all_records, args.threshold_pct, row_key="trimmed_rows"
+        )
         report_lines.append("")
-        report_lines.append("repeat_median_summary:")
+        report_lines.append("repeat_median_summary(primary_mean):")
         report_lines.extend(repeat_lines)
+        report_lines.append("")
+        report_lines.append("repeat_median_summary(trimmed_mean_aux, non-gating):")
+        report_lines.extend(repeat_trimmed_lines)
         if repeat_failed > 0:
             failed_checks += repeat_failed
         print(f"[INFO] Repeat records in current series: {len(all_records)}")

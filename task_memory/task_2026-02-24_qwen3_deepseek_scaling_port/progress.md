@@ -14,6 +14,7 @@
 | 2026-02-25 | Completed Qwen3 seq2048 (mbs=8/4) 6-GPU reruns, cross-mode sub-op attribution audit, and refreshed unit/integration evidence |
 | 2026-02-25 | Added scaling-parity probe fixes (TE scaling TP guard + RoPE seq guard), reran Qwen3 seq2048 on GPUs 2-7, and archived new failure-focused validation report |
 | 2026-02-25 | Completed 8-GPU Qwen3 trace4 bwd-I/O-fix retest (event/global), validated single-vs-avg robustness, and added full-profile model-size escalation evidence |
+| 2026-02-25 | Committed checkpoint, added forward/optimizer decomposition tooling, introduced compare trimmed-mean auxiliary report, and completed 8-GPU forward-fidelity boundary trial |
 
 # Progress
 
@@ -257,6 +258,23 @@
   - `logs/qwen_distributed_pp4tp1ep2dp2_seq2048_mbs4_iter2_trace2_event_full_try.log`
   - `logs/qwen_trace_compare_pp4tp1_8gpu_seq2048_mbs1_iter6_trace4_event_full_mean.log`
   - `logs/qwen_pp4tp1_8gpu_seq2048_mbs1_trace4_event_full_single_vs_avg_analysis.log`
+
+- Completed user-requested checkpoint commit before this round implementation:
+  - commit: `76911f4f` (`Stabilize scaling trace comparison and document 8-GPU analyses`).
+- Added forward/optimizer dedicated decomposition tool and produced per-rank reports (`TRACE_START=4`, 8-GPU):
+  - new script: `tests/performance/analyze_qwen_forward_optimizer_breakdown.py`;
+  - reports:
+    - `logs/qwen_forward_optimizer_breakdown_pp4tp1_8gpu_trace4_event_prefidelity.log`
+    - `logs/qwen_forward_optimizer_breakdown_pp4tp1_8gpu_trace4_event_postfidelity.log`.
+- Extended compare flow with dual robust reporting while keeping primary gate unchanged:
+  - main gate remains mean-based per-rank/op diff;
+  - added non-gating `trimmed_mean_aux_summary`;
+  - added non-gating `repeat_median_summary(trimmed_mean_aux)`.
+- Ran 8-GPU regression after minimal forward fidelity boundary trial (single boundary change in scaling replay H2D path):
+  - change location: `megatron/profiler/utils.py` (`non_blocking=False` in replay `to(...)`);
+  - compare report: `logs/qwen_trace_compare_pp4tp1_8gpu_seq2048_mbs8_iter6_trace4_event_fidelity1_mean.log`.
+- Added this round report:
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-25_qwen3_trace4_forward_optimizer_fidelity_trial.md`
 
 ### In Progress
 
