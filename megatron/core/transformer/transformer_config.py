@@ -282,10 +282,10 @@ class TransformerConfig(ModelParallelConfig):
     ####################
     # fake args for profile
     ####################
-    fake_pp = 0
-    fake_dp = 0
-    fake_tp = 0
-    is_scaling_mode = False
+    fake_pp: int = 0
+    fake_dp: int = 0
+    fake_tp: int = 0
+    is_scaling_mode: bool = False
     
 
     def __post_init__(self):
@@ -293,15 +293,18 @@ class TransformerConfig(ModelParallelConfig):
             See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more details.
         """
         super().__post_init__()
+        effective_tp_size = (
+            self.fake_tp if self.is_scaling_mode and self.fake_tp > 0 else self.tensor_model_parallel_size
+        )
         if self.fp16 and self.bf16:
             raise ValueError(
                 f'Only one of self.fp16: {self.fp16} and self.bf16 {self.bf16} should be True.'
             )
 
-        if self.num_attention_heads % self.tensor_model_parallel_size != 0:
+        if self.num_attention_heads % effective_tp_size != 0:
             raise ValueError(
                 f"num_attention_heads ({self.num_attention_heads}) must be a multiple of "
-                f"tensor_model_parallel_size ({self.tensor_model_parallel_size})."
+                f"tensor_model_parallel_size ({effective_tp_size})."
             )
 
         if self.ffn_hidden_size is None:
@@ -313,10 +316,10 @@ class TransformerConfig(ModelParallelConfig):
         if self.num_query_groups is None:
             self.num_query_groups = self.num_attention_heads
 
-        if self.num_query_groups % self.tensor_model_parallel_size != 0:
+        if self.num_query_groups % effective_tp_size != 0:
             raise ValueError(
                 f"num_query_groups ({self.num_query_groups}) must be a multiple of "
-                f"tensor_model_parallel_size ({self.tensor_model_parallel_size})."
+                f"tensor_model_parallel_size ({effective_tp_size})."
             )
 
         if self.apply_query_key_layer_scaling:

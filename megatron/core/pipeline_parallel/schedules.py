@@ -228,22 +228,38 @@ def forward_step(
         # cmd = CMD(args.simu_rank, args.simu_state, "dp_allreduce", args.simu_micro_batch_ids["dp_allreduce"], 
         #           description="DP allreduce for the last stage", group_kind="dp")
         # args.stage_operations_trace[args.simu_rank].append(str(cmd))
-        cmd = CMD(
-            rank_id=args.simu_rank,
-            mg_state=args.simu_state,
-            name_cmd="loss_func",
-            use_cuda=True,
-            stage_operations_trace_dict=args.stage_operations_trace,
-            micro_batch_ids_dict=args.simu_micro_batch_ids,
-            stage_id=args.simu_stage_id,
-            simu_start=args.simu_start,
-            description="loss_func, calculate and DP allreduce for the last stage", 
-            trace_start=args.trace_start,
-            current_iter=args.current_iter,
-            args=args
+        can_trace_loss_cmd = (
+            args is not None
+            and getattr(args, "simu_rank", None) is not None
+            and getattr(args, "stage_operations_trace", None) is not None
+            and getattr(args, "simu_micro_batch_ids", None) is not None
         )
-        CMD.set_current_cmd(cmd)
-        with cmd:
+        if can_trace_loss_cmd:
+            cmd = CMD(
+                rank_id=args.simu_rank,
+                mg_state=args.simu_state,
+                name_cmd="loss_func",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.simu_stage_id,
+                simu_start=args.simu_start,
+                description="loss_func, calculate and DP allreduce for the last stage",
+                trace_start=args.trace_start,
+                current_iter=args.current_iter,
+                args=args,
+            )
+            CMD.set_current_cmd(cmd)
+            with cmd:
+                if not collect_non_loss_data:
+                    output_tensor = loss_func(output_tensor)
+                    loss, loss_reduced = output_tensor
+                    output_tensor = loss / num_microbatches
+                    forward_data_store.append(loss_reduced)
+                else:
+                    data = loss_func(output_tensor, non_loss_data=True)
+                    forward_data_store.append(data)
+        else:
             if not collect_non_loss_data:
                 output_tensor = loss_func(output_tensor)
                 loss, loss_reduced = output_tensor
@@ -282,7 +298,7 @@ def forward_step(
     return [output_tensor]
 
 
-def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config, args):
+def backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config, args=None):
     """Backward step through passed-in output tensor.
 
     If last stage, output_tensor_grad is None, otherwise gradient of loss
@@ -406,6 +422,49 @@ def forward_backward_no_pipelining(
         no_sync_func = contextlib.nullcontext
 
     model_type = get_model_type(model)
+    runtime_args = get_args()
+    can_trace_backward_cmd = (
+        runtime_args is not None
+        and getattr(runtime_args, "simu_rank", None) is not None
+        and getattr(runtime_args, "stage_operations_trace", None) is not None
+        and getattr(runtime_args, "simu_micro_batch_ids", None) is not None
+    )
+
+    def run_backward_with_optional_trace():
+        if can_trace_backward_cmd:
+            cmd = CMD(
+                rank_id=runtime_args.simu_rank,
+                mg_state=runtime_args.simu_state,
+                name_cmd="backward_step",
+                use_cuda=True,
+                stage_operations_trace_dict=runtime_args.stage_operations_trace,
+                micro_batch_ids_dict=runtime_args.simu_micro_batch_ids,
+                stage_id=runtime_args.simu_stage_id,
+                simu_start=runtime_args.simu_start,
+                trace_start=runtime_args.trace_start,
+                current_iter=runtime_args.current_iter,
+                args=runtime_args,
+            )
+            CMD.set_current_cmd(cmd)
+            with cmd:
+                backward_step(
+                    input_tensor,
+                    output_tensor,
+                    output_tensor_grad,
+                    model_type,
+                    config,
+                    runtime_args,
+                )
+            return
+
+        backward_step(
+            input_tensor,
+            output_tensor,
+            output_tensor_grad,
+            model_type,
+            config,
+            runtime_args,
+        )
 
     forward_data_store = []
     input_tensor, output_tensor_grad = None, None
@@ -428,7 +487,7 @@ def forward_backward_no_pipelining(
             
             if not forward_only:
                 nvtx.range_push(f"nopipe_{i}_bwd")
-                backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config)
+                run_backward_with_optional_trace()
                 nvtx.range_pop()
 
     # Run computation for last microbatch out of context handler (want to
@@ -452,7 +511,7 @@ def forward_backward_no_pipelining(
 
     if not forward_only:
         nvtx.range_push("last_micro_nopipe_bwd")
-        backward_step(input_tensor, output_tensor, output_tensor_grad, model_type, config)
+        run_backward_with_optional_trace()
         nvtx.range_pop()
 
     if config.timers is not None:
@@ -462,7 +521,7 @@ def forward_backward_no_pipelining(
         # Finalize model grads (perform full grad all-reduce / reduce-scatter for
         # data parallelism and layernorm all-reduce for sequence parallelism).
         nvtx.range_push("finalize_grads_func")
-        config.finalize_model_grads_func([model])
+        config.finalize_model_grads_func([model], get_args())
         nvtx.range_pop()
 
     return forward_data_store
@@ -718,7 +777,7 @@ def forward_backward_pipelining_with_interleaving(
         output_tensor = output_tensors[model_chunk_id].pop(0)
         output_tensor_grad = output_tensor_grads[model_chunk_id].pop(0)
         input_tensor_grad = backward_step(
-            input_tensor, output_tensor, output_tensor_grad, model_type, config
+            input_tensor, output_tensor, output_tensor_grad, model_type, config, get_args()
         )
 
         # launch grad synchronization (custom grad sync)

@@ -518,10 +518,6 @@ def pretrain(train_valid_test_dataset_provider,
             # stop_event = torch.cuda.Event(enable_timing=True)
             # start_event.record()
             input_tensor_grad = sim_backward_step(rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config)
-            if not args.is_pre_process and args.pp_prev_rank is not None:
-                grad_tensor = input_tensor_grad[0] if isinstance(input_tensor_grad, list) else input_tensor_grad
-                if grad_tensor is not None:
-                    torch.save(grad_tensor.detach().cpu(), _get_grad_cache_path(args.pp_prev_rank))
             # stop_event.record()
             # torch.cuda.synchronize()
             # duration = start_event.elapsed_time(stop_event)
@@ -530,6 +526,11 @@ def pretrain(train_valid_test_dataset_provider,
             #     print(f"rank:{rank_id},bwd time: {duration}")
             #     print(f"rank:{rank_id}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
                 print(f"rank:{rank_id}, finish BWD profile ...")
+
+        if not args.is_pre_process and args.pp_prev_rank is not None:
+            grad_tensor = input_tensor_grad[0] if isinstance(input_tensor_grad, list) else input_tensor_grad
+            if grad_tensor is not None:
+                torch.save(grad_tensor.detach().cpu(), _get_grad_cache_path(args.pp_prev_rank))
 
         # dp_allreduce
         pos_p_t = (args.pp_rank,args.tp_rank)

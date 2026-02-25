@@ -9,6 +9,11 @@
 | 2026-02-24 | Implemented stage-1.5 trace comp calibration and automated rank0/rank7 compare script |
 | 2026-02-24 | Removed stage-1.5 calibration path and switched back to raw comp-gap root-cause debugging |
 | 2026-02-24 | Added pipeline-state aligned compare, rank-aware replay cache path, and repeated no-calibration reruns |
+| 2026-02-24 | Implemented trace sub-op sync mode (`global/event`), compare timestamp pairing/median aggregation, and completed sync-mode verification |
+| 2026-02-24 | Completed 6-GPU qwen TP2/DP3/EP1/PP1 consistency debugging, fixed distributed backward trace coverage, and added new analysis report |
+| 2026-02-25 | Completed Qwen3 seq2048 (mbs=8/4) 6-GPU reruns, cross-mode sub-op attribution audit, and refreshed unit/integration evidence |
+| 2026-02-25 | Added scaling-parity probe fixes (TE scaling TP guard + RoPE seq guard), reran Qwen3 seq2048 on GPUs 2-7, and archived new failure-focused validation report |
+| 2026-02-25 | Completed 8-GPU Qwen3 trace4 bwd-I/O-fix retest (event/global), validated single-vs-avg robustness, and added full-profile model-size escalation evidence |
 
 # Progress
 
@@ -121,13 +126,147 @@
 - Re-validated router unit test target:
   - `LOCAL_RANK=0 RANK=0 WORLD_SIZE=1 CUDA_VISIBLE_DEVICES=0 PYTHONPATH=$(pwd) pytest -q tests/unit_tests/transformer/moe/test_routers.py::TestTop2Router::test_aux_loss`
   - result: PASS
+- Implemented low-intrusion sub-op timing sync strategy:
+  - `megatron/profiler/cmd.py`:
+    - added `trace_subop_sync_mode` policy helpers (`global` vs `event`);
+    - switched trace decorator sync from hardcoded global sync to policy-driven sync;
+    - switched `async_end_trace` sync path to the same policy for behavior consistency.
+  - `megatron/training/arguments.py`:
+    - added `--trace-subop-sync-mode {global,event}` with default `global` and argparse-level fail-fast validation.
+  - `examples/pretrain_qwen3_30b_a3b_moe.sh` and `examples/pretrain_deepseek_v3_proxy_moe.sh`:
+    - added `TRACE_SUBOP_SYNC_MODE` env passthrough to trace args.
+- Enhanced compare script robustness:
+  - `tests/performance/compare_qwen_trace_comp.py` now supports:
+    - `--pair-timestamp` (per-rank latest file with timestamp cap);
+    - `--repeat-report` (JSONL append + median summary);
+    - detailed table fields (`total_ms/comm_ms/comp_ms/sub_op_count`).
+- Added/updated unit tests for new trace sync mode:
+  - new file: `tests/unit_tests/profiler/test_cmd_subop_sync_mode.py`;
+  - updated parser tests in `tests/unit_tests/test_training.py`.
+- Verification runs (sync-mode focus):
+  - Unit:
+    - `pytest -q tests/unit_tests/profiler/test_cmd_subop_sync_mode.py` -> PASS (`3 passed`).
+    - `CUDA_VISIBLE_DEVICES=0 LOCAL_RANK=0 RANK=0 WORLD_SIZE=1 MASTER_ADDR=127.0.0.1 MASTER_PORT=29620 PYTHONPATH=$(pwd) pytest -q tests/unit_tests/test_training.py::TestTraining::test_trace_subop_sync_mode_default_global tests/unit_tests/test_training.py::TestTraining::test_trace_subop_sync_mode_event tests/unit_tests/test_training.py::TestTraining::test_trace_subop_sync_mode_invalid_value` -> PASS (`3 passed`).
+  - Integration smoke:
+    - Qwen distributed/scaling (`TRACE_SUBOP_SYNC_MODE=event`) -> PASS (existing logs).
+    - DeepSeek scaling (`TRACE_SUBOP_SYNC_MODE=event`) -> PASS (`fake_current_rank_id=0..7` complete).
+    - DeepSeek distributed (`TRACE_SUBOP_SYNC_MODE=event`) still blocked by environment contention:
+      - ws8 run fails with CUDA OOM on GPU0 due external memory occupancy;
+      - ws4 fallback run fails with NCCL internal/socket error.
+- Repeated compare validation with timestamp pairing + median (5 paired reports):
+  - repeat report: `logs/qwen_trace_compare_syncmode_repeat_v2.jsonl`
+  - median summary (rank0/rank7):
+    - `forward_step` and `backward_step` remain above 5% threshold;
+    - `optimizer_step` median stays within threshold.
+  - current conclusion: event sync removes part of timing侵入性，但不足以单独把 comp gap 收敛到 <=5%。
+- Continued with 6-GPU-only window (GPU 2-7) for qwen-moe and completed this sequence:
+  - attempted target plan (`TP=3,DP=2,EP=2,PP=1`) but blocked by model divisibility constraints (`num_attention_heads=16` with `TP=3`);
+  - switched to runnable fallback (`TP=2,DP=3,EP=1,PP=1`) and produced paired distributed/scaling traces.
+- Fixed additional consistency blockers discovered in this round:
+  - scaling TP>1 path unblocked by replacing scaling-unsafe TP assertions in router/dispatcher with fake-TP-aware logic;
+  - scaling EP=1 preprocessing unblocked by using runtime `histc` path when precomputed dispatch cache is absent;
+  - distributed PP1 path now emits `backward_step` trace entries via CMD wrapper in `forward_backward_no_pipelining`.
+- Upgraded compare utility for this 6-GPU task:
+  - added `--ranks` and `--ops` support to avoid rank0/rank7 hardcoding;
+  - verified invalid-rank fail-fast behavior.
+- Performed event/global sync-mode and higher-load (`SEQ_LEN=1024`) revalidation:
+  - event run (`seq256`) still shows large forward/backward comp gaps (~48%–64%);
+  - global run (`seq256`) changes absolute gaps but does not achieve <=5%;
+  - higher load (`seq1024`) does not materially reduce forward/backward gap.
+- Added round-specific evidence and report:
+  - `logs/qwen_trace_tp2_6gpu_event_consistency_analysis.log`
+  - `logs/qwen_trace_tp2_6gpu_seq1024_event_analysis.log`
+  - `test_report_2026-02-24_qwen_tp2_6gpu_analysis.md`
+- Re-reviewed latest two commits (`457ae681`, `661077e5`) with the current working-tree deltas and confirmed:
+  - stage-1.5 calibration logic is not active in the current path;
+  - current path is mode-aware (`distributed_subtract_comm=True`, `scaling_subtract_comm=False`) for comp comparison.
+- Re-ran targeted unit tests for current trace/compare changes:
+  - `CUDA_VISIBLE_DEVICES=0 LOCAL_RANK=0 RANK=0 WORLD_SIZE=1 MASTER_ADDR=127.0.0.1 MASTER_PORT=29620 PYTHONPATH=$(pwd) pytest -q tests/unit_tests/profiler/test_cmd_subop_sync_mode.py tests/unit_tests/profiler/test_interception_comm_scaling_mode.py tests/unit_tests/performance/test_compare_qwen_trace_comp.py tests/unit_tests/test_training.py::TestTraining::test_trace_subop_sync_mode_default_global tests/unit_tests/test_training.py::TestTraining::test_trace_subop_sync_mode_event tests/unit_tests/test_training.py::TestTraining::test_trace_subop_sync_mode_invalid_value`
+  - Result: `13 passed`.
+- Completed Qwen3 seq2048 integration reruns on GPUs `2-7` (`TP=2,DP=3,EP=1,PP=1`, `TRACE_SUBOP_SYNC_MODE=event`):
+  - `mbs=8`: distributed + scaling both PASS and trace files generated.
+  - `mbs=4`: distributed + scaling both PASS and trace files generated.
+- Compare results (6 ranks, `forward_step/backward_step/optimizer_step`, timestamp paired):
+  - `mbs=8` report: `logs/qwen_trace_compare_tp2_6gpu_seq2048_mbs8_event.log`
+    - `forward_step` mean diff `16.90%` (6/6 FAIL)
+    - `backward_step` mean diff `3.54%` (2/6 FAIL)
+    - `optimizer_step` mean diff `9.93%` (4/6 FAIL)
+  - `mbs=4` report: `logs/qwen_trace_compare_tp2_6gpu_seq2048_mbs4_event.log`
+    - `forward_step` mean diff `46.69%` (6/6 FAIL)
+    - `backward_step` mean diff `29.71%` (6/6 FAIL)
+    - `optimizer_step` mean diff `8.23%` (4/6 FAIL)
+- Completed cross-mode sub-op attribution audit:
+  - `logs/qwen_seq2048_subop_category_analysis.log`
+  - `logs/qwen_seq2048_op_coverage_analysis.log`
+  - key finding: scaling has extra TP `allreduce` sub-ops (`+11` in `forward_step`, `+12` in `backward_step` for rank0), and these are metadata-only (`duration=0.0`), while distributed does not expose matching TP `allreduce` entries.
+- Confirmed runtime argument-path mismatch from logs:
+  - distributed uses `sequence_parallel=True`;
+  - scaling uses `sequence_parallel=False` (forced by real TP=1 in scaling loop despite fake TP=2).
+  - this causes additional TP communication code-path divergence and larger comp bias.
+- Added this round report:
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-25_qwen3_seq2048_mbs4_8_scaling_vs_realistic.md`
+- Added scaling-parity probe code/tests and reran Qwen3 seq2048 validation:
+  - code updates:
+    - `megatron/core/transformer/transformer_config.py`
+    - `megatron/core/model_parallel_config.py`
+    - `megatron/core/tensor_parallel/layers.py`
+    - `megatron/core/transformer/custom_layers/transformer_engine.py`
+    - `megatron/core/models/common/embeddings/rotary_pos_embedding.py`
+  - new unit test:
+    - `tests/unit_tests/transformer/test_transformer_config_scaling_mode.py`
+  - unit result:
+    - `16 passed` (command/result recorded in latest report)
+  - integration reruns (GPU 2-7):
+    - target plan `TP=3,DP=2,EP=2,PP=1` failed fast (head divisibility), fallback remained `TP=2,DP=3,EP=1,PP=1`.
+  - latest compare (mode-aware comp, timestamp paired):
+    - `mbs=8` report `logs/qwen_trace_compare_tp2_6gpu_seq2048_mbs8_event_sprevert.log`
+      - `forward_step` mean diff `63.49%` (6/6 FAIL)
+      - `backward_step` mean diff `42.80%` (6/6 FAIL)
+      - `optimizer_step` mean diff `14.79%` (6/6 FAIL)
+    - `mbs=4` report `logs/qwen_trace_compare_tp2_6gpu_seq2048_mbs4_event_sprevert.log`
+      - `forward_step` mean diff `79.23%` (6/6 FAIL)
+      - `backward_step` mean diff `63.18%` (6/6 FAIL)
+      - `optimizer_step` mean diff `14.66%` (4/6 FAIL)
+  - extra diagnostics:
+    - `logs/qwen_seq2048_trace_entry_count_sprevert.log` confirms distributed has 3 profiled entries/op while scaling has 1 profiled entry/op.
+- Added this round report:
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-25_qwen3_seq2048_sprevert_validation.md`
+
+- Completed 8-GPU Qwen3 trace4 re-validation after backward I/O timing-boundary fix (`TRACE_SUBOP_SYNC_MODE=event`):
+  - distributed/scaling reruns finished successfully with timestamp-paired compare;
+  - compare report: `logs/qwen_trace_compare_pp4tp1_8gpu_seq2048_mbs8_iter6_trace4_event_bwdiofix_rerun2_mean.log`.
+- Confirmed sample-count policy and single-vs-avg validity for this setting:
+  - scaling keeps one profiled record per `forward_step/backward_step/optimizer_step`;
+  - distributed has three profiled records/op in the same trace file;
+  - realistic in-file comp variance is low at `TRACE_START=4` (forward/backward CV around `1%`), so mean/median are effectively equivalent in-run.
+- Added control experiment for measurement-overhead sensitivity (`event` vs `global`) under identical 8-GPU config:
+  - archived control compare report: `logs/qwen_trace_compare_pp4tp1_8gpu_seq2048_mbs8_iter6_trace4_global_bwdiofix_mean.log`;
+  - archived overhead delta analysis: `logs/qwen_pp4tp1_8gpu_seq2048_mbs8_trace4_event_vs_global_overhead.log`.
+- Re-verified op/sub-op consistency for compared compute ops (`forward_step/backward_step`) in TP1 profile:
+  - comm sub-op composition is aligned between scaling/distributed for compared ops;
+  - residual op-set mismatch mainly remains in PP transport ops (`send/recv_*`) that are outside comp comparison scope.
+- Added this round report:
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-25_qwen3_8gpu_trace4_bwdiofix.md`
+- Executed model-size escalation check for Qwen3 full profile (`MODEL_PROFILE=full`, 48L/2048H/128 experts):
+  - `mbs=4` distributed trial failed with CUDA OOM (GPU1);
+  - fallback `mbs=1`, `TRAIN_ITERS=6`, `TRACE_START=4` distributed+scaling reruns completed and generated paired traces.
+- Full-profile (`mbs=1`) compare findings:
+  - backward alignment improved to within threshold on all ranks;
+  - forward/optimizer remained above threshold on most ranks.
+- Archived full-profile evidence:
+  - `logs/qwen_distributed_pp4tp1ep2dp2_seq2048_mbs4_iter2_trace2_event_full_try.log`
+  - `logs/qwen_trace_compare_pp4tp1_8gpu_seq2048_mbs1_iter6_trace4_event_full_mean.log`
+  - `logs/qwen_pp4tp1_8gpu_seq2048_mbs1_trace4_event_full_single_vs_avg_analysis.log`
 
 ### In Progress
 
 - Root-cause isolation for remaining no-calibration comp gap (>5%) between distributed and scaling:
-  - focus shifted to stage-specific forward/backward boundary mismatch and replay fidelity limits.
+  - focus shifted to sequence-parallel path parity + TP comm attribution consistency (not only sync policy);
+  - current evidence indicates workload-path mismatch dominates residual gap for forward/backward.
 
 ### Pending
 
 - Finalize no-calibration solution that makes rank0/rank7 `forward_step/backward_step/optimizer_step` comp gap <=5%.
+- Design and validate a minimal parity fix for scaling sequence-parallel semantics under fake TP (`fake_tp>1`) without large refactor.
 - Update test report conclusions after no-calibration path reaches stable PASS.
+- Unblock DeepSeek distributed event smoke in a clean multi-GPU window (no external GPU0 occupancy / stable NCCL fabric), then补齐同口径日志证据。

@@ -199,9 +199,13 @@ class CMD:
             return f"rank:{self.rank_id}:{self.name_cmd}(stage_id={self.stage_id},batch_id=None,mg_state={self.mg_state},duration=None,description={self.description},group_kind={self.group_kind})"
         return f"rank:{self.rank_id}:{self.name_cmd}(stage_id={self.stage_id},batch_id={self.batch_id},mg_state={self.mg_state},duration={self.duration},description={self.description},group_kind={self.group_kind},input__shape={self.input__shape},input__dtype={self.input__dtype},timestamp={self.time_stamp},sub_operations={self.sub_operations})"
 
-    def add_sub_operation(self, operation_name, duration, attr_info):
+    def add_sub_operation(self, operation_name, duration, attr_info, timestamp_ms=None):
         """Add a sub-operation to this CMD"""
-        timestamp = round(time.perf_counter() * 1000, 2)
+        timestamp = (
+            round(time.perf_counter() * 1000, 2)
+            if timestamp_ms is None
+            else round(float(timestamp_ms), 2)
+        )
         sub_operation = f"trace_src_func={operation_name},duration={duration},timestamp={timestamp}"
         if attr_info:
             sub_operation += "," + ",".join(f"{key}={value}" for key, value in attr_info.items())
@@ -247,6 +251,36 @@ class CMD:
             return single_gpu_profile
 
     @staticmethod
+    def _get_subop_sync_mode(current_cmd=None):
+        """Return sub-operation sync mode with safe default."""
+        mode = "global"
+        cmd = current_cmd if current_cmd is not None else CMD.get_current_cmd()
+        if cmd is not None and getattr(cmd, "args", None) is not None:
+            mode = getattr(cmd.args, "trace_subop_sync_mode", "global")
+        if mode not in ("global", "event"):
+            raise ValueError(f"Unsupported trace_subop_sync_mode: {mode}")
+        return mode
+
+    @staticmethod
+    def _sync_for_subop_timing(stop_event=None, current_cmd=None):
+        """Synchronize for sub-op timing according to trace_subop_sync_mode."""
+        mode = CMD._get_subop_sync_mode(current_cmd=current_cmd)
+        if mode == "event":
+            if stop_event is None:
+                raise ValueError("event sync mode requires a stop_event")
+            stop_event.synchronize()
+            return
+        torch.cuda.synchronize()
+
+    @staticmethod
+    def _is_scaling_metadata_only_comm(current_cmd, comm_func):
+        """Whether this sub-op should only record trigger metadata in scaling mode."""
+        if comm_func is None or current_cmd is None:
+            return False
+        args = getattr(current_cmd, "args", None)
+        return bool(args is not None and getattr(args, "is_scaling_mode", False))
+
+    @staticmethod
     def _cleanup_expired_async_records():
         """Clean up expired async records to prevent memory leaks"""
         current_time = time.time()
@@ -275,20 +309,35 @@ class CMD:
                 current_cmd = CMD.get_current_cmd()
                 if current_cmd is not None:
                     try:
+                        metadata_only_comm = CMD._is_scaling_metadata_only_comm(
+                            current_cmd=current_cmd, comm_func=comm_func
+                        )
+                        subop_timestamp_ms = round(time.perf_counter() * 1000, 2)
                         if current_cmd.use_cuda:
-                            start_event = torch.cuda.Event(enable_timing=True)
-                            stop_event = torch.cuda.Event(enable_timing=True)
-                            start_event.record()
-                            result = func(*args, **kwargs)
-                            stop_event.record()
-                            torch.cuda.synchronize()
-                            duration = start_event.elapsed_time(stop_event)
+                            if metadata_only_comm:
+                                # Scaling mode comm sub-op: keep trigger + metadata only.
+                                result = func(*args, **kwargs)
+                                duration = 0.0
+                            else:
+                                start_event = torch.cuda.Event(enable_timing=True)
+                                stop_event = torch.cuda.Event(enable_timing=True)
+                                start_event.record()
+                                result = func(*args, **kwargs)
+                                stop_event.record()
+                                CMD._sync_for_subop_timing(
+                                    stop_event=stop_event, current_cmd=current_cmd
+                                )
+                                duration = start_event.elapsed_time(stop_event)
                         else:
-                            start_time = time.perf_counter()
-                            result = func(*args, **kwargs)
-                            torch.cuda.synchronize()
-                            end_time = time.perf_counter()
-                            duration = (end_time - start_time) * 1000  # convert to ms
+                            if metadata_only_comm:
+                                result = func(*args, **kwargs)
+                                duration = 0.0
+                            else:
+                                start_time = time.perf_counter()
+                                result = func(*args, **kwargs)
+                                torch.cuda.synchronize()
+                                end_time = time.perf_counter()
+                                duration = (end_time - start_time) * 1000  # convert to ms
 
                         attr_info = {}
                         bound_args = None
@@ -326,7 +375,14 @@ class CMD:
                         # if overlap_op:
                         #     attr_info['overlap_op'] = overlap_op
 
-                        current_cmd.add_sub_operation(func.__name__, round(duration, 2), attr_info)
+                        current_cmd.add_sub_operation(
+                            func.__name__,
+                            round(duration, 2),
+                            attr_info,
+                            timestamp_ms=subop_timestamp_ms,
+                        )
+                    except ValueError:
+                        raise
                     except Exception as e:
                         print(f"Warning: Failed to trace {func.__name__}: {e}")
                         result = func(*args, **kwargs)
@@ -419,20 +475,28 @@ class CMD:
         if current_cmd is None:
             print("Warning: current_cmd is None, skip async end trace.")
             return 
-        raise 0
         try:
             with async_records_lock:
                 if unique_key in CMD.temp_async_records:
                     record = CMD.temp_async_records.pop(unique_key)
                     operation_name = record.get('operation_name', 'unknown')
                     duration = "Async operation, duration not measured"
+                    attr_info = record.get('attr_info', {})
+                    metadata_only_comm = CMD._is_scaling_metadata_only_comm(
+                        current_cmd=current_cmd,
+                        comm_func=attr_info.get('comm_func', None),
+                    )
                     
-                    if current_cmd.use_cuda:
+                    if metadata_only_comm:
+                        duration = 0.0
+                    elif current_cmd.use_cuda:
                         start_event = record.get('start_event', None)
                         if start_event is not None:
                             stop_event = torch.cuda.Event(enable_timing=True)
                             stop_event.record()
-                            torch.cuda.synchronize()
+                            CMD._sync_for_subop_timing(
+                                stop_event=stop_event, current_cmd=current_cmd
+                            )
                             duration = start_event.elapsed_time(stop_event)
                     else:
                         start_time = record.get('start_time', None)
@@ -441,10 +505,11 @@ class CMD:
                             end_time = time.perf_counter()
                             duration = (end_time - start_time) * 1000  # convert to ms
                     
-                    attr_info = record.get('attr_info', {})
                     current_cmd.add_sub_operation(operation_name, round(duration, 2), attr_info)
                 else:
                     print(f"Warning: Async operation {unique_key} not found in records")
+        except ValueError:
+            raise
         except Exception as e:
             print(f"Warning: Failed to end async trace for {unique_key}: {e}")
 
@@ -507,4 +572,3 @@ def write_list_to_file(stage_or_rank_id, list_to_write, file_path=None, name_arg
     with open(filename, 'w') as f:
         for item in list_to_write:
             f.write(f"{item}\n")
-

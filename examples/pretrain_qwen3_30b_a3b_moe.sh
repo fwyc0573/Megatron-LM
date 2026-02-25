@@ -30,8 +30,11 @@ pick_idle_gpu() {
 
 MODE=${MODE:-distributed} # distributed | scaling
 MODEL_PROFILE=${MODEL_PROFILE:-smoke} # smoke | full
+TRANSFORMER_IMPL=${TRANSFORMER_IMPL:-transformer_engine}
 TRACE_START=${TRACE_START:-1}
 TRAIN_ITERS=${TRAIN_ITERS:-3}
+TRACE_SUBOP_SYNC_MODE=${TRACE_SUBOP_SYNC_MODE:-global}
+DO_TRACE=${DO_TRACE:-True}
 LR=${LR:-1.2e-4}
 MIN_LR=${MIN_LR:-1.2e-5}
 
@@ -87,13 +90,14 @@ fi
 GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-$((MICRO_BATCH_SIZE * (GPUS_PER_NODE / TP / PP)))}
 
 TRACE_ARGS=(
-  --do-trace True
+  --do-trace "${DO_TRACE}"
   --trace-start "${TRACE_START}"
+  --trace-subop-sync-mode "${TRACE_SUBOP_SYNC_MODE}"
 )
 
 COMMON_ARGS=(
   --use-mcore-models
-  --transformer-impl transformer_engine
+  --transformer-impl "${TRANSFORMER_IMPL}"
   --mock-data
   --dataloader-type cyclic
   --tokenizer-type NullTokenizer

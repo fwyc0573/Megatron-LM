@@ -67,3 +67,4 @@ realistic_trace_numba1/
 run_log/
 latest-megatron/
 vTrain/
+.serena/

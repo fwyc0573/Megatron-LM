@@ -342,14 +342,14 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         # calculate the number of tokens assigned to each expert (每个expert ID出现的次数，每出现一次代表一个token被分配到这个expert)
 
 
-        if self.config.is_scaling_mode:
-            num_local_tokens_per_expert = self.config.per_rank_dispatching_results[self.config.exp_rank]['num_local_tokens_per_expert']
-            # Move tensor to GPU if it's not already there
+        if self.config.is_scaling_mode and hasattr(self.config, "per_rank_dispatching_results"):
+            num_local_tokens_per_expert = self.config.per_rank_dispatching_results[self.config.exp_rank][
+                'num_local_tokens_per_expert'
+            ]
             if not num_local_tokens_per_expert.is_cuda:
                 num_local_tokens_per_expert = num_local_tokens_per_expert.cuda()
-
         else:
-            # TODO-YC  : Here to compare the pre results with the real results?
+            # Keep scaling EP=1 path aligned with distributed counting logic.
             num_local_tokens_per_expert = torch.histc(
                 indices, bins=self.num_experts, min=0, max=self.num_experts
             )
@@ -380,7 +380,8 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
                 num_global_tokens_per_expert = _gather_along_first_dim_expert_parallel(
                     num_local_tokens_per_expert, func="gather_along_first_dim_expert_parallel"
                 )
-                num_global_tokens_per_expert = self.config.num_global_tokens_per_expert
+                if hasattr(self.config, "num_global_tokens_per_expert"):
+                    num_global_tokens_per_expert = self.config.num_global_tokens_per_expert
 
                 # Move tensor to GPU if it's not already there
                 if not num_global_tokens_per_expert.is_cuda:
@@ -461,7 +462,6 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         # In scaling mode, we run the 1GPU comm. case (to trace the comm. op.)
         tp_size = self.config.fake_tp if self.config.is_scaling_mode else parallel_state.get_tensor_model_parallel_world_size()
         if tp_size > 1:
-            assert self.config.is_scaling_mode, "SP in scaling mode is not supported (tp should be 1)"
             hidden_states = tensor_parallel.all_to_all_sp2hp(hidden_states, func="all_to_all_sp2hp")
 
         # Permutation 1: input to AlltoAll input
@@ -492,7 +492,6 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         # Perform tensor parallel All-Gather
         # global_input_tokens: [SEQL, H/TP] -> [SEQL, H]
         if tp_size > 1:
-            assert self.config.is_scaling_mode, "SP in scaling mode is not supported (tp should be 1)"
             global_input_tokens = tensor_parallel.all_gather_last_dim_from_tensor_parallel_region(
                 global_input_tokens
             )
@@ -520,7 +519,6 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
         # hidden_states: [SEQL, H] -> [SEQL, H/TP]
         tp_size = self.config.fake_tp if self.config.is_scaling_mode else parallel_state.get_tensor_model_parallel_world_size()
         if tp_size > 1:
-            assert self.config.is_scaling_mode, "SP in scaling mode is not supported (tp should be 1)"
             hidden_states = tensor_parallel.reduce_scatter_last_dim_to_tensor_parallel_region(
                 hidden_states, func="reduce_scatter_last_dim_to_tensor_parallel_region"
             )
@@ -551,7 +549,6 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
 
         # Perform tensor parallel AlltoAll communication
         if tp_size > 1:
-            assert self.config.is_scaling_mode, "SP in scaling mode is not supported (tp should be 1)"
             # output: [S*B, H/TP] -> [S*B/TP, H]
             output = tensor_parallel.all_to_all_hp2sp(output)
 

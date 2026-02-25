@@ -4,6 +4,14 @@ from transformer_engine.pytorch.constants import dist_group_type
 from transformer_engine.pytorch.distributed import get_distributed_world_size
 from megatron.profiler.cmd import CMD
 
+
+def _is_scaling_mode() -> bool:
+    from megatron.training import get_args
+
+    args = get_args()
+    return bool(getattr(args, "is_scaling_mode", False))
+
+
 @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name'], 'overlap_op': ['name']}, group_type='tp', comm_func='allreduce')
 def allreduce_wrapper(
     input_: torch.Tensor,
@@ -13,6 +21,9 @@ def allreduce_wrapper(
     overlap_op: str = None
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """All-reduce the input tensor across model parallel group."""
+
+    if _is_scaling_mode():
+        return input_, None
 
     # Bypass the function if we are using only 1 GPU.
     # if get_distributed_world_size(tp_group) == 1:
@@ -33,6 +44,9 @@ def broadcast_wrapper(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Broadcast the input tensor across model parallel group."""
 
+    if _is_scaling_mode():
+        return input_
+
     if tp_group is not None and tp_src_rank is not None:
         torch.distributed.broadcast(input_, tp_src_rank, group=tp_group)
 
@@ -40,6 +54,11 @@ def broadcast_wrapper(
 @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allreduce')
 def reduce_wrapper(input_, func=None, op=torch.distributed.ReduceOp.SUM, async_op=False, tp_group=None):
     """All-reduce the input tensor across model parallel group."""
+
+    if _is_scaling_mode():
+        if async_op is True:
+            return None
+        return input_
 
     # All-reduce.
     if async_op is True:

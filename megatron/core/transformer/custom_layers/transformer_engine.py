@@ -129,12 +129,10 @@ class TELinear(te.pytorch.Linear):
         # via parallel_state.
         if self.config.is_scaling_mode:
             actual_tp_group = None
-            actual_tp_size = self.config.fake_tp
-            # sequence_parallel for te.pytorch.Linear will use self.config.sequence_parallel.
-            # If in scaling mode tp_group is None, te.pytorch.Linear might ignore sequence_parallel
-            # or sequence_parallel might be set to False by Megatron's config for scaling mode.
-            # For now, assume self.config.sequence_parallel reflects the desired state.
-            actual_sequence_parallel = self.config.sequence_parallel # Or False if it must be disabled when tp_group is None
+            # Keep TE kernel partitioning tied to real world-size in scaling mode.
+            # Fake TP is used for trace semantics rather than true TE tensor partitioning.
+            actual_tp_size = self.config.tensor_model_parallel_size
+            actual_sequence_parallel = self.config.sequence_parallel
         else:
             actual_tp_group = get_tensor_model_parallel_group(check_initialized=False)
             actual_tp_size = self.config.tensor_model_parallel_size
@@ -251,16 +249,11 @@ class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
 
         if self.config.is_scaling_mode:
             actual_tp_group = None
-            actual_tp_size = self.config.fake_tp
-            # In scaling mode, sequence_parallel might also behave differently or be effectively disabled
-            # if tp_group is None. For now, we use the config's sequence_parallel value.
-            # Consider if config.sequence_parallel should also be conditional for TE.
-            # actual_sequence_parallel = False # Or consult how sequence parallel should behave with fake_tp
+            # Keep TE kernel partitioning tied to real world-size in scaling mode.
+            actual_tp_size = self.config.tensor_model_parallel_size
         else:
             actual_tp_group = get_tensor_model_parallel_group(check_initialized=False)
             actual_tp_size = self.config.tensor_model_parallel_size
-            # actual_sequence_parallel = self.config.sequence_parallel
-        print(f"actual_tp_group: {actual_tp_group}, actual_tp_size: {actual_tp_size}")
         
         # Only Transformer-Engine version >= 0.11.0 supports `RMSNorm`
         if _te_version >= packaging.version.Version("0.11.0"):
@@ -524,12 +517,9 @@ class TEDotProductAttention(te.pytorch.DotProductAttention):
         # Determine actual tp_group, tp_size for te.pytorch.DotProductAttention
         if self.config.is_scaling_mode:
             actual_tp_group = None
-            actual_tp_size = self.config.fake_tp
-            # sequence_parallel for te.pytorch.DotProductAttention:
-            # If tp_group is None, sequence_parallel might be ignored by TE or lead to issues.
-            # For scaling mode, it's safer to assume sequence_parallel is False or use config value
-            # if it's correctly set for scaling (e.g. to False if tp_size > 1 simulated).
-            actual_sequence_parallel = False # Or self.config.sequence_parallel if appropriate
+            # Keep TE attention partitioning tied to real world-size in scaling mode.
+            actual_tp_size = self.config.tensor_model_parallel_size
+            actual_sequence_parallel = self.config.sequence_parallel
         else: # Normal mode
             actual_tp_group = get_tensor_model_parallel_group(check_initialized=False)
             actual_tp_size = self.config.tensor_model_parallel_size

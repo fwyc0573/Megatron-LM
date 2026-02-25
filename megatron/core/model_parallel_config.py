@@ -267,8 +267,14 @@ class ModelParallelConfig:
         """ Python dataclass method that is used to modify attributes after initialization.
             See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more details.
         """
+        effective_tp_size = self.tensor_model_parallel_size
+        if getattr(self, "is_scaling_mode", False):
+            fake_tp = int(getattr(self, "fake_tp", effective_tp_size))
+            if fake_tp > 0:
+                effective_tp_size = fake_tp
+
         if self.sequence_parallel:
-            if self.tensor_model_parallel_size <= 1:
+            if effective_tp_size <= 1:
                 raise ValueError("Can not use sequence paralllelism without tensor parallelism")
             if self.async_tensor_model_parallel_allreduce:
                 # sequence_parallelism already does this async
@@ -293,7 +299,7 @@ class ModelParallelConfig:
                 "Cannot defer embedding wgrad compute when gradient accumulation fusion is not used"
             )
 
-        if self.expert_model_parallel_size > 1 and self.tensor_model_parallel_size > 1:
+        if self.expert_model_parallel_size > 1 and effective_tp_size > 1:
             if self.sequence_parallel is False:
                 raise ValueError(
                     "When using expert parallelism and tensor parallelism, sequence parallelism must be used"

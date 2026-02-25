@@ -1718,6 +1718,17 @@ def _add_trace_args(parser):
                        help='Trace or not')
     group.add_argument('--trace-start', type=int, default=0,
                        help='The iteration to start tracing.')
+    group.add_argument(
+        '--trace-subop-sync-mode',
+        type=str,
+        default='global',
+        choices=['global', 'event'],
+        help=(
+            'Synchronization mode for sub-operation timing in trace decorators. '
+            '"global" uses torch.cuda.synchronize(); '
+            '"event" uses stop_event.synchronize() to reduce global pipeline drain.'
+        ),
+    )
     # 添加 --nsight-start 参数
     group.add_argument('--nsight-start', type=int, default=0,
                        help='The iteration to start Nsight Systems profiling.')

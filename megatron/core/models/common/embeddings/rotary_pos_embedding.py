@@ -144,7 +144,12 @@ class RotaryEmbedding(nn.Module):
                 rotary_seq_len = transformer_input.size(0)
 
             if transformer_config.sequence_parallel:
-                rotary_seq_len *= transformer_config.tensor_model_parallel_size
+                tp_multiplier = transformer_config.tensor_model_parallel_size
+                if getattr(transformer_config, "is_scaling_mode", False):
+                    # In scaling mode sequence chunks are not physically split across TP ranks.
+                    # Use real runtime TP world-size to avoid over-expanding RoPE positions.
+                    tp_multiplier = parallel_state.get_tensor_model_parallel_world_size()
+                rotary_seq_len *= tp_multiplier
 
         rotary_seq_len *= transformer_config.context_parallel_size
 

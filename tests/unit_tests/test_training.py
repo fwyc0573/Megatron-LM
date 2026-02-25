@@ -2,6 +2,7 @@ import sys
 from types import SimpleNamespace
 from unittest import mock
 
+import pytest
 import torch
 
 from megatron.training.global_vars import set_args
@@ -61,6 +62,41 @@ class TestTraining:
         assert args.moe_layer_freq == [0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         assert args.moe_ffn_hidden_size == 512
         assert args.rotary_base == 1000000
+
+    def test_trace_subop_sync_mode_default_global(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.trace_subop_sync_mode == "global"
+
+    def test_trace_subop_sync_mode_event(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--trace-subop-sync-mode", "event",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.trace_subop_sync_mode == "event"
+
+    def test_trace_subop_sync_mode_invalid_value(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--trace-subop-sync-mode", "bad-value",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            with pytest.raises(SystemExit):
+                parse_args(ignore_unknown_args=False)
 
     def test_core_transformer_config_injects_new_fields(self):
         args = SimpleNamespace(

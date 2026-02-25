@@ -45,7 +45,8 @@ def _allreduce_word_embedding_grads(model: List[torch.nn.Module], config: Transf
             # print(f"_allreduce_word_embedding_grads | grad.shape: {grad.shape}, grad.d: {grad.dtype}")
             torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
             cmd = CMD.get_current_cmd()
-            cmd.set_tensor_shape_and_dtype(grad.shape, grad.dtype)
+            if cmd is not None:
+                cmd.set_tensor_shape_and_dtype(grad.shape, grad.dtype)
 
 
 def _allreduce_position_embedding_grads(model: List[torch.nn.Module], config: TransformerConfig):
@@ -65,7 +66,8 @@ def _allreduce_position_embedding_grads(model: List[torch.nn.Module], config: Tr
         )
         torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
         cmd = CMD.get_current_cmd()
-        cmd.set_tensor_shape_and_dtype(grad.shape, grad.dtype)
+        if cmd is not None:
+            cmd.set_tensor_shape_and_dtype(grad.shape, grad.dtype)
 
 def _allreduce_embedding_grads(model: List[torch.nn.Module], config: TransformerConfig):
     """
@@ -111,30 +113,41 @@ def finalize_model_grads(model: List[torch.nn.Module], args):
     """
 
     config = get_model_config(model[0])
-    # args = get_args()
+    can_trace_cmd = (
+        args is not None
+        and getattr(args, "simu_rank", None) is not None
+        and getattr(args, "stage_operations_trace", None) is not None
+        and getattr(args, "simu_micro_batch_ids", None) is not None
+    )
 
     # All-reduce / reduce-scatter across DP replicas.
     if config.timers is not None:
         config.timers('all-grads-sync', log_level=1).start(barrier=config.barrier_with_L1_time)
-    cmd = CMD(
-        rank_id=args.simu_rank,
-        mg_state=args.simu_state,
-        name_cmd="dp_allreduce",
-        use_cuda=True,
-        stage_operations_trace_dict=args.stage_operations_trace,
-        micro_batch_ids_dict=args.simu_micro_batch_ids,
-        stage_id=args.simu_stage_id,
-        simu_start=args.simu_start,
-        description="model_chunk.finish_grad_sync(), All-reduce / reduce-scatter across DP replicas",
-        group_kind="dp",
-        trace_start=args.trace_start,
-        current_iter=args.current_iter,
-        args=args
-    )
-    CMD.set_current_cmd(cmd)
-    with cmd:
+    if can_trace_cmd:
+        cmd = CMD(
+            rank_id=args.simu_rank,
+            mg_state=args.simu_state,
+            name_cmd="dp_allreduce",
+            use_cuda=True,
+            stage_operations_trace_dict=args.stage_operations_trace,
+            micro_batch_ids_dict=args.simu_micro_batch_ids,
+            stage_id=args.simu_stage_id,
+            simu_start=args.simu_start,
+            description="model_chunk.finish_grad_sync(), All-reduce / reduce-scatter across DP replicas",
+            group_kind="dp",
+            trace_start=args.trace_start,
+            current_iter=args.current_iter,
+            args=args
+        )
+        CMD.set_current_cmd(cmd)
+        with cmd:
+            nvtx.range_push(f"allreduce_grads_sync_model_chunk")
+            # YC: check here, does it include ep optimizer's allreduce?
+            for model_chunk in model:
+                model_chunk.finish_grad_sync()
+            nvtx.range_pop()
+    else:
         nvtx.range_push(f"allreduce_grads_sync_model_chunk")
-        # YC: check here, does it include ep optimizer's allreduce?
         for model_chunk in model:
             model_chunk.finish_grad_sync()
         nvtx.range_pop()
@@ -162,25 +175,29 @@ def finalize_model_grads(model: List[torch.nn.Module], args):
         parallel_state.is_rank_in_embedding_group(ignore_virtual=True)
         and parallel_state.get_pipeline_model_parallel_world_size() > 1
     ):
-        cmd = CMD(
-            rank_id=args.simu_rank,
-            mg_state=args.simu_state,
-            name_cmd="ep_allreduce",
-            use_cuda=True,
-            stage_operations_trace_dict=args.stage_operations_trace,
-            micro_batch_ids_dict=args.simu_micro_batch_ids,
-            stage_id=args.simu_stage_id,
-            simu_start=args.simu_start,
-            description="_allreduce_word_embedding_grads",
-            group_kind="ep",
-            trace_start=args.trace_start,
-            current_iter=args.current_iter,
-            args=args
-        )
-        CMD.set_current_cmd(cmd)
-        with cmd: 
+        if can_trace_cmd:
+            cmd = CMD(
+                rank_id=args.simu_rank,
+                mg_state=args.simu_state,
+                name_cmd="ep_allreduce",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.simu_stage_id,
+                simu_start=args.simu_start,
+                description="_allreduce_word_embedding_grads",
+                group_kind="ep",
+                trace_start=args.trace_start,
+                current_iter=args.current_iter,
+                args=args
+            )
+            CMD.set_current_cmd(cmd)
+            with cmd:
+                nvtx.range_push(f"allreduce_word_embedding_grads")
+                _allreduce_word_embedding_grads(model, config)
+                nvtx.range_pop()
+        else:
             nvtx.range_push(f"allreduce_word_embedding_grads")
-            # _allreduce_embedding_grads(model, config)
             _allreduce_word_embedding_grads(model, config)
             nvtx.range_pop()
 
@@ -189,26 +206,30 @@ def finalize_model_grads(model: List[torch.nn.Module], args):
         and parallel_state.get_pipeline_model_parallel_world_size() > 1
         and config.pipeline_model_parallel_split_rank is not None
     ):
-        cmd = CMD(
-            rank_id=args.simu_rank,
-            mg_state=args.simu_state,
-            name_cmd="pep_allreduce",
-            use_cuda=True,
-            stage_operations_trace_dict=args.stage_operations_trace,
-            micro_batch_ids_dict=args.simu_micro_batch_ids,
-            stage_id=args.simu_stage_id,
-            simu_start=args.simu_start,
-            description="_allreduce_position_embedding_grads",
-            group_kind="pep",
-            trace_start=args.trace_start,
-            current_iter=args.current_iter,
-            args=args
-        )
-        with cmd: 
+        if can_trace_cmd:
+            cmd = CMD(
+                rank_id=args.simu_rank,
+                mg_state=args.simu_state,
+                name_cmd="pep_allreduce",
+                use_cuda=True,
+                stage_operations_trace_dict=args.stage_operations_trace,
+                micro_batch_ids_dict=args.simu_micro_batch_ids,
+                stage_id=args.simu_stage_id,
+                simu_start=args.simu_start,
+                description="_allreduce_position_embedding_grads",
+                group_kind="pep",
+                trace_start=args.trace_start,
+                current_iter=args.current_iter,
+                args=args
+            )
+            with cmd:
+                nvtx.range_push(f"allreduce_position_embedding_grads")
+                _allreduce_position_embedding_grads(model, config)
+                nvtx.range_pop()
+        else:
             nvtx.range_push(f"allreduce_position_embedding_grads")
             _allreduce_position_embedding_grads(model, config)
             nvtx.range_pop()
 
     if config.timers is not None:
         config.timers('embedding-grads-all-reduce').stop()
-

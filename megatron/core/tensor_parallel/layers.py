@@ -827,9 +827,10 @@ class ColumnParallelLinear(torch.nn.Module):
         )
 
         self.sequence_parallel = config.sequence_parallel
-        if self.sequence_parallel and world_size <= 1:
+        effective_tp_size = config.fake_tp if config.is_scaling_mode else world_size
+        if self.sequence_parallel and effective_tp_size <= 1:
             warnings.warn(
-                f"`sequence_parallel` is set to `True`, but tensor model parallel size is {world_size}. "
+                f"`sequence_parallel` is set to `True`, but tensor model parallel size is {effective_tp_size}. "
                 f"Disabling sequence parallel."
             )
             self.sequence_parallel = False

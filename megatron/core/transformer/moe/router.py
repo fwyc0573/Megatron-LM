@@ -235,13 +235,14 @@ class TopKRouter(Router):
         # Apply Z-Loss
         logits = self.apply_z_loss(logits)
 
-        if (
-            self.config.tensor_model_parallel_size > 1
-            and self.config.moe_token_dispatcher_type == "alltoall"
-        ):
-            # Gather the logits from the TP region
-            # TODO-YC: Currently, we cannot support SP in scaling mode (so tp must be 1)
-            assert self.config.is_scaling_mode, "SP in scaling mode is not supported (tp should be 1)"
+        tp_size = (
+            self.config.fake_tp
+            if self.config.is_scaling_mode
+            else self.config.tensor_model_parallel_size
+        )
+        if tp_size > 1 and self.config.moe_token_dispatcher_type == "alltoall":
+            # Gather the logits from the TP region. In scaling mode this call
+            # still runs on a single process but keeps trace coverage aligned.
             logits = gather_from_sequence_parallel_region(logits)
         
         if self.routing_type == "sinkhorn":

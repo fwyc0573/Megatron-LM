@@ -471,24 +471,19 @@ def _profiled_all_to_all_single(input_, output_split_sizes, input_split_sizes, g
     The decorator handles timing and attribute extraction.
     In scaling mode, it creates an empty tensor to simulate the communication buffer.
     """
-    # In scaling mode, keep tensor values numerically stable while still emulating
-    # the destination buffer shape. Returning uninitialized memory can inject random
-    # values into expert MLP and distort forward/backward timing in later iterations.
+    # In scaling mode we must not execute real communication work. Keep this path
+    # metadata-only and avoid data movement that would pollute compute timing.
     if is_scaling_mode:
         if output_split_sizes is None:
-            output = input_.clone()
-        else:
-            output_rows = int(sum(output_split_sizes))
-            output = input_.new_empty(
-                size=[output_rows] + list(input_.size()[1:]),
-                dtype=input_.dtype,
-                device=torch.cuda.current_device(),
-            )
-            output.zero_()
-            rows_to_copy = min(output_rows, input_.size(0))
-            if rows_to_copy > 0:
-                output[:rows_to_copy].copy_(input_[:rows_to_copy])
-        return output
+            return input_
+        output_rows = int(sum(output_split_sizes))
+        if output_rows == int(input_.size(0)):
+            return input_
+        return input_.new_empty(
+            size=[output_rows] + list(input_.size()[1:]),
+            dtype=input_.dtype,
+            device=torch.cuda.current_device(),
+        )
 
     if output_split_sizes is None:
         output = torch.empty_like(input_)
