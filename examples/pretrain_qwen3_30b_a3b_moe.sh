@@ -34,9 +34,12 @@ TRANSFORMER_IMPL=${TRANSFORMER_IMPL:-transformer_engine}
 TRACE_START=${TRACE_START:-1}
 TRAIN_ITERS=${TRAIN_ITERS:-3}
 TRACE_SUBOP_SYNC_MODE=${TRACE_SUBOP_SYNC_MODE:-global}
+TRACE_KERNEL_GROUND_TRUTH=${TRACE_KERNEL_GROUND_TRUTH:-0}
+TRACE_KERNEL_GROUND_TRUTH_PREFIX=${TRACE_KERNEL_GROUND_TRUTH_PREFIX:-cmd_trace}
 DO_TRACE=${DO_TRACE:-True}
 LR=${LR:-1.2e-4}
 MIN_LR=${MIN_LR:-1.2e-5}
+MOE_TOKEN_DISPATCHER_TYPE=${MOE_TOKEN_DISPATCHER_TYPE:-alltoall}
 
 NNODES=${NNODES:-1}
 GPUS_PER_NODE=${GPUS_PER_NODE:-8}
@@ -94,6 +97,10 @@ TRACE_ARGS=(
   --trace-start "${TRACE_START}"
   --trace-subop-sync-mode "${TRACE_SUBOP_SYNC_MODE}"
 )
+if [[ "${TRACE_KERNEL_GROUND_TRUTH}" == "1" ]]; then
+  TRACE_ARGS+=(--trace-kernel-ground-truth)
+  TRACE_ARGS+=(--trace-kernel-ground-truth-prefix "${TRACE_KERNEL_GROUND_TRUTH_PREFIX}")
+fi
 
 COMMON_ARGS=(
   --use-mcore-models
@@ -130,7 +137,7 @@ COMMON_ARGS=(
   --moe-router-topk "${MOE_ROUTER_TOPK}"
   --moe-grouped-gemm
   --moe-aux-loss-coeff 1e-3
-  --moe-token-dispatcher-type alltoall
+  --moe-token-dispatcher-type "${MOE_TOKEN_DISPATCHER_TYPE}"
   --seq-length "${SEQ_LEN}"
   --micro-batch-size "${MICRO_BATCH_SIZE}"
   --global-batch-size "${GLOBAL_BATCH_SIZE}"

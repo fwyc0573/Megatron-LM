@@ -98,6 +98,32 @@ class TestTraining:
             with pytest.raises(SystemExit):
                 parse_args(ignore_unknown_args=False)
 
+    def test_trace_kernel_ground_truth_defaults(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.trace_kernel_ground_truth is False
+        assert args.trace_kernel_ground_truth_prefix == "cmd_trace"
+
+    def test_trace_kernel_ground_truth_args(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--trace-kernel-ground-truth",
+            "--trace-kernel-ground-truth-prefix", "cmd_gt",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.trace_kernel_ground_truth is True
+        assert args.trace_kernel_ground_truth_prefix == "cmd_gt"
+
     def test_core_transformer_config_injects_new_fields(self):
         args = SimpleNamespace(
             # Dataclass fields used in this test.

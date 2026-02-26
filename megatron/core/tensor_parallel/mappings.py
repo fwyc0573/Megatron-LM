@@ -613,10 +613,21 @@ def reduce_scatter_to_sequence_parallel_region(input_):
     return _ReduceScatterToSequenceParallelRegion.apply(input_)
 
 
-def gather_from_sequence_parallel_region_to_moe(input_):
+@CMD.get_trace_decorator(
+    attrs={"input_": ["shape", "dtype"]},
+    group_type="exp",
+    comm_func="allgather",
+)
+def gather_from_sequence_parallel_region_to_moe(input_, use_global_buffer=False):
+    del use_global_buffer
     return _GatherFromSequenceParallelRegionToMOE.apply(input_)
 
 
+@CMD.get_trace_decorator(
+    attrs={"input_": ["shape", "dtype"]},
+    group_type="exp",
+    comm_func="reduce_scatter",
+)
 def reduce_scatter_to_sequence_parallel_region_from_moe(input_):
     return _ReduceScatterToSequenceParallelRegionFromMOE.apply(input_)
 

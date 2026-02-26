@@ -43,6 +43,7 @@
 """
 import time
 import torch
+import torch.cuda.nvtx as nvtx
 import os
 import uuid
 import threading
@@ -101,6 +102,8 @@ class CMD:
         self.micro_batch_ids_dict = micro_batch_ids_dict
         self.args = args
         self.sub_operations = []
+        self._nvtx_range_pushed = False
+        self._nvtx_label = None
         
         # Track if this CMD is the current global command
         self._is_current_cmd = False
@@ -117,6 +120,46 @@ class CMD:
             raise ValueError(f"input__shape type error: {input__shape}")
 
         self.input__dtype = input__dtype
+
+    def _is_kernel_ground_truth_enabled(self):
+        """Whether CMD-level NVTX ranges should be emitted."""
+        return bool(
+            self.use_cuda
+            and self.args is not None
+            and getattr(self.args, "trace_kernel_ground_truth", False)
+        )
+
+    def _build_kernel_ground_truth_nvtx_label(self):
+        """Build stable NVTX label for kernel-level ground-truth analysis."""
+        if self.args is None:
+            return None
+        label_prefix = getattr(self.args, "trace_kernel_ground_truth_prefix", "cmd_trace")
+        if label_prefix is None:
+            label_prefix = "cmd_trace"
+        rank = getattr(self, "rank_id", "None")
+        stage_id = getattr(self, "stage_id", "None")
+        batch_id = getattr(self, "batch_id", "None")
+        current_iter = getattr(self, "current_iter", "None")
+        mg_state = getattr(self, "mg_state", "None")
+        return (
+            f"{label_prefix}|rank={rank}|op={self.name_cmd}|state={mg_state}|"
+            f"stage={stage_id}|batch={batch_id}|iter={current_iter}"
+        )
+
+    def _push_kernel_ground_truth_nvtx(self):
+        """Push CMD-level NVTX range when kernel ground-truth mode is enabled."""
+        if not self._is_kernel_ground_truth_enabled():
+            return
+        self._nvtx_label = self._build_kernel_ground_truth_nvtx_label()
+        nvtx.range_push(self._nvtx_label)
+        self._nvtx_range_pushed = True
+
+    def _pop_kernel_ground_truth_nvtx(self):
+        """Pop CMD-level NVTX range if pushed."""
+        if not self._nvtx_range_pushed:
+            return
+        nvtx.range_pop()
+        self._nvtx_range_pushed = False
 
     def no_trace_update(self, duration, timestamp):
         """Update CMD with duration and timestamp without tracing"""
@@ -147,6 +190,7 @@ class CMD:
                 self.start_event = torch.cuda.Event(enable_timing=True)
                 self.stop_event = torch.cuda.Event(enable_timing=True)
                 self.start_event.record()
+                self._push_kernel_ground_truth_nvtx()
             else:
                 self.start_time = time.perf_counter()
         except Exception as e:
@@ -160,6 +204,7 @@ class CMD:
             return
 
         try:
+            self._pop_kernel_ground_truth_nvtx()
             if self.use_cuda:
                 if self.stop_event is not None:
                     self.stop_event.record()
@@ -189,6 +234,8 @@ class CMD:
         except Exception as e:
             print(f"Warning: Failed to stop timing for {self.name_cmd}: {e}")
         finally:
+            # Exception path may skip normal pop flow.
+            self._pop_kernel_ground_truth_nvtx()
             # Ensure cleanup always happens
             if self._is_current_cmd:
                 self.reset_current_cmd()

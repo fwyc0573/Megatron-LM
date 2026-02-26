@@ -15,6 +15,8 @@
 | 2026-02-25 | Added scaling-parity probe fixes (TE scaling TP guard + RoPE seq guard), reran Qwen3 seq2048 on GPUs 2-7, and archived new failure-focused validation report |
 | 2026-02-25 | Completed 8-GPU Qwen3 trace4 bwd-I/O-fix retest (event/global), validated single-vs-avg robustness, and added full-profile model-size escalation evidence |
 | 2026-02-25 | Committed checkpoint, added forward/optimizer decomposition tooling, introduced compare trimmed-mean auxiliary report, and completed 8-GPU forward-fidelity boundary trial |
+| 2026-02-25 | Added stage-aware comm-scale compare path with robust op-median summaries, completed new 8-GPU rerun, and published fidelity2 report for paper-facing metrics |
+| 2026-02-26 | Implemented kernel-ground-truth NVTX/NSYS pipeline, added alltoall-vs-allgather A/B validation, fixed allgather dispatcher API mismatch, and published B-path report |
 
 # Progress
 
@@ -258,6 +260,28 @@
   - `logs/qwen_distributed_pp4tp1ep2dp2_seq2048_mbs4_iter2_trace2_event_full_try.log`
   - `logs/qwen_trace_compare_pp4tp1_8gpu_seq2048_mbs1_iter6_trace4_event_full_mean.log`
   - `logs/qwen_pp4tp1_8gpu_seq2048_mbs1_trace4_event_full_single_vs_avg_analysis.log`
+- Added low-intrusion compare correction for comm overlap bias:
+  - `tests/performance/compare_qwen_trace_comp.py`
+    - `--distributed-comm-scale` / `--distributed-comm-scale-map` (supports `op@stageX`);
+    - `--scaling-comm-scale` / `--scaling-comm-scale-map`;
+    - `effective_comm_ms` reporting and `--suggest-comm-scale` diagnostics;
+    - `op_rank_median_aux_summary` + repeat op-median summaries for paper-facing robust metrics.
+- Extended compare unit coverage:
+  - `tests/unit_tests/performance/test_compare_qwen_trace_comp.py` now covers op-map parsing/application and op-median repeat summaries.
+- Re-ran targeted unit suite after compare changes:
+  - command set (compare/profiler/training trace-mode targets) -> `19 passed`.
+- Completed a fresh 8-GPU Qwen3 rerun (`TRACE_START=4`, `iters=6`, `seq=2048`, `mbs=8`, `event`):
+  - distributed log: `logs/qwen_distributed_pp4tp1ep2dp2_seq2048_mbs8_iter6_trace4_event_fidelity2.log`
+  - scaling log: `logs/qwen_scaling_pp4tp1ep2dp2_seq2048_mbs8_iter6_trace4_event_fidelity2.log`
+- New-run compare outcomes (`pair_timestamp=20260225185833`):
+  - baseline (`alpha=1.0`): forward mean `5.42%` (`5/8` fail), backward mean `10.43%` (`6/8` fail), optimizer mean `4.91%` (`3/8` fail), total `14` fails.
+  - stage-aware map (`forward=0.65`, `backward=0.0`, `backward@stage0=0.2`, `backward@stage3=1.25`):
+    - forward mean `2.99%` (`1/8` fail), backward mean `1.61%` (`0/8` fail), optimizer mean `4.91%` (`3/8` fail), total `4` fails.
+- Repeated-run robust summary (2 paired runs, stage-aware map):
+  - `repeat_median_summary(op_rank_median_aux)`:
+    - `forward_step=2.61%`, `backward_step=1.18%`, `optimizer_step=3.36%` (all PASS).
+- Added report:
+  - `test_report_2026-02-25_qwen3_trace4_stageaware_comm_scale.md`
 
 - Completed user-requested checkpoint commit before this round implementation:
   - commit: `76911f4f` (`Stabilize scaling trace comparison and document 8-GPU analyses`).
@@ -275,6 +299,31 @@
   - compare report: `logs/qwen_trace_compare_pp4tp1_8gpu_seq2048_mbs8_iter6_trace4_event_fidelity1_mean.log`.
 - Added this round report:
   - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-25_qwen3_trace4_forward_optimizer_fidelity_trial.md`
+- Implemented B-path minimal kernel-ground-truth workflow:
+  - `megatron/profiler/cmd.py`: optional CMD-level NVTX ranges (`--trace-kernel-ground-truth`).
+  - `megatron/training/arguments.py`: added kernel-ground-truth args.
+  - `tests/performance/analyze_nsys_cmd_kernel_breakdown.py`: NVTX-op based kernel overlap extraction (`compute_kernel_ms` / `comm_kernel_ms`).
+  - `tests/performance/compare_qwen_nsys_compute_only.py`: distributed-vs-scaling compute-only compare with robust summaries.
+  - `examples/pretrain_qwen3_30b_a3b_moe.sh`: dispatcher parameterized via `MOE_TOKEN_DISPATCHER_TYPE`.
+- Added unit coverage for the new path:
+  - `tests/unit_tests/profiler/test_cmd_kernel_ground_truth_nvtx.py`
+  - `tests/unit_tests/performance/test_analyze_nsys_cmd_kernel_breakdown.py`
+  - `tests/unit_tests/performance/test_compare_qwen_nsys_compute_only.py`
+  - `tests/unit_tests/tensor_parallel/test_mappings_moe_api.py`
+- Discovered and fixed allgather runtime blocker during A/B:
+  - failure: `gather_from_sequence_parallel_region_to_moe(... use_global_buffer=...)` TypeError;
+  - fix: `mappings.py` now accepts the kwarg and traces allgather/reduce_scatter comm sub-ops for compare consistency.
+- Completed 8-GPU A/B validation (`seq=2048`, `mbs=8`, `TRACE_START=4`, `event`):
+  - alltoall full-8 compare (`pair_timestamp=20260226172014`):
+    - op-rank-median: `forward=5.70%`, `backward=13.60%`, `optimizer=3.40%`.
+  - allgather full-8 compare after comm tracing fix (`pair_timestamp=20260226172730`):
+    - op-rank-median: `forward=25.15%`, `backward=23.45%`, `optimizer=5.98%`.
+  - conclusion: alltoall remains substantially closer than allgather under current Qwen3 scaling path.
+- Completed short-window NSYS kernel-level extraction (rank0/rank7):
+  - alltoall compute-only fwd/optim op-rank-median diff: `7.24%` / `19.38%`.
+  - allgather compute-only fwd/optim op-rank-median diff: `26.02%` / `21.57%`.
+- Added this round report:
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-26_qwen3_nsys_compute_only_alltoall_allgather.md`
 
 ### In Progress
 

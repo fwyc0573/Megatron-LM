@@ -1729,6 +1729,20 @@ def _add_trace_args(parser):
             '"event" uses stop_event.synchronize() to reduce global pipeline drain.'
         ),
     )
+    group.add_argument(
+        '--trace-kernel-ground-truth',
+        action='store_true',
+        help=(
+            'Emit CMD-level NVTX ranges for short-window kernel ground-truth extraction '
+            '(used by Nsight Systems post-analysis).'
+        ),
+    )
+    group.add_argument(
+        '--trace-kernel-ground-truth-prefix',
+        type=str,
+        default='cmd_trace',
+        help='NVTX label prefix used when --trace-kernel-ground-truth is enabled.',
+    )
     # 添加 --nsight-start 参数
     group.add_argument('--nsight-start', type=int, default=0,
                        help='The iteration to start Nsight Systems profiling.')

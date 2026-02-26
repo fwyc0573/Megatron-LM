@@ -15,6 +15,8 @@
 | 2026-02-25 | Added scaling-parity probe findings (RoPE mismatch under forced SP), trace-entry count mismatch, and latest high-variance compare evidence |
 | 2026-02-25 | Added 8-GPU trace4 rerun findings after backward I/O timing fix, plus full-profile model-size escalation OOM/alignment evidence |
 | 2026-02-25 | Added forward/optimizer decomposition + compare trimmed-mean auxiliary report findings and minimal forward-fidelity trial outcome |
+| 2026-02-25 | Added stage-aware comm-overlap correction findings, new 8-GPU rerun evidence, and robust op-median metric recommendation |
+| 2026-02-26 | Added kernel-ground-truth NSYS findings, alltoall-vs-allgather A/B results, and allgather comm-path consistency fix status |
 
 # Issues and Risks
 
@@ -211,6 +213,48 @@
      - keep this tweak as diagnostic evidence, not final fix;
      - continue isolating rank2-5 forward path-fidelity differences.
 
+23. **`comp = total - comm` full subtraction can over-correct in overlap-heavy stages**
+   - New 8-GPU rerun (`pair_timestamp=20260225185833`) confirms baseline subtraction still inflates backward mismatch:
+     - forward mean diff `5.42%`, backward mean diff `10.43%`.
+   - Compare-side stage-aware comm-scale correction significantly reduces this:
+     - forward mean diff `2.99%`, backward mean diff `1.61%`.
+   - Impact:
+     - full comm subtraction is no longer a reliable universal estimator for pure comp in all stages.
+   - Mitigation:
+     - use optional comm-scale map (`op`/`op@stage`) in compare for overlap compensation;
+     - keep default behavior unchanged for backward compatibility.
+
+24. **Forward stage0 remains sensitive (rank0 outlier persists under fixed map)**
+   - Under stage-aware map, one forward row (`rank0`) still exceeds threshold in latest run.
+   - Impact:
+     - strict per-rank hard gate remains brittle to stage0 local jitter.
+   - Mitigation:
+   - use repeated paired runs + robust op-level metric (`median_of_run_rank_median_diff_pct`) as paper-facing primary indicator;
+   - keep per-rank table as supplementary diagnostic evidence.
+
+25. **Allgather dispatcher remains high-bias under current scaling path even after comm tracing fix**
+   - 8-GPU rerun (`pair_timestamp=20260226172730`) with allgather comm sub-op tracing enabled shows:
+     - forward op-rank-median diff `25.15%`;
+     - backward op-rank-median diff `23.45%`;
+     - optimizer op-rank-median diff `5.98%`.
+   - Impact:
+     - allgather currently does not satisfy paper-facing alignment target;
+     - using allgather as primary presentation setting would be misleading.
+   - Mitigation:
+     - keep alltoall as main MoE dispatcher for current scaling-vs-realistic evaluation;
+     - treat allgather as controlled negative case until path-fidelity gaps are further reduced.
+
+26. **Kernel-level B口径与trace口径 currently diverge on some ops/stages**
+   - NSYS compute-only compare (rank0/rank7) indicates:
+     - alltoall forward can be close on rank0, but optimizer/backward gaps remain high;
+     - allgather forward/optimizer remain >20%.
+   - Impact:
+     - B口径暂不适合作为唯一 acceptance gate；
+     - still useful for解释 overlap/stream-level timing physics.
+   - Mitigation:
+     - use B口径 as “ground-truth diagnostic view”;
+     - use repeated trace robust metric (`op_rank_median + median_of_runs`) as main reporting indicator.
+
 ## Resolved During Stage-1
 
 - **Scaling backward CMD timing-region pollution by grad-cache I/O** resolved:
@@ -234,6 +278,12 @@
   - default remains `global` for backward compatibility.
 - **Compare latest-file mismatch risk** mitigated:
   - compare script now supports timestamp-cap pairing and repeated-run median summary.
+- **Compare overlap-bias diagnosis/mitigation path** added:
+  - compare now supports optional `comm_scale` and `comm_scale_map` (including `op@stageX`);
+  - reports `effective_comm_ms` and `comm_scale_suggestion` (op + stage-aware) to avoid hidden calibration.
+- **Paper-facing robust metric view** added:
+  - compare now emits `op_rank_median_aux_summary` and repeat op-median summary;
+  - latest two-run evidence shows `forward/backward/optimizer` op-median all within `<=5%`.
 - **Scaling TP>1 hard-block in router/dispatcher path** resolved for current tracing workflow:
   - replaced scaling-unsafe TP assertions with fake-TP-aware handling.
 - **Scaling EP=1 preprocessing crash** resolved:
@@ -242,3 +292,10 @@
   - no-pipeline path now wraps backward with CMD and emits `backward_step` trace records.
 - **6-GPU compare rank hardcoding** resolved:
   - compare script now supports `--ranks` and `--ops` for non-8GPU runs.
+- **Allgather dispatcher API mismatch (`use_global_buffer` kwarg) in tensor-parallel mapping** resolved:
+  - `gather_from_sequence_parallel_region_to_moe` now accepts `use_global_buffer`;
+  - added regression unit test: `tests/unit_tests/tensor_parallel/test_mappings_moe_api.py`.
+- **Kernel-ground-truth extraction capability gap** resolved:
+  - added CMD NVTX switch (`--trace-kernel-ground-truth`) and NSYS post-analysis scripts:
+    - `tests/performance/analyze_nsys_cmd_kernel_breakdown.py`
+    - `tests/performance/compare_qwen_nsys_compute_only.py`.

@@ -27,6 +27,7 @@ LINE_PATTERN = re.compile(r"^rank:(?P<rank>\d+):(?P<op>\w+)\((?P<body>.*)\)$")
 DURATION_PATTERN = re.compile(r"duration=([0-9.]+)")
 SUB_OPS_PATTERN = re.compile(r"sub_operations=(\[.*\])")
 STATE_PATTERN = re.compile(r"mg_state=([^,]+)")
+STAGE_PATTERN = re.compile(r"stage_id=([^,]+)")
 TS_PATTERN = re.compile(r"_rank(?P<rank>\d+)_(?P<ts>\d{14})\.txt$")
 
 
@@ -34,8 +35,10 @@ TS_PATTERN = re.compile(r"_rank(?P<rank>\d+)_(?P<ts>\d{14})\.txt$")
 class OpStats:
     total_ms: float
     comm_ms: float
+    effective_comm_ms: float
     comp_ms: float
     mg_state: str
+    stage_id: str
     sub_op_count: int
 
 
@@ -43,7 +46,9 @@ class OpStats:
 class BucketStats:
     total_ms: float
     comm_ms: float
+    effective_comm_ms: float
     comp_ms: float
+    stage_id: str
     sub_op_count: float
 
 
@@ -91,6 +96,59 @@ def parse_csv_strs(raw: str) -> List[str]:
     return values
 
 
+def parse_op_float_map(raw: str, arg_name: str) -> Dict[str, float]:
+    mapping: Dict[str, float] = {}
+    if not raw.strip():
+        return mapping
+    for token in raw.split(","):
+        item = token.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise ValueError(
+                f"Invalid {arg_name} entry '{item}', expected format op=value."
+            )
+        op, value = item.split("=", 1)
+        op = op.strip()
+        if not op:
+            raise ValueError(f"Invalid {arg_name} entry '{item}', empty op name.")
+        try:
+            numeric_value = float(value)
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid {arg_name} entry '{item}', value is not float."
+            ) from exc
+        if numeric_value < 0.0:
+            raise ValueError(
+                f"Invalid {arg_name} entry '{item}', value must be >= 0."
+            )
+        mapping[op] = numeric_value
+    return mapping
+
+
+def _format_op_float_map(mapping: Dict[str, float]) -> str:
+    if not mapping:
+        return "{}"
+    items = sorted(mapping.items())
+    return "{" + ", ".join(f"{key}:{value:.4f}" for key, value in items) + "}"
+
+
+def _resolve_comm_scale(
+    op: str,
+    stage_id: str,
+    default_scale: float,
+    comm_scale_map: Optional[Dict[str, float]],
+) -> float:
+    if comm_scale_map is None:
+        return default_scale
+    stage_key = f"{op}@stage{stage_id}"
+    if stage_key in comm_scale_map:
+        return comm_scale_map[stage_key]
+    if op in comm_scale_map:
+        return comm_scale_map[op]
+    return default_scale
+
+
 def _extract_timestamp(path: Path) -> Optional[str]:
     match = TS_PATTERN.search(path.name)
     if match is None:
@@ -118,7 +176,12 @@ def find_latest_rank_file(trace_dir: Path, rank: int, pair_timestamp: Optional[s
     return best[1]
 
 
-def parse_trace_file(path: Path, subtract_comm: bool) -> Dict[str, List[OpStats]]:
+def parse_trace_file(
+    path: Path,
+    subtract_comm: bool,
+    comm_scale: float = 1.0,
+    comm_scale_map: Optional[Dict[str, float]] = None,
+) -> Dict[str, List[OpStats]]:
     result: Dict[str, List[OpStats]] = defaultdict(list)
     for raw in path.read_text().splitlines():
         line = raw.strip()
@@ -137,6 +200,8 @@ def parse_trace_file(path: Path, subtract_comm: bool) -> Dict[str, List[OpStats]
         sub_ops = ast.literal_eval(sub_ops_match.group(1))
         state_match = STATE_PATTERN.search(body)
         mg_state = state_match.group(1) if state_match is not None else "None"
+        stage_match = STAGE_PATTERN.search(body)
+        stage_id = stage_match.group(1) if stage_match is not None else "None"
 
         comm_ms = 0.0
         for sub_op in sub_ops:
@@ -146,14 +211,23 @@ def parse_trace_file(path: Path, subtract_comm: bool) -> Dict[str, List[OpStats]
             if sub_duration_match is not None:
                 comm_ms += float(sub_duration_match.group(1))
 
-        comp_ms = total_ms - comm_ms if subtract_comm else total_ms
+        op_comm_scale = _resolve_comm_scale(
+            op=op,
+            stage_id=stage_id,
+            default_scale=comm_scale,
+            comm_scale_map=comm_scale_map,
+        )
+        effective_comm_ms = comm_ms * op_comm_scale
+        comp_ms = total_ms - effective_comm_ms if subtract_comm else total_ms
 
         result[op].append(
             OpStats(
                 total_ms=total_ms,
                 comm_ms=comm_ms,
+                effective_comm_ms=effective_comm_ms,
                 comp_ms=comp_ms,
                 mg_state=mg_state,
+                stage_id=stage_id,
                 sub_op_count=len(sub_ops),
             )
         )
@@ -171,7 +245,11 @@ def aggregate_by_state(
         buckets[state] = BucketStats(
             total_ms=_bucket_reduce([x.total_ms for x in state_stats], trim_ratio),
             comm_ms=_bucket_reduce([x.comm_ms for x in state_stats], trim_ratio),
+            effective_comm_ms=_bucket_reduce(
+                [x.effective_comm_ms for x in state_stats], trim_ratio
+            ),
             comp_ms=_bucket_reduce([x.comp_ms for x in state_stats], trim_ratio),
+            stage_id=state_stats[0].stage_id,
             sub_op_count=_bucket_reduce([x.sub_op_count for x in state_stats], trim_ratio),
         )
     return buckets
@@ -184,10 +262,71 @@ def aggregate_all(
         "ALL": BucketStats(
             total_ms=_bucket_reduce([x.total_ms for x in op_stats], trim_ratio),
             comm_ms=_bucket_reduce([x.comm_ms for x in op_stats], trim_ratio),
+            effective_comm_ms=_bucket_reduce(
+                [x.effective_comm_ms for x in op_stats], trim_ratio
+            ),
             comp_ms=_bucket_reduce([x.comp_ms for x in op_stats], trim_ratio),
+            stage_id=op_stats[0].stage_id,
             sub_op_count=_bucket_reduce([x.sub_op_count for x in op_stats], trim_ratio),
         )
     }
+
+
+def build_comm_scale_suggestion(
+    row_records: List[dict], threshold_pct: float
+) -> List[str]:
+    grouped: Dict[str, List[float]] = defaultdict(list)
+    grouped_stage: Dict[str, List[float]] = defaultdict(list)
+    for row in row_records:
+        dist_comm_ms = row.get("dist_comm_ms", 0.0)
+        if dist_comm_ms <= 0.0:
+            continue
+        numerator = row["dist_total_ms"] - row["scale_comp_ms"]
+        alpha = numerator / dist_comm_ms
+        alpha = max(0.0, min(alpha, 1.0))
+        op_key = row["op"]
+        stage_key = f"{row['op']}@stage{row.get('stage_id', 'None')}"
+        grouped[op_key].append(alpha)
+        grouped_stage[stage_key].append(alpha)
+
+    if not grouped:
+        return ["(empty: no comm sub-op rows available)"]
+
+    lines: List[str] = []
+    lines.append("| op | samples | alpha_p25 | alpha_median | alpha_p75 | median_status |")
+    lines.append("|---|---:|---:|---:|---:|---|")
+    for op in sorted(grouped.keys()):
+        values = sorted(grouped[op])
+        if not values:
+            continue
+        n = len(values)
+        p25 = values[int((n - 1) * 0.25)]
+        med = values[int((n - 1) * 0.5)]
+        p75 = values[int((n - 1) * 0.75)]
+        status = "stable" if (p75 - p25) <= 0.25 else "wide_spread"
+        lines.append(
+            f"| {op} | {n} | {p25:.3f} | {med:.3f} | {p75:.3f} | {status} |"
+        )
+    lines.append("")
+    lines.append("stage-aware breakdown:")
+    lines.append("| op_stage | samples | alpha_p25 | alpha_median | alpha_p75 | median_status |")
+    lines.append("|---|---:|---:|---:|---:|---|")
+    for op_stage in sorted(grouped_stage.keys()):
+        values = sorted(grouped_stage[op_stage])
+        if not values:
+            continue
+        n = len(values)
+        p25 = values[int((n - 1) * 0.25)]
+        med = values[int((n - 1) * 0.5)]
+        p75 = values[int((n - 1) * 0.75)]
+        status = "stable" if (p75 - p25) <= 0.25 else "wide_spread"
+        lines.append(
+            f"| {op_stage} | {n} | {p25:.3f} | {med:.3f} | {p75:.3f} | {status} |"
+        )
+    lines.append(
+        f"note: alpha estimates derived from current rows with threshold={threshold_pct:.2f}%."
+    )
+    return lines
 
 
 def append_repeat_record(repeat_path: Path, record: dict) -> None:
@@ -238,6 +377,54 @@ def build_repeat_summary(
     return lines, failed_checks
 
 
+def build_op_median_summary(
+    row_records: List[dict], threshold_pct: float
+) -> Tuple[List[str], int]:
+    grouped: Dict[str, List[float]] = defaultdict(list)
+    for row in row_records:
+        grouped[row["op"]].append(row["diff_pct"])
+
+    lines: List[str] = []
+    lines.append("| op | rank_samples | rank_median_diff_pct | rank_p75_diff_pct | status |")
+    lines.append("|---|---:|---:|---:|---|")
+    failed = 0
+    for op in sorted(grouped.keys()):
+        values = sorted(grouped[op])
+        n = len(values)
+        med = median(values)
+        p75 = values[int((n - 1) * 0.75)]
+        status = "PASS" if med <= threshold_pct else "FAIL"
+        if status == "FAIL":
+            failed += 1
+        lines.append(f"| {op} | {n} | {med:.2f} | {p75:.2f} | {status} |")
+    return lines, failed
+
+
+def build_repeat_op_median_summary(
+    records: List[dict], threshold_pct: float, row_key: str
+) -> Tuple[List[str], int]:
+    per_run_op_diff: Dict[str, List[float]] = defaultdict(list)
+    for record in records:
+        grouped: Dict[str, List[float]] = defaultdict(list)
+        for row in record.get(row_key, []):
+            grouped[row["op"]].append(row["diff_pct"])
+        for op, values in grouped.items():
+            per_run_op_diff[op].append(median(values))
+
+    lines: List[str] = []
+    lines.append("| op | runs | median_of_run_rank_median_diff_pct | status |")
+    lines.append("|---|---:|---:|---|")
+    failed = 0
+    for op in sorted(per_run_op_diff.keys()):
+        values = per_run_op_diff[op]
+        med = median(values)
+        status = "PASS" if med <= threshold_pct else "FAIL"
+        if status == "FAIL":
+            failed += 1
+        lines.append(f"| {op} | {len(values)} | {med:.2f} | {status} |")
+    return lines, failed
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -266,10 +453,45 @@ def main() -> int:
         help="Subtract comm sub-op duration from distributed total to derive distributed comp.",
     )
     parser.add_argument(
+        "--distributed-comm-scale",
+        type=float,
+        default=1.0,
+        help=(
+            "Global multiplier for distributed comm subtraction. "
+            "Effective formula: dist_comp = total - (comm * scale)."
+        ),
+    )
+    parser.add_argument(
+        "--distributed-comm-scale-map",
+        type=str,
+        default="",
+        help=(
+            "Optional op-specific distributed comm scale overrides, "
+            "format: forward_step=0.6,backward_step=0.0,backward_step@stage3=1.2."
+        ),
+    )
+    parser.add_argument(
         "--scaling-subtract-comm",
         action=argparse.BooleanOptionalAction,
         default=False,
         help="Subtract comm sub-op duration from scaling total to derive scaling comp.",
+    )
+    parser.add_argument(
+        "--scaling-comm-scale",
+        type=float,
+        default=1.0,
+        help=(
+            "Global multiplier for scaling comm subtraction if --scaling-subtract-comm is enabled."
+        ),
+    )
+    parser.add_argument(
+        "--scaling-comm-scale-map",
+        type=str,
+        default="",
+        help=(
+            "Optional op-specific scaling comm scale overrides, "
+            "format: forward_step=1.0,backward_step=1.0,forward_step@stage0=0.8."
+        ),
     )
     parser.add_argument(
         "--pair-timestamp",
@@ -303,6 +525,14 @@ def main() -> int:
             "Primary PASS/FAIL remains mean-based."
         ),
     )
+    parser.add_argument(
+        "--suggest-comm-scale",
+        action="store_true",
+        help=(
+            "Print non-gating alpha suggestions for comm subtraction "
+            "based on current paired rows."
+        ),
+    )
     parser.add_argument("--report-path", type=Path, default=None)
     args = parser.parse_args()
 
@@ -326,6 +556,32 @@ def main() -> int:
     if args.trim_ratio < 0.0 or args.trim_ratio >= 0.5:
         print(f"[ERROR] Invalid --trim-ratio: {args.trim_ratio} (expected 0 <= r < 0.5)")
         return 2
+    if args.distributed_comm_scale < 0.0:
+        print(
+            f"[ERROR] Invalid --distributed-comm-scale: "
+            f"{args.distributed_comm_scale} (expected >= 0)"
+        )
+        return 2
+    if args.scaling_comm_scale < 0.0:
+        print(
+            f"[ERROR] Invalid --scaling-comm-scale: "
+            f"{args.scaling_comm_scale} (expected >= 0)"
+        )
+        return 2
+    try:
+        distributed_comm_scale_map = parse_op_float_map(
+            args.distributed_comm_scale_map, "--distributed-comm-scale-map"
+        )
+    except ValueError as exc:
+        print(f"[ERROR] Invalid --distributed-comm-scale-map: {exc}")
+        return 2
+    try:
+        scaling_comm_scale_map = parse_op_float_map(
+            args.scaling_comm_scale_map, "--scaling-comm-scale-map"
+        )
+    except ValueError as exc:
+        print(f"[ERROR] Invalid --scaling-comm-scale-map: {exc}")
+        return 2
 
     missing_dirs = [str(p) for p in (args.distributed_dir, args.scaling_dir) if not p.exists()]
     if missing_dirs:
@@ -340,11 +596,11 @@ def main() -> int:
 
     header = (
         "| rank | op | mg_state | "
-        "dist_total_ms | dist_comm_ms | dist_comp_ms | dist_subops | "
-        "scale_total_ms | scale_comm_ms | scale_comp_ms | scale_subops | "
+        "dist_total_ms | dist_comm_ms | dist_eff_comm_ms | dist_comp_ms | dist_subops | "
+        "scale_total_ms | scale_comm_ms | scale_eff_comm_ms | scale_comp_ms | scale_subops | "
         "diff_pct | status |"
     )
-    sep = "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"
+    sep = "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"
     rows.append(header)
     rows.append(sep)
     trimmed_rows.append(header)
@@ -357,8 +613,18 @@ def main() -> int:
         scale_file = find_latest_rank_file(
             args.scaling_dir, rank, pair_timestamp=args.pair_timestamp
         )
-        dist_ops = parse_trace_file(dist_file, subtract_comm=args.distributed_subtract_comm)
-        scale_ops = parse_trace_file(scale_file, subtract_comm=args.scaling_subtract_comm)
+        dist_ops = parse_trace_file(
+            dist_file,
+            subtract_comm=args.distributed_subtract_comm,
+            comm_scale=args.distributed_comm_scale,
+            comm_scale_map=distributed_comm_scale_map,
+        )
+        scale_ops = parse_trace_file(
+            scale_file,
+            subtract_comm=args.scaling_subtract_comm,
+            comm_scale=args.scaling_comm_scale,
+            comm_scale_map=scaling_comm_scale_map,
+        )
 
         print(f"[INFO] rank {rank} distributed file: {dist_file}")
         print(f"[INFO] rank {rank} scaling file:     {scale_file}")
@@ -366,10 +632,10 @@ def main() -> int:
         for op in ops:
             if op not in dist_ops or op not in scale_ops:
                 rows.append(
-                    f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (missing op) |"
+                    f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (missing op) |"
                 )
                 trimmed_rows.append(
-                    f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (missing op) |"
+                    f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (missing op) |"
                 )
                 failed_checks += 1
                 continue
@@ -396,10 +662,10 @@ def main() -> int:
 
             if not common_states:
                 rows.append(
-                    f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (no common mg_state) |"
+                    f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (no common mg_state) |"
                 )
                 trimmed_rows.append(
-                    f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (no common mg_state) |"
+                    f"| {rank} | {op} | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | N/A | FAIL (no common mg_state) |"
                 )
                 failed_checks += 1
                 continue
@@ -422,8 +688,8 @@ def main() -> int:
                 rows.append(
                     "| "
                     f"{rank} | {op} | {state} | "
-                    f"{dist_bucket.total_ms:.4f} | {dist_bucket.comm_ms:.4f} | {dist_bucket.comp_ms:.4f} | {dist_bucket.sub_op_count:.2f} | "
-                    f"{scale_bucket.total_ms:.4f} | {scale_bucket.comm_ms:.4f} | {scale_bucket.comp_ms:.4f} | {scale_bucket.sub_op_count:.2f} | "
+                    f"{dist_bucket.total_ms:.4f} | {dist_bucket.comm_ms:.4f} | {dist_bucket.effective_comm_ms:.4f} | {dist_bucket.comp_ms:.4f} | {dist_bucket.sub_op_count:.2f} | "
+                    f"{scale_bucket.total_ms:.4f} | {scale_bucket.comm_ms:.4f} | {scale_bucket.effective_comm_ms:.4f} | {scale_bucket.comp_ms:.4f} | {scale_bucket.sub_op_count:.2f} | "
                     f"{diff_pct:.2f} | {status} |"
                 )
 
@@ -432,12 +698,15 @@ def main() -> int:
                         "rank": rank,
                         "op": op,
                         "mg_state": state,
+                        "stage_id": dist_bucket.stage_id,
                         "dist_total_ms": dist_bucket.total_ms,
                         "dist_comm_ms": dist_bucket.comm_ms,
+                        "dist_effective_comm_ms": dist_bucket.effective_comm_ms,
                         "dist_comp_ms": dist_bucket.comp_ms,
                         "dist_subops": dist_bucket.sub_op_count,
                         "scale_total_ms": scale_bucket.total_ms,
                         "scale_comm_ms": scale_bucket.comm_ms,
+                        "scale_effective_comm_ms": scale_bucket.effective_comm_ms,
                         "scale_comp_ms": scale_bucket.comp_ms,
                         "scale_subops": scale_bucket.sub_op_count,
                         "diff_pct": diff_pct,
@@ -463,8 +732,8 @@ def main() -> int:
                 trimmed_rows.append(
                     "| "
                     f"{rank} | {op} | {state} | "
-                    f"{dist_trimmed_bucket.total_ms:.4f} | {dist_trimmed_bucket.comm_ms:.4f} | {dist_trimmed_bucket.comp_ms:.4f} | {dist_trimmed_bucket.sub_op_count:.2f} | "
-                    f"{scale_trimmed_bucket.total_ms:.4f} | {scale_trimmed_bucket.comm_ms:.4f} | {scale_trimmed_bucket.comp_ms:.4f} | {scale_trimmed_bucket.sub_op_count:.2f} | "
+                    f"{dist_trimmed_bucket.total_ms:.4f} | {dist_trimmed_bucket.comm_ms:.4f} | {dist_trimmed_bucket.effective_comm_ms:.4f} | {dist_trimmed_bucket.comp_ms:.4f} | {dist_trimmed_bucket.sub_op_count:.2f} | "
+                    f"{scale_trimmed_bucket.total_ms:.4f} | {scale_trimmed_bucket.comm_ms:.4f} | {scale_trimmed_bucket.effective_comm_ms:.4f} | {scale_trimmed_bucket.comp_ms:.4f} | {scale_trimmed_bucket.sub_op_count:.2f} | "
                     f"{trimmed_diff_pct:.2f} | {trimmed_status} |"
                 )
                 trimmed_row_records.append(
@@ -472,12 +741,15 @@ def main() -> int:
                         "rank": rank,
                         "op": op,
                         "mg_state": state,
+                        "stage_id": dist_trimmed_bucket.stage_id,
                         "dist_total_ms": dist_trimmed_bucket.total_ms,
                         "dist_comm_ms": dist_trimmed_bucket.comm_ms,
+                        "dist_effective_comm_ms": dist_trimmed_bucket.effective_comm_ms,
                         "dist_comp_ms": dist_trimmed_bucket.comp_ms,
                         "dist_subops": dist_trimmed_bucket.sub_op_count,
                         "scale_total_ms": scale_trimmed_bucket.total_ms,
                         "scale_comm_ms": scale_trimmed_bucket.comm_ms,
+                        "scale_effective_comm_ms": scale_trimmed_bucket.effective_comm_ms,
                         "scale_comp_ms": scale_trimmed_bucket.comp_ms,
                         "scale_subops": scale_trimmed_bucket.sub_op_count,
                         "diff_pct": trimmed_diff_pct,
@@ -492,7 +764,16 @@ def main() -> int:
     report_lines.append(f"ranks={','.join(str(rank) for rank in ranks)}")
     report_lines.append(f"ops={','.join(ops)}")
     report_lines.append(f"distributed_subtract_comm={args.distributed_subtract_comm}")
+    report_lines.append(f"distributed_comm_scale={args.distributed_comm_scale:.4f}")
+    report_lines.append(
+        "distributed_comm_scale_map="
+        f"{_format_op_float_map(distributed_comm_scale_map)}"
+    )
     report_lines.append(f"scaling_subtract_comm={args.scaling_subtract_comm}")
+    report_lines.append(f"scaling_comm_scale={args.scaling_comm_scale:.4f}")
+    report_lines.append(
+        f"scaling_comm_scale_map={_format_op_float_map(scaling_comm_scale_map)}"
+    )
     report_lines.append(f"align_by_state={not args.no_align_by_state}")
     report_lines.append(f"trim_ratio={args.trim_ratio:.4f}")
     report_lines.append(f"pair_timestamp={args.pair_timestamp}")
@@ -502,13 +783,25 @@ def main() -> int:
         f"trimmed_mean_aux_summary(trim_ratio={args.trim_ratio:.4f}, non-gating):"
     )
     report_lines.extend(trimmed_rows)
+    report_lines.append("")
+    report_lines.append("op_rank_median_aux_summary(non-gating, recommended_for_paper):")
+    op_median_lines, _ = build_op_median_summary(row_records, args.threshold_pct)
+    report_lines.extend(op_median_lines)
+    if args.suggest_comm_scale:
+        report_lines.append("")
+        report_lines.append("comm_scale_suggestion(non-gating):")
+        report_lines.extend(build_comm_scale_suggestion(row_records, args.threshold_pct))
 
     if args.repeat_report is not None:
         series_key = (
             f"distributed={args.distributed_dir}|scaling={args.scaling_dir}|"
             f"align={not args.no_align_by_state}|ranks={','.join(str(rank) for rank in ranks)}|"
             f"ops={','.join(ops)}|dist_subtract={args.distributed_subtract_comm}|"
-            f"scale_subtract={args.scaling_subtract_comm}"
+            f"dist_scale={args.distributed_comm_scale:.6f}|"
+            f"dist_scale_map={_format_op_float_map(distributed_comm_scale_map)}|"
+            f"scale_subtract={args.scaling_subtract_comm}|"
+            f"scale_scale={args.scaling_comm_scale:.6f}|"
+            f"scale_scale_map={_format_op_float_map(scaling_comm_scale_map)}"
         )
         run_record = {
             "series_key": series_key,
@@ -529,12 +822,26 @@ def main() -> int:
         repeat_trimmed_lines, _ = build_repeat_summary(
             all_records, args.threshold_pct, row_key="trimmed_rows"
         )
+        repeat_op_median_lines, _ = build_repeat_op_median_summary(
+            all_records, args.threshold_pct, row_key="rows"
+        )
+        repeat_op_median_trimmed_lines, _ = build_repeat_op_median_summary(
+            all_records, args.threshold_pct, row_key="trimmed_rows"
+        )
         report_lines.append("")
         report_lines.append("repeat_median_summary(primary_mean):")
         report_lines.extend(repeat_lines)
         report_lines.append("")
         report_lines.append("repeat_median_summary(trimmed_mean_aux, non-gating):")
         report_lines.extend(repeat_trimmed_lines)
+        report_lines.append("")
+        report_lines.append("repeat_median_summary(op_rank_median_aux, non-gating):")
+        report_lines.extend(repeat_op_median_lines)
+        report_lines.append("")
+        report_lines.append(
+            "repeat_median_summary(op_rank_median_trimmed_aux, non-gating):"
+        )
+        report_lines.extend(repeat_op_median_trimmed_lines)
         if repeat_failed > 0:
             failed_checks += repeat_failed
         print(f"[INFO] Repeat records in current series: {len(all_records)}")
