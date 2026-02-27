@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Added stage-2 protocolfix8 fidelity notes and optimizer semantic-touching proposal (design-only, pending user confirmation) |
 | 2026-02-27 | Added stage-2 round5 replay-cache iteration-alignment design notes and latest fidelity status |
 | 2026-02-24 | Added architecture comparison, gap analysis, stage-1 simplifications, and stage-2 backlog |
 | 2026-02-27 | Added stage-2 (DeepSeek-V3 architecture standard) detailed spec mapping to upstream YAML, plus environment constraints (TE=1.3.0) and implementation decisions |
@@ -297,3 +298,39 @@ upstream 里 expert bias 的更新通常发生在 global batch 粒度，需要 a
 4. **当前状态更新**
    - round5 已修复一个明确的 replay 时序对齐缺陷；
    - 但 stage-2 `<=5%` 目标仍未满足，主要残余集中在 backward/optimizer，且 distributed run-to-run 波动对结论敏感。
+
+## 9) Stage-2 protocolfix8 + optimizer proposal（2026-02-27, design-only）
+
+1. **non-semantic protocol 执行结果（本轮）**
+   - 已执行固定端口段 + 固定 rank-order + repeated pairing：
+     - 端口段：`9400/9500/9600` 家族；
+     - rank-order：`0,4,1,5,2,6,3,7`（对照 `0..7`）。
+   - 关键结论：
+     - 最优单次：`forward=3.06%`, `backward=7.51%`, `optimizer=5.97%`；
+     - backward 最近门限值：`5.66%`（仍略高于 5%）；
+     - 说明 protocol 对齐已显著缩小误差，但仍未稳定跨过 backward/optimizer 门限。
+
+2. **可能触及 scaling 执行语义的 optimizer 优化提案（仅方案，未改代码）**
+   - 目标：
+     - 继续压缩 `optimizer_step` residual，同时保持 distributed/scaling 语义可对齐，并保留 rank-level comp 可观测性。
+   - 提案名称：**Rank-local optimizer microphase decomposition（trace-only segmentation）**
+   - 核心思路：
+     1. 在 scaling `optimizer_step` 内部增加细粒度 microphase trace（仅记录，不改变计算）：
+        - `optimizer_main_update`（主参数更新）
+        - `optimizer_state_update`（state tensor update）
+        - `optimizer_post_update`（post hooks / grad clear）
+     2. distributed 侧在相同逻辑点增加同名 microphase trace（保持同构），并在 compare 里做 phase-aware 对齐。
+     3. top-level `optimizer_step` 保持原定义，microphase 只用于差异归因和后续等价对齐，不改学习率/梯度/参数更新语义。
+   - 为什么“可能触及语义”：
+     - 尽管目标是 trace-only，但需要在 optimizer hot path 增加额外同步点或 trace 边界，可能改变 kernel launch 排布与 overlap，进而轻微影响 wall-time。
+   - 语义对齐保证（设计约束）：
+     - 不改 optimizer 算法、不改参数更新次序、不改 grad lifecycle；
+     - distributed 与 scaling 同步加点，同名 phase 对齐，避免只改单边；
+     - 默认关闭（通过新 flag 启用），避免影响已有模型默认路径性能。
+   - rank-level comp 表达：
+     - 每个 rank 输出 `optimizer_step` + microphase duration；
+     - compare 输出 phase-level diff 与总和 diff，支持定位“哪个 phase 造成 residual”。
+   - 验证计划（代码变更前先约定）：
+     - 单测：trace 结构完整性（phase 名称、顺序、总和一致性）；
+     - 集成：同一 run_config 下 distributed/scaling 对比；
+     - 门限：先看 `optimizer_step` op-rank-median，再看 phase 归因是否稳定。

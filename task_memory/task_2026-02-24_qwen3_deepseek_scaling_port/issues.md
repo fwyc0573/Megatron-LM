@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Added Issue 36 for protocolfix8 residual fidelity drift after fixed-port/fixed-order repeated pairing; updated Serena availability note to intermittent |
 | 2026-02-27 | Added Issue 35 for stage-2 residual fidelity risks after iter-replay alignment fix |
 | 2026-02-24 | Added stage-1 blockers/risks and mitigation notes |
 | 2026-02-24 | Added validation-time findings (scaling NaN router scores and unit-test harness constraints) |
@@ -308,8 +309,9 @@
    - expert bias update integration risk:
      - Needs a clear update point (e.g., `finalize_model_grads`) with correct allreduce group;
        scaling mode must remain safe with world_size=1.
-   - MCP `serena` retrieval is unavailable in this environment (resources list is empty):
-     - Repo exploration relies on local `rg`/file inspection only.
+  - MCP `serena` availability is intermittent in this environment:
+    - some sessions return handshake timeout / empty resources;
+    - later retries can succeed for project activation and symbolic tools.
 
 31. **Stage-2 distributed smoke blocker (`PP=2, EP=2, bf16`) — forward loss NaN on ranks 4..7**
    - Evidence:
@@ -425,8 +427,29 @@
      - one confirmed fidelity bug is fixed, but dominant residual error remains;
      - distributed baseline run-to-run drift is now large enough to materially affect pass/fail conclusions.
    - Proposed next mitigation:
-     - stabilize comparison protocol with repeated paired runs + robust aggregation as gating input;
-     - isolate optimizer residual via focused per-rank repeated profiling (fixed GPU, fixed rank order, controlled port window) before considering runtime-semantic changes.
+   - stabilize comparison protocol with repeated paired runs + robust aggregation as gating input;
+   - isolate optimizer residual via focused per-rank repeated profiling (fixed GPU, fixed rank order, controlled port window) before considering runtime-semantic changes.
+
+36. **Protocolfix8 residual drift after fixed-port/fixed-order repeated pairing (non-semantic protocol already saturated)**
+   - Newly executed protocol family (`round6/7/8`) enforced:
+     - fixed high port ranges,
+     - fixed fake rank order,
+     - explicit pairset construction against fixed distributed baseline (`20260227145522`),
+     - repeated run evidence archived.
+   - Best current single-run in this family:
+     - `logs/deepseek_v3_stage2_compare_trace4_iter6_protocolfix7_run1_vs_dist145522_subtract.log`
+     - `forward=3.06%` (PASS), `backward=7.51%` (FAIL), `optimizer=5.97%` (FAIL).
+   - Closest backward run:
+     - `logs/deepseek_v3_stage2_compare_trace4_iter6_protocolfix8_interleave_w1_run1_vs_dist145522_subtract.log`
+     - `backward=5.66%` (near-threshold FAIL), but `forward=10.99%` regressed.
+   - Repeat aggregation evidence (3-run protocolfix6 series):
+     - median-of-runs: `forward=8.48%`, `backward=15.02%`, `optimizer=6.69%` (all FAIL).
+   - Risk assessment:
+     - non-semantic protocol alignment knobs (ports/order/pairing/repeat) improve interpretability but cannot stably push `backward_step` below 5%;
+     - residual error is concentrated on steady-state stage1 ranks (notably rank4/rank6), with run-to-run drift still material.
+   - Mitigation:
+     - keep current protocol as baseline evidence path;
+     - before any runtime-semantics change, provide design proposal and obtain explicit user approval.
 
 ## Resolved During Stage-1
 

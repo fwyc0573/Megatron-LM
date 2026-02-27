@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Added stage-2 protocolfix8 repeated-pairing execution (fixed ports/rank-order), archived single+aggregate fidelity evidence, and documented residual backward/optimizer gaps |
 | 2026-02-27 | Added stage-2 round5 iteration-indexed replay-cache alignment implementation and validation evidence |
 | 2026-02-24 | Recorded stage-1 implementation progress and checkpoints |
 | 2026-02-24 | Completed stage-1 validation matrix and captured trace-alignment evidence |
@@ -123,6 +124,27 @@
     - subtract-comm: `forward_step` median `4.23%` (PASS), `backward_step` median `14.18%` (FAIL), `optimizer_step` median `7.57%` (FAIL).
     - no-subtract: `forward_step` median `14.80%` (FAIL), `backward_step` median `17.53%` (FAIL), `optimizer_step` median `7.57%` (FAIL).
   - round5 report: `test_report_2026-02-27_stage2_fidelity_round5_iter_replay_alignment.md`
+
+- Continued stage-2 fidelity protocol alignment (round6/7/8, non-semantic execution protocol only):
+  - Run pre-check:
+    - `nvidia-smi` confirmed all 8 GPUs had `SM=0%`.
+    - Serena call retried successfully (`list_mcp_resources`, project activation via `mcp__serena__activate_project`).
+  - Fixed-protocol execution:
+    - fixed port segments (`9400/9500/9600` families),
+    - fixed fake rank orders (`0,4,1,5,2,6,3,7` and `0..7`),
+    - repeated pairing using explicit pairset directories against fixed distributed baseline (`dist ts=20260227145522`).
+  - New compare evidence highlights:
+    - single-run best in current round:
+      - `logs/deepseek_v3_stage2_compare_trace4_iter6_protocolfix7_run1_vs_dist145522_subtract.log`
+      - `forward_step=3.06%` (PASS), `backward_step=7.51%` (FAIL), `optimizer_step=5.97%` (FAIL).
+    - closest backward run:
+      - `logs/deepseek_v3_stage2_compare_trace4_iter6_protocolfix8_interleave_w1_run1_vs_dist145522_subtract.log`
+      - `backward_step=5.66%` (near-threshold FAIL), but forward regressed (`10.99%`).
+  - Repeat aggregation evidence:
+    - historical repeat JSONL (3 runs): `logs/deepseek_v3_stage2_repeat_fidelityfix6_subtract.jsonl`
+    - median-of-runs (op-rank-median): forward `8.48%`, backward `15.02%`, optimizer `6.69%` (all FAIL).
+  - New report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-27_stage2_protocolfix8_repeat_report.md`
 
 ## 2026-02-24
 
