@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Added Issue 35 for stage-2 residual fidelity risks after iter-replay alignment fix |
 | 2026-02-24 | Added stage-1 blockers/risks and mitigation notes |
 | 2026-02-24 | Added validation-time findings (scaling NaN router scores and unit-test harness constraints) |
 | 2026-02-24 | Updated with NaN timing-impact conclusion and router test-path fixes |
@@ -17,6 +18,13 @@
 | 2026-02-25 | Added forward/optimizer decomposition + compare trimmed-mean auxiliary report findings and minimal forward-fidelity trial outcome |
 | 2026-02-25 | Added stage-aware comm-overlap correction findings, new 8-GPU rerun evidence, and robust op-median metric recommendation |
 | 2026-02-26 | Added kernel-ground-truth NSYS findings, alltoall-vs-allgather A/B results, and allgather comm-path consistency fix status |
+| 2026-02-26 | Added Issue1/Issue2 deep-debug findings: NSYS kernel-set/stream mismatch evidence and before/after profiler verdict |
+| 2026-02-26 | Added NSYS semantics-fix findings: shared-primary metric improvement and residual mismatch status |
+| 2026-02-27 | Added stage-2 (DeepSeek-V3 architecture standard) risks: TE version mismatch, SDPA mask semantics, fixed-routing parity, expert-bias update integration, MCP serena unavailable |
+| 2026-02-27 | Added stage-2 execution findings: distributed PP2 bf16 NaN blocker, PP1 diagnostic pass, and grouped-gemm/fp32 diagnostic behavior |
+| 2026-02-27 | Updated stage-2 risk status: PP2 bf16 NaN blocker resolved via MLA-only p2p dtype alignment + sigmoid finite normalization; added post-fix fidelity gap risk |
+| 2026-02-27 | Added stage-2 fidelity round3 residual risk after timing-boundary alignment (`trace_cmd_sync_mode` default rollback + scaling optimizer prefetch boundary parity) |
+| 2026-02-27 | Added stage-2 fidelity round4 residual risk after scaling optimizer pre-CMD side-effect parity (`numel` pre-scan) and refreshed distributed/scaling pair runs |
 
 # Issues and Risks
 
@@ -254,6 +262,171 @@
    - Mitigation:
      - use B口径 as “ground-truth diagnostic view”;
      - use repeated trace robust metric (`op_rank_median + median_of_runs`) as main reporting indicator.
+
+27. **Current NSYS compute-only extractor can amplify distributed-vs-scaling gap under stream overlap**
+   - Evidence (`qwen_issue1_nsys_ratio_overview.log`): distributed backward windows can have `total_kernel_ms / wall_ms > 1.0` (e.g., alltoall rank0 backward `1.036`, rank7 backward `1.012`).
+   - Mechanism: `analyze_nsys_cmd_kernel_breakdown.py` sums overlapped durations per kernel; under multi-stream overlap this is not timeline-union time.
+   - Impact:
+     - NSYS compute-only result can look worse than trace-level robust results;
+     - this path is good for physics diagnosis, but not a standalone acceptance metric.
+   - Mitigation:
+     - keep NSYS as auxiliary diagnostic view;
+     - add a non-gating timeline-union/de-dup summary for robustness.
+
+28. **Issue2 verdict: profiler code changes are not the dominant source, but large-op (>300ms) validation is still infra-blocked**
+   - Before/after evidence (`c3a77a33` vs `0094c239`): op-rank-median stays in same range (forward/optimizer high, backward low), no clear regression signature.
+   - Large-workload blockers:
+     - seq4096 attempts frequently OOM on shared GPUs;
+     - one TP2+seq4096 path hit routing gather shape mismatch (`[4096,8]` vs `[2048,128]`).
+   - Impact:
+     - cannot reliably run the requested >=300ms single-op validation in current shared window.
+   - Mitigation:
+     - continue with stable full-profile config (`seq2048, mbs1, pp4/tp1/ep2/dp2`) for iterative diagnosis;
+     - schedule dedicated non-contention GPU window before claiming final large-op conclusions.
+
+29. **NSYS semantic-fix metric improves bias but does not fully close all gaps**
+   - New metric mode (`compute-metric=primary_stream_union`, `kernel-scope=shared`, `shared-kernel-source=primary_stream`) reduces major outliers:
+     - alltoall rank7 total diff: `61.88% -> 14.27%`;
+     - allgather rank7 total diff: `26.00% -> 18.62%`.
+   - Residual gaps remain (notably alltoall rank0 total ~`35%`, allgather forward still ~`26%`).
+   - Impact:
+     - pure statistics fix is necessary but insufficient;
+     - residual workload-path mismatch still dominates some op/stage combinations.
+   - Mitigation:
+     - keep semantic-fix metric as NSYS primary view;
+     - continue targeted fidelity alignment on remaining hotspots.
+
+30. **Stage-2 DeepSeek-V3 architecture standard bring-up risks**
+   - Transformer Engine version is 1.3.0 in this environment:
+     - Cannot use upstream TE>=2.6 fused MLA/router paths.
+     - Must implement MLA core via PyTorch SDPA and router semantics via torch ops.
+   - SDPA attention mask boolean semantics mismatch risk:
+     - Megatron mask uses `True=masked`, SDPA uses `True=allowed`; must invert explicitly.
+   - Fixed-routing parity risk (fork-specific):
+     - `config.pre_fixed_routing_results` path must share the exact same router semantics
+       (sigmoid/group-limited/topk scaling/seq_aux_loss) to avoid distributed vs scaling divergence.
+   - expert bias update integration risk:
+     - Needs a clear update point (e.g., `finalize_model_grads`) with correct allreduce group;
+       scaling mode must remain safe with world_size=1.
+   - MCP `serena` retrieval is unavailable in this environment (resources list is empty):
+     - Repo exploration relies on local `rg`/file inspection only.
+
+31. **Stage-2 distributed smoke blocker (`PP=2, EP=2, bf16`) — forward loss NaN on ranks 4..7**
+   - Evidence:
+     - `MODE=distributed MODEL_PROFILE=smoke GPUS_PER_NODE=8 TRACE_START=1 TRAIN_ITERS=3 bash examples/pretrain_deepseek_v3_moe.sh`
+     - error: `AssertionError: Rank 7/6/5/4: found NaN in local forward loss calculation`.
+     - logs:
+       - `logs/deepseek_v3_stage2_dist_smoke_iter3.log`
+       - `logs/deepseek_v3_stage2_dist_smoke_iter3_gate.log`
+       - `logs/deepseek_v3_stage2_dist_smoke_iter3_gate0.log`
+   - Additional isolation:
+     - `PP=1, EP=1` runs distributed+scaling successfully (trace rank0..7 complete):
+       - `logs/deepseek_v3_stage2_dist_smoke_pp1_ep1_iter3_gate.log`
+       - `logs/deepseek_v3_stage2_scaling_smoke_pp1_ep1_iter3_gate.log`
+     - `MOE_SHARED_EXPERT_GATE=0` does **not** remove NaN under `PP=2`.
+     - `MOE_GROUPED_GEMM=0, USE_BF16=0` removes NaN but run exits with `SIGABRT`/`double free` after training.
+   - Historical impact (before round2 fix):
+     - Stage-2 Gate A for architecture-standard distributed smoke under `PP=2` was blocked.
+     - compare/accuracy reporting for the target config could not proceed.
+   - Historical mitigation path:
+     - keep architecture-standard path unchanged by default;
+     - use `PP=1,EP=1` only as diagnostic baseline;
+     - perform focused PP+bfloat16 root-cause debugging.
+
+   - **Status update (2026-02-27, round2): RESOLVED**
+     - Root cause narrowed to MLA bf16 pipeline forward p2p path (last PP stage receives non-finite activation).
+     - Fix:
+       - `megatron/core/pipeline_parallel/p2p_communication.py`:
+         - align forward send tensor dtype to `pipeline_dtype` in `send_forward*` paths.
+         - guarded by `config.multi_latent_attention=True` to avoid changing existing non-MLA model behavior.
+       - `megatron/core/transformer/moe/moe_utils.py` + `router.py`:
+         - fp32-safe sigmoid score normalization with denominator clamp to remove `0/0` edge-case risk.
+     - Post-fix evidence:
+       - target distributed smoke PASS:
+         - `MODE=distributed MODEL_PROFILE=smoke GPUS_PER_NODE=8 TRACE_START=1 TRAIN_ITERS=3`
+         - log: `logs/deepseek_v3_stage2_dist_smoke_iter3_after_fix.log`
+       - target scaling smoke PASS:
+         - `MODE=scaling MODEL_PROFILE=smoke TRACE_START=1 TRAIN_ITERS=3`
+         - log: `logs/deepseek_v3_stage2_scaling_smoke_iter3_after_fix.log`
+       - trace rank coverage complete (`0..7`) in both run_config dirs.
+
+32. **Stage-2 fidelity gap remains high after smoke-stability fix**
+   - Evidence:
+     - compare run (same target run_config pair with timestamp pairing):
+       - `python tests/performance/compare_qwen_trace_comp.py ... --pair-timestamp 20260227111506`
+       - report: `logs/deepseek_v3_stage2_compare_pp2_ep2_after_fix.log`
+     - op-rank median diff remains high:
+       - `forward_step ~94.85%`
+       - `backward_step ~92.98%`
+       - `optimizer_step ~38.75%`
+   - Impact:
+     - Stage-2 “架构标准双模式跑通 + trace落盘”已满足；
+     - 但 paper-facing `<=5%` fidelity objective still not met for this config.
+   - Mitigation in progress:
+     - continue non-gating fidelity diagnosis under stable run baseline;
+     - prioritize state/phase alignment and sub-op accounting parity checks.
+
+33. **Stage-2 fidelity residual persists after round3 timing-boundary alignment**
+   - Round3 changes already applied:
+     - `examples/pretrain_deepseek_v3_moe.sh`: default `TRACE_CMD_SYNC_MODE` reverted to `global` (event outlier mitigation).
+     - `megatron/training/training.py`: scaling-path optimizer prefetch (`get_parameters` / `get_main_grads_for_grad_norm`) moved outside traced `optimizer_step` CMD to mirror distributed `train_step` boundary.
+   - Fresh paired evidence (`trace4/iters6`, rank `0..7`):
+     - `pair=20260227141611`, `distributed_subtract_comm=True`:
+       - `forward_step` median `3.83%` (PASS), `backward_step` median `11.09%` (FAIL), `optimizer_step` median `7.84%` (FAIL).
+     - `pair=20260227141950`, `distributed_subtract_comm=True`:
+       - `forward_step` median `7.58%` (FAIL), `backward_step` median `9.86%` (FAIL), `optimizer_step` median `10.54%` (FAIL).
+   - Root-cause status:
+     - backward comp still depends strongly on distributed comm subtraction policy (`alpha` spread wide; stage/run sensitive), indicating top-level/sub-op decomposition is not yet stable for backward pure-compute isolation.
+     - optimizer_step remains systematically higher in scaling (typically `+8%` to `+12%` median on stable pairs), consistent with residual sequential single-GPU replay/state effects beyond a single CMD-boundary mismatch.
+   - Impact:
+     - stage-2 runability + trace artifact gates remain satisfied;
+     - paper-facing `<=5%` fidelity is still not reached for backward/optimizer in target config.
+   - Mitigation options (pending explicit decision):
+     - evaluation-side: introduce optional stage-aware backward subtraction mode in compare script (default unchanged).
+     - runtime-side: deeper scaling executor alignment experiments that may alter scaling execution semantics (must obtain user confirmation before applying).
+
+34. **Stage-2 fidelity residual persists after round4 optimizer pre-work parity**
+   - Round4 change:
+     - scaling `_prepare_scaling_optimizer_step(...)` now mirrors distributed pre-CMD side effects (`numel` pre-scan on params/grads).
+   - Improved evidence:
+     - rank0 optimizer paired diff reduced from `12.76%` to `6.02%` (same distributed baseline family).
+   - Latest full-pair evidence (`distributed ts=20260227145522`, interleaved two-pass scaling):
+     - `forward_step` rank median `4.02%` (PASS)
+     - `backward_step` rank median `5.11%` (FAIL, near threshold)
+     - `optimizer_step` rank median `7.68%` (FAIL)
+   - Additional execution risk observed:
+     - scaling sequential rank loop can hit `Address already in use` when base `MASTER_PORT` overlaps existing jobs.
+   - Impact:
+     - stage-2 runability/trace gates remain green, but paper-facing `<=5%` target is still not fully met.
+   - Mitigation:
+     - continue measurement-stability protocol (explicit high `MASTER_PORT` ranges, two-pass cache reuse, fixed rank-order pairing);
+     - if remaining optimizer/backward residual cannot be removed without execution-semantic changes, obtain user confirmation before applying such changes.
+
+
+35. **Stage-2 residual fidelity risk after iter-indexed replay alignment fix**
+   - Fix applied (round5):
+     - replay cache upgraded from single-file-per-dst to iteration-indexed (`*_iter{current_iter}.pt`) for activation/grad handoff in scaling pipeline replay.
+     - relevant files:
+       - `megatron/training/training.py`
+       - `megatron/profiler/utils.py`
+   - Verified effect scope:
+     - temporal replay alignment defect is removed (consumer ranks can load per-iteration replay tensors).
+     - new unit tests added and passed (`tests/unit_tests/profiler/test_scaling_replay_cache_paths.py`).
+   - Remaining evidence (`pair=20260227145502`, target config `PP2/TP1/EP2/DP4`):
+     - subtract-comm op-rank-median:
+       - `forward_step=4.23%` (PASS)
+       - `backward_step=14.18%` (FAIL)
+       - `optimizer_step=7.57%` (FAIL)
+     - no-subtract op-rank-median:
+       - `forward_step=14.80%` (FAIL)
+       - `backward_step=17.53%` (FAIL)
+       - `optimizer_step=7.57%` (FAIL)
+   - Risk assessment:
+     - one confirmed fidelity bug is fixed, but dominant residual error remains;
+     - distributed baseline run-to-run drift is now large enough to materially affect pass/fail conclusions.
+   - Proposed next mitigation:
+     - stabilize comparison protocol with repeated paired runs + robust aggregation as gating input;
+     - isolate optimizer residual via focused per-rank repeated profiling (fixed GPU, fixed rank order, controlled port window) before considering runtime-semantic changes.
 
 ## Resolved During Stage-1
 

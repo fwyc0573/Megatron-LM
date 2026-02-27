@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Added stage-2 round5 iteration-indexed replay-cache alignment implementation and validation evidence |
 | 2026-02-24 | Recorded stage-1 implementation progress and checkpoints |
 | 2026-02-24 | Completed stage-1 validation matrix and captured trace-alignment evidence |
 | 2026-02-24 | Completed scaling NaN timing-impact assessment and restored router unit tests to green |
@@ -17,8 +18,111 @@
 | 2026-02-25 | Committed checkpoint, added forward/optimizer decomposition tooling, introduced compare trimmed-mean auxiliary report, and completed 8-GPU forward-fidelity boundary trial |
 | 2026-02-25 | Added stage-aware comm-scale compare path with robust op-median summaries, completed new 8-GPU rerun, and published fidelity2 report for paper-facing metrics |
 | 2026-02-26 | Implemented kernel-ground-truth NVTX/NSYS pipeline, added alltoall-vs-allgather A/B validation, fixed allgather dispatcher API mismatch, and published B-path report |
+| 2026-02-26 | Completed Issue1/Issue2 deep debug (NSYS kernel-set/stream evidence, profiler before/after validation), and published dedicated test report |
+| 2026-02-26 | Implemented NSYS semantics-aware compare (union/primary/shared-kernel + rank-total comp summary), reran Qwen3 traces, and published measurement-fix report |
+| 2026-02-27 | Landed stage-2 (DeepSeek-V3 architecture standard) documentation into task_memory (plan/notes/issues/progress); no code changes |
+| 2026-02-27 | Executed stage-2 code implementation + validation: added shared-expert gate support, script robustness knobs, completed stage-2 unit tests and scaling smoke, and recorded distributed PP2 NaN blocker |
+| 2026-02-27 | Resolved stage-2 distributed PP2/EP2 bf16 NaN blocker via MLA-only pipeline dtype alignment + sigmoid router finite normalization, reran distributed/scaling smoke, and archived round2 report |
+| 2026-02-27 | Continued stage-2 fidelity alignment: reverted DeepSeek script CMD sync default to global, aligned scaling optimizer timing boundary with distributed train_step prefetch, reran distributed/scaling trace4-iter6 comparisons, and recorded remaining comp-gap root-cause status |
+| 2026-02-27 | Continued stage-2 fidelity round4: mirrored distributed optimizer pre-CMD side effects in scaling (`numel` pre-scan), reran paired traces, and reduced optimizer residual gap (partial) |
 
 # Progress
+
+## 2026-02-27
+
+### Completed
+
+- Landed stage-2 (DeepSeek-V3 architecture standard) doc-only deliverables under `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/`:
+  - `plan.md`: stage-2 decision-complete plan (files/interfaces/tests/acceptance)
+  - `notes.md`: upstream YAML mapping + environment constraints + key semantics
+  - `issues.md`: stage-2 risks and constraints
+  - `progress.md`: this checkpoint entry
+- Landed stage-2 execution-phase code updates:
+  - `megatron/training/arguments.py`: added `--moe-shared-expert-gate` + fail-fast validation.
+  - `megatron/core/transformer/transformer_config.py`: added `moe_shared_expert_gate` config field and validation rules.
+  - `megatron/core/transformer/moe/shared_experts.py`: added DeepSeek shared-expert sigmoid gate path.
+  - `examples/pretrain_deepseek_v3_moe.sh`:
+    - fixed short-run scheduler assert by auto-adjusting `LR_WARMUP_ITERS < TRAIN_ITERS`;
+    - added stage-2 diagnostic toggles (`MOE_SHARED_EXPERT_GATE`, `MOE_ROUTER_TOPK_SCALING_FACTOR`, `USE_BF16`, `MOE_GROUPED_GEMM`).
+- Validation completed and archived:
+  - unit tests (stage-2 suite): `19 passed` (see test report and pytest command evidence).
+  - scaling smoke (`pp2/tp1/ep2/dp4`, fake ranks `0..7`) PASS with trace files complete.
+  - distributed smoke (`pp2/tp1/ep2/dp4`) still blocked by NaN in forward loss on ranks 4-7.
+  - distributed + scaling both PASS under `PP=1, EP=1` diagnostic profile with full rank coverage and trace output.
+  - report: `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-27_deepseek_v3_stage2_impl_round1.md`
+- Root-cause isolation and fix round-2 completed:
+  - isolated NaN trigger scope to `PP=2` pipeline receive path with bf16 (`PP=1` passes; fp32 passes; first non-finite seen at decoder input of last PP stage).
+  - added MLA-only forward p2p dtype alignment in `megatron/core/pipeline_parallel/p2p_communication.py` to keep activation dtype consistent with `pipeline_dtype` before `send_forward*`.
+  - hardened sigmoid router normalization in `megatron/core/transformer/moe/moe_utils.py` and `megatron/core/transformer/moe/router.py` to avoid bf16 `0/0` normalization edge-case.
+  - retained behavior isolation for existing models: p2p cast path activates only when `config.multi_latent_attention=True`.
+- Post-fix validation completed:
+  - stage-2 unit test suite (round-2): `25 passed` (includes new p2p dtype-alignment and router finite-score edge tests).
+  - distributed smoke (`MODE=distributed MODEL_PROFILE=smoke GPUS_PER_NODE=8 TRACE_START=1 TRAIN_ITERS=3`) PASS; no NaN assertion.
+  - scaling smoke (`MODE=scaling MODEL_PROFILE=smoke TRACE_START=1 TRAIN_ITERS=3`) PASS; fake ranks `0..7` executed and traces refreshed.
+  - trace rank coverage check:
+    - distributed: `realistic_trace/pp2_tp1_exp2_expn16_dp4_nl8_hs1024_sl256` latest ranks `0..7` all present.
+    - scaling: `profiler_log/pp2_tp1_ep2_expn16_dp4_nl8_hs1024_sl256` latest ranks `0..7` all present.
+  - compare output regenerated (non-gating): `logs/deepseek_v3_stage2_compare_pp2_ep2_after_fix.log` (still above 5% on target ops).
+  - report: `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-27_deepseek_v3_stage2_impl_round2.md`
+- Continued stage-2 fidelity alignment (round3):
+  - Code updates (timing semantics only, no model math changes):
+    - `examples/pretrain_deepseek_v3_moe.sh`: switched default `TRACE_CMD_SYNC_MODE` from `event` back to `global` to avoid event-mode outliers.
+    - `megatron/training/training.py`: added `_prepare_scaling_optimizer_step(...)` and moved scaling-path optimizer prefetch (`get_parameters` / `get_main_grads_for_grad_norm`) outside traced `optimizer_step` CMD, matching distributed `train_step` timing boundary.
+  - Validation:
+    - parser unit tests for trace sync args: `6 passed`.
+    - repeated distributed/scaling trace4+iters6 runs (including explicit `SCALING_FAKE_RANK_ORDER=0..7` and two-pass replay runs) completed with exit code `0`.
+  - Latest compare snapshots (same run_config, timestamp-paired):
+    - `pair=20260227141611` (`distributed_subtract_comm=True`):
+      - `forward_step` rank median `3.83%` (PASS)
+      - `backward_step` rank median `11.09%` (FAIL)
+      - `optimizer_step` rank median `7.84%` (FAIL)
+    - `pair=20260227141950` (`distributed_subtract_comm=True`):
+      - `forward_step` rank median `7.58%` (FAIL)
+      - `backward_step` rank median `9.86%` (FAIL)
+      - `optimizer_step` rank median `10.54%` (FAIL)
+  - Root-cause evidence strengthened:
+    - backward comp remains highly sensitive to distributed comm subtraction policy (`alpha` spread wide by op/stage), indicating current top-level/sub-op decomposition cannot stably isolate pure compute for backward.
+    - optimizer_step in scaling remains systematically higher (~`+8%` to `+12%` median in latest stable pairs), consistent with sequential single-GPU replay residual overhead/state effects beyond simple CMD-boundary mismatch.
+- Continued stage-2 fidelity alignment (round4):
+  - Code update (scaling only, no model math change):
+    - `megatron/training/training.py`: `_prepare_scaling_optimizer_step(...)` now fully mirrors distributed `train_step` pre-CMD side effects by adding `numel` pre-scan on params/grads outside CMD timing scope.
+  - Probe evidence (rank0 optimizer only, paired to distributed `20260227141950`):
+    - before patch (`scaling ts=20260227142506`): `optimizer_step` diff `12.76%`.
+    - after patch (`scaling ts=20260227144128`): `optimizer_step` diff `6.02%`.
+  - New paired runs completed:
+    - scaling two-pass default-order (`cache_tag=stage2_fidelityfix5_twopass`), with pass2 split run using high `MASTER_PORT` to avoid occupied port conflict.
+    - scaling two-pass interleaved-order (`0,4,1,5,2,6,3,7`, `cache_tag=stage2_fidelityfix5_interleave`).
+    - distributed rerun (`ts=20260227145522`) for refreshed pairing baseline.
+  - Latest paired summary (`distributed ts=20260227145522`, `scaling ts<=20260227145409`, subtract-comm):
+    - `forward_step` rank median `4.02%` (PASS)
+    - `backward_step` rank median `5.11%` (FAIL, near threshold)
+    - `optimizer_step` rank median `7.68%` (FAIL, improved but still above threshold)
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-27_deepseek_v3_stage2_fidelity_round4.md`
+
+### Pending
+
+- Continue stage-2 fidelity convergence work for `PP=2, TP=1, EP=2, DP=4`:
+  - current compare (`forward_step/backward_step/optimizer_step`) remains far above 5% threshold.
+- Investigate remaining distributed-vs-scaling compute-gap drivers under architecture-standard profile:
+  - likely includes warmup/steady-state attribution mismatch and sub-op accounting asymmetry.
+- Prepare optional focused diagnostics (default-off) if needed for next round, while keeping existing model paths unchanged.
+
+
+- Continued stage-2 fidelity alignment (round5, replay-cache temporal alignment fix):
+  - Root-cause identified: scaling replay cache used a single `activation_to_rank*.pt` / `grad_to_rank*.pt` per destination rank, so pipeline consumer ranks replayed the same final-iteration tensor for all profiled iterations.
+  - Code fix:
+    - `megatron/training/training.py`: replay cache write/read path upgraded to iteration-indexed files (`*_iter{current_iter}.pt`) for activation and grad handoff, with legacy path compatibility fallback for older cache artifacts.
+    - `megatron/profiler/utils.py`: added `resolve_scaling_replay_path(...)` and switched `sim_forward_step` replay loading to prefer iteration-indexed cache.
+    - Added unit coverage: `tests/unit_tests/profiler/test_scaling_replay_cache_paths.py`.
+  - Validation:
+    - unit tests: `10 passed` (new replay-path tests + existing trace arg parser tests).
+    - scaling smoke probe (`rank3,7`) PASS; iter-indexed cache files generated under cache tag `itercacheprobe`.
+    - full scaling (`rank0..7`) + fresh distributed rerun completed and compared (pair `20260227145502`).
+  - Latest fidelity snapshot (pair `20260227145502`):
+    - subtract-comm: `forward_step` median `4.23%` (PASS), `backward_step` median `14.18%` (FAIL), `optimizer_step` median `7.57%` (FAIL).
+    - no-subtract: `forward_step` median `14.80%` (FAIL), `backward_step` median `17.53%` (FAIL), `optimizer_step` median `7.57%` (FAIL).
+  - round5 report: `test_report_2026-02-27_stage2_fidelity_round5_iter_replay_alignment.md`
 
 ## 2026-02-24
 
@@ -324,6 +428,31 @@
   - allgather compute-only fwd/optim op-rank-median diff: `26.02%` / `21.57%`.
 - Added this round report:
   - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-26_qwen3_nsys_compute_only_alltoall_allgather.md`
+
+- Completed Issue1/Issue2 deep debug pass on Qwen3 with explicit before/after profiler validation:
+  - compared `c3a77a33` (before) vs `0094c239` (after) under same full-profile config (`seq2048, mbs1, TP1 PP4 EP2 DP2, TRACE_START=4, event`);
+  - op-rank-median remains same order of magnitude (forward/optimizer high, backward low), indicating no clear regression from profiler changes.
+- Added NSYS kernel-level discrepancy evidence artifacts:
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_issue1_nsys_kernel_overlap_deep_debug.log`
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/logs/qwen_issue1_nsys_ratio_overview.log`
+  - key findings include severe stage-specific kernel-set mismatch (e.g., alltoall rank7 backward top30 Jaccard `0.073`) and multi-stream divergence (distributed up to 6 streams vs scaling 1 stream).
+- Completed large-workload feasibility sweep for Issue2 Step1:
+  - seq4096 and/or lower PP configurations frequently hit CUDA OOM in current shared cluster window;
+  - one TP2+seq4096 path additionally hit routing gather shape mismatch (`[4096,8]` vs `[2048,128]`);
+  - current stable upper bound remains full profile `seq2048, mbs1, PP4/TP1/EP2/DP2`.
+- Published round report:
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-26_issue1_issue2_deep_debug.md`
+
+- Implemented NSYS measurement/statistics semantic fixes for scaling-vs-realistic compute comparison:
+  - `tests/performance/analyze_nsys_cmd_kernel_breakdown.py`: added overlap+union+primary-stream metrics and per-kernel attribution maps;
+  - `tests/performance/compare_qwen_nsys_compute_only.py`: added `--compute-metric`, `--kernel-scope`, `--shared-kernel-source`, and rank-total comp summary over selected fwd/bwd/optimizer rows.
+- Re-extracted kernel breakdown JSON from existing sqlite traces (alltoall/allgather, dist/scale) and reran compare under multiple metric modes.
+- New evidence shows semantic-fix metric (`primary_stream_union + shared(primary_stream kernels)`) reduces several high-bias cases versus legacy overlap-all:
+  - alltoall rank7 total diff: `61.88% -> 14.27%`;
+  - allgather rank7 total diff: `26.00% -> 18.62%`;
+  - allgather rank0 total diff: `22.09% -> 20.31%`.
+- Added report:
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-26_nsys_measurement_semantics_fix.md`
 
 ### In Progress
 
