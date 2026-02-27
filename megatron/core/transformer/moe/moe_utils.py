@@ -5,6 +5,13 @@ import torch
 from megatron.core import parallel_state
 
 
+def _normalize_scores(selected_scores: torch.Tensor) -> torch.Tensor:
+    """Normalize selected routing scores safely in float32 to avoid 0/0 on bf16."""
+    denom = selected_scores.float().sum(dim=-1, keepdim=True)
+    denom = torch.clamp(denom, min=torch.finfo(torch.float32).tiny)
+    return (selected_scores.float() / denom).type_as(selected_scores)
+
+
 def switch_load_balancing_loss_func(gates, mask, moe_aux_loss_coeff):
     """Calculate the auxiliary loss for better load balacing. 
     Please refer to the Switch Transformer paper (https://arxiv.org/abs/2101.03961) for details.
@@ -55,6 +62,113 @@ def sinkhorn(cost: torch.Tensor, tol: float = 0.0001):
         error = torch.mean(torch.abs(d1_old - d1))
         d1_old = d1
     return d1 * cost * d0.unsqueeze(1)
+
+
+def group_limited_topk(
+    scores: torch.Tensor,
+    topk: int,
+    num_tokens: int,
+    num_experts: int,
+    num_groups: int,
+    group_topk: int,
+):
+    """Select top-k experts from a limited subset of groups for each token."""
+    group_scores = (
+        scores.view(num_tokens, num_groups, -1).topk(topk // group_topk, dim=-1)[0].sum(dim=-1)
+    )
+    group_idx = torch.topk(group_scores, k=group_topk, dim=-1, sorted=False)[1]
+    group_mask = torch.zeros_like(group_scores)
+    group_mask.scatter_(1, group_idx, 1)
+    score_mask = (
+        group_mask.unsqueeze(-1)
+        .expand(num_tokens, num_groups, num_experts // num_groups)
+        .reshape(num_tokens, -1)
+    )
+    masked_scores = scores.masked_fill(~score_mask.bool(), float('-inf'))
+    return torch.topk(masked_scores, k=topk, dim=-1)
+
+
+def topk_routing_with_score_function(
+    logits: torch.Tensor,
+    topk: int,
+    num_groups: int = None,
+    group_topk: int = None,
+    scaling_factor: float = None,
+    score_function: str = "softmax",
+    expert_bias: torch.Tensor = None,
+):
+    """Compute top-k routing probs and indices for softmax/sigmoid routing."""
+    if logits.dim() != 2:
+        raise ValueError(f"Expected logits to be 2D [num_tokens, num_experts], got {logits.shape}")
+    num_tokens, num_experts = logits.shape
+
+    def _compute_topk(scores: torch.Tensor):
+        if group_topk is not None:
+            return group_limited_topk(
+                scores=scores,
+                topk=topk,
+                num_tokens=num_tokens,
+                num_experts=num_experts,
+                num_groups=num_groups,
+                group_topk=group_topk,
+            )
+        return torch.topk(scores, k=topk, dim=-1)
+
+    if score_function == "softmax":
+        top_scores, top_indices = _compute_topk(logits)
+        probs = torch.softmax(top_scores, dim=-1, dtype=torch.float32).type_as(logits)
+    elif score_function == "sigmoid":
+        scores = torch.sigmoid(logits.float()).type_as(logits)
+        if expert_bias is not None:
+            _, top_indices = _compute_topk(scores + expert_bias)
+            top_scores = torch.gather(scores, dim=1, index=top_indices)
+        else:
+            top_scores, top_indices = _compute_topk(scores)
+        probs = top_scores if topk == 1 else _normalize_scores(top_scores)
+    else:
+        raise ValueError(f'Unsupported score_function "{score_function}".')
+
+    if scaling_factor is not None:
+        probs = probs * scaling_factor
+
+    return probs, top_indices
+
+
+def compute_routing_scores_for_aux_loss(
+    logits: torch.Tensor, topk: int, score_function: str
+):
+    """Build routing_map and normalized full-expert scores used by aux losses."""
+    if score_function == "softmax":
+        scores = torch.softmax(logits, dim=-1, dtype=torch.float32)
+    elif score_function == "sigmoid":
+        scores = torch.sigmoid(logits.float())
+        scores = _normalize_scores(scores).float()
+    else:
+        raise ValueError(f'Unsupported score_function "{score_function}".')
+    _, top_indices = torch.topk(scores, k=topk, dim=1)
+    routing_map = torch.zeros_like(logits).int().scatter(1, top_indices, 1).bool()
+    return routing_map, scores
+
+
+def get_updated_expert_bias(
+    tokens_per_expert: torch.Tensor,
+    expert_bias: torch.Tensor,
+    expert_bias_update_rate: float,
+    is_scaling_mode: bool = False,
+):
+    """Update expert bias according to token imbalance among experts."""
+    with torch.no_grad():
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if is_scaling_mode:
+                reduce_group = None
+            else:
+                reduce_group = parallel_state.get_tensor_and_data_parallel_group(
+                    with_context_parallel=True
+                )
+            torch.distributed.all_reduce(tokens_per_expert, group=reduce_group)
+        average_tokens = tokens_per_expert.sum(dim=-1, keepdim=True) / tokens_per_expert.shape[-1]
+        offset = average_tokens - tokens_per_expert
+        return expert_bias + torch.sign(offset) * expert_bias_update_rate
 
 
 class MoEAuxLossAutoScaler(torch.autograd.Function):

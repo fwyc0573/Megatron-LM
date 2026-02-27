@@ -10,6 +10,7 @@ from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
+from megatron.core.models.common.embeddings.yarn_rotary_pos_embedding import YarnRotaryEmbedding
 from megatron.core.models.common.language_module.language_module import LanguageModule
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.enums import AttnMaskType, ModelType
@@ -84,14 +85,32 @@ class GPTModel(LanguageModule):
                 position_embedding_type=position_embedding_type,
             )
 
-        if self.position_embedding_type == 'rope':
-            self.rotary_pos_emb = RotaryEmbedding(
-                kv_channels=self.config.kv_channels,
-                rotary_percent=rotary_percent,
-                rotary_interleaved=self.config.rotary_interleaved,
-                seq_len_interpolation_factor=seq_len_interpolation_factor,
-                rotary_base=rotary_base,
-            )
+        if self.config.multi_latent_attention and self.position_embedding_type != 'rope':
+            raise ValueError("multi_latent_attention requires position_embedding_type='rope'.")
+
+        if self.position_embedding_type == 'rope' and not self.config.multi_latent_attention:
+            if self.config.rope_type == 'yarn':
+                self.rotary_pos_emb = YarnRotaryEmbedding(
+                    kv_channels=self.config.kv_channels,
+                    rotary_percent=rotary_percent,
+                    rotary_interleaved=self.config.rotary_interleaved,
+                    seq_len_interpolation_factor=seq_len_interpolation_factor,
+                    rotary_base=float(rotary_base),
+                    scaling_factor=self.config.rotary_scaling_factor,
+                    original_max_position_embeddings=self.config.original_max_position_embeddings,
+                    beta_fast=self.config.beta_fast,
+                    beta_slow=self.config.beta_slow,
+                    mscale=self.config.mscale,
+                    mscale_all_dim=self.config.mscale_all_dim,
+                )
+            else:
+                self.rotary_pos_emb = RotaryEmbedding(
+                    kv_channels=self.config.kv_channels,
+                    rotary_percent=rotary_percent,
+                    rotary_interleaved=self.config.rotary_interleaved,
+                    seq_len_interpolation_factor=seq_len_interpolation_factor,
+                    rotary_base=rotary_base,
+                )
 
         # Transformer.
         self.decoder = TransformerBlock(
@@ -186,7 +205,7 @@ class GPTModel(LanguageModule):
 
         # Rotary positional embeddings (embedding is None for PP intermediate devices)
         rotary_pos_emb = None
-        if self.position_embedding_type == 'rope':
+        if self.position_embedding_type == 'rope' and not self.config.multi_latent_attention:
             # nvtx.range_push(f"rotary_pos_emb")
             rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
                 inference_params, self.decoder, decoder_input, self.config

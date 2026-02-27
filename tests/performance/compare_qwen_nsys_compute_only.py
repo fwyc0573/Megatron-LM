@@ -10,7 +10,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from statistics import mean, median
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 
 DEFAULT_OPS = ("forward_step", "backward_step", "optimizer_step")
@@ -63,6 +63,61 @@ def reduce_values(values: List[float], method: str, trim_ratio: float) -> float:
     if method == "trimmed_mean":
         return compute_trimmed_mean(values, trim_ratio=trim_ratio)
     raise ValueError(f"Unsupported reducer: {method}")
+
+
+def _get_overlap_name_map(row: dict, shared_kernel_source: str) -> Dict[str, float]:
+    if shared_kernel_source == "primary_stream":
+        key = "primary_stream_compute_kernel_name_overlap_ms"
+    else:
+        key = "compute_kernel_name_overlap_ms"
+    mapping = row.get(key, {})
+    if not isinstance(mapping, dict):
+        return {}
+    result: Dict[str, float] = {}
+    for raw_name, raw_value in mapping.items():
+        if not isinstance(raw_name, str):
+            continue
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+        result[raw_name] = value
+    return result
+
+
+def _metric_from_row(row: dict, compute_metric: str) -> float:
+    if compute_metric == "overlap_sum":
+        return float(row.get("compute_kernel_ms", 0.0))
+    if compute_metric == "union":
+        if "compute_kernel_union_ms" in row:
+            return float(row.get("compute_kernel_union_ms", 0.0))
+        return float(row.get("compute_kernel_ms", 0.0))
+    if compute_metric == "primary_stream_union":
+        if "compute_primary_stream_union_ms" in row:
+            return float(row.get("compute_primary_stream_union_ms", 0.0))
+        return float(row.get("compute_kernel_ms", 0.0))
+    raise ValueError(f"Unsupported compute metric: {compute_metric}")
+
+
+def _shared_kernel_names(
+    dist_samples: List[dict], scale_samples: List[dict], shared_kernel_source: str
+) -> Set[str]:
+    dist_names: Set[str] = set()
+    scale_names: Set[str] = set()
+    for sample in dist_samples:
+        dist_names.update(_get_overlap_name_map(sample, shared_kernel_source).keys())
+    for sample in scale_samples:
+        scale_names.update(_get_overlap_name_map(sample, shared_kernel_source).keys())
+    return dist_names & scale_names
+
+
+def _shared_overlap_metric(
+    row: dict, shared_names: Set[str], shared_kernel_source: str
+) -> float:
+    mapping = _get_overlap_name_map(row, shared_kernel_source)
+    if not mapping or not shared_names:
+        return 0.0
+    return sum(mapping.get(name, 0.0) for name in shared_names)
 
 
 def load_json_rows(path: Path) -> List[dict]:
@@ -136,6 +191,36 @@ def build_op_rank_median_summary(rows: List[dict], threshold_pct: float) -> Tupl
     return lines, failed
 
 
+def build_rank_total_summary(rows: List[dict], threshold_pct: float) -> Tuple[List[str], int]:
+    grouped: Dict[int, Dict[str, float]] = defaultdict(
+        lambda: {"dist_total": 0.0, "scale_total": 0.0, "rows": 0.0}
+    )
+    for row in rows:
+        rank = int(row["rank"])
+        grouped[rank]["dist_total"] += float(row["dist_compute_ms"])
+        grouped[rank]["scale_total"] += float(row["scale_compute_ms"])
+        grouped[rank]["rows"] += 1.0
+    lines: List[str] = []
+    lines.append("| rank | row_count | dist_total_compute_ms | scale_total_compute_ms | diff_pct | status |")
+    lines.append("|---:|---:|---:|---:|---:|---|")
+    failed = 0
+    for rank in sorted(grouped.keys()):
+        dist_total = grouped[rank]["dist_total"]
+        scale_total = grouped[rank]["scale_total"]
+        if dist_total == 0:
+            diff_pct = 0.0 if scale_total == 0 else 100.0
+        else:
+            diff_pct = abs(scale_total - dist_total) / dist_total * 100.0
+        status = "PASS" if diff_pct <= threshold_pct else "FAIL"
+        if status == "FAIL":
+            failed += 1
+        lines.append(
+            f"| {rank} | {int(grouped[rank]['rows'])} | "
+            f"{dist_total:.4f} | {scale_total:.4f} | {diff_pct:.2f} | {status} |"
+        )
+    return lines, failed
+
+
 def build_repeat_op_rank_median_summary(
     records: List[dict], threshold_pct: float
 ) -> Tuple[List[str], int]:
@@ -203,6 +288,38 @@ def main() -> int:
         help="Reducer for scaling samples.",
     )
     parser.add_argument(
+        "--compute-metric",
+        type=str,
+        default="primary_stream_union",
+        choices=["overlap_sum", "union", "primary_stream_union"],
+        help=(
+            "Compute metric used before reducer. "
+            "'union' avoids multi-stream overlap double counting; "
+            "'primary_stream_union' focuses on dominant compute stream."
+        ),
+    )
+    parser.add_argument(
+        "--kernel-scope",
+        type=str,
+        default="shared",
+        choices=["all", "shared"],
+        help=(
+            "Kernel scope for compute metric. "
+            "'shared' uses only kernel names present in both distributed and scaling samples "
+            "to reduce distributed-only communication-side helper bias."
+        ),
+    )
+    parser.add_argument(
+        "--shared-kernel-source",
+        type=str,
+        default="primary_stream",
+        choices=["all", "primary_stream"],
+        help=(
+            "Kernel-name source used when --kernel-scope=shared. "
+            "'primary_stream' is recommended to align single-stream scaling semantics."
+        ),
+    )
+    parser.add_argument(
         "--trim-ratio",
         type=float,
         default=0.2,
@@ -261,9 +378,9 @@ def main() -> int:
     failed = 0
     rows.append(
         "| rank | op | mg_state | dist_samples | dist_compute_ms | dist_comm_ms | "
-        "scale_samples | scale_compute_ms | scale_comm_ms | diff_pct | status |"
+        "scale_samples | scale_compute_ms | scale_comm_ms | shared_kernels | diff_pct | status |"
     )
-    rows.append("|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---|")
+    rows.append("|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|")
 
     for rank in ranks:
         for op in ops:
@@ -283,29 +400,78 @@ def main() -> int:
                 if not dist_samples or not scale_samples:
                     rows.append(
                         f"| {rank} | {op} | {state} | "
-                        f"{len(dist_samples)} | N/A | N/A | {len(scale_samples)} | N/A | N/A | N/A | FAIL (missing) |"
+                        f"{len(dist_samples)} | N/A | N/A | {len(scale_samples)} | N/A | N/A | N/A | N/A | FAIL (missing) |"
                     )
                     failed += 1
                     continue
+                shared_names: Set[str] = set()
+                if args.kernel_scope == "shared":
+                    if not any(
+                        _get_overlap_name_map(sample, args.shared_kernel_source)
+                        for sample in (dist_samples + scale_samples)
+                    ):
+                        print(
+                            "[ERROR] --kernel-scope=shared requires kernel-name overlap maps in JSON. "
+                            "Please regenerate JSON with updated "
+                            "tests/performance/analyze_nsys_cmd_kernel_breakdown.py."
+                        )
+                        return 2
+                    shared_names = _shared_kernel_names(
+                        dist_samples, scale_samples, args.shared_kernel_source
+                    )
+                    dist_compute_values = [
+                        _shared_overlap_metric(
+                            row=sample,
+                            shared_names=shared_names,
+                            shared_kernel_source=args.shared_kernel_source,
+                        )
+                        for sample in dist_samples
+                    ]
+                    scale_compute_values = [
+                        _shared_overlap_metric(
+                            row=sample,
+                            shared_names=shared_names,
+                            shared_kernel_source=args.shared_kernel_source,
+                        )
+                        for sample in scale_samples
+                    ]
+                else:
+                    dist_compute_values = [
+                        _metric_from_row(sample, args.compute_metric)
+                        for sample in dist_samples
+                    ]
+                    scale_compute_values = [
+                        _metric_from_row(sample, args.compute_metric)
+                        for sample in scale_samples
+                    ]
+
                 dist_compute = reduce_values(
-                    [x["compute_kernel_ms"] for x in dist_samples],
-                    method=args.dist_reducer,
-                    trim_ratio=args.trim_ratio,
+                    dist_compute_values, method=args.dist_reducer, trim_ratio=args.trim_ratio
                 )
                 scale_compute = reduce_values(
-                    [x["compute_kernel_ms"] for x in scale_samples],
-                    method=args.scale_reducer,
-                    trim_ratio=args.trim_ratio,
+                    scale_compute_values, method=args.scale_reducer, trim_ratio=args.trim_ratio
                 )
+                if args.compute_metric == "union":
+                    dist_comm_values = [
+                        float(sample.get("comm_kernel_union_ms", sample.get("comm_kernel_ms", 0.0)))
+                        for sample in dist_samples
+                    ]
+                    scale_comm_values = [
+                        float(sample.get("comm_kernel_union_ms", sample.get("comm_kernel_ms", 0.0)))
+                        for sample in scale_samples
+                    ]
+                else:
+                    dist_comm_values = [
+                        float(sample.get("comm_kernel_ms", 0.0)) for sample in dist_samples
+                    ]
+                    scale_comm_values = [
+                        float(sample.get("comm_kernel_ms", 0.0)) for sample in scale_samples
+                    ]
                 dist_comm = reduce_values(
-                    [x["comm_kernel_ms"] for x in dist_samples],
-                    method=args.dist_reducer,
-                    trim_ratio=args.trim_ratio,
+                    dist_comm_values, method=args.dist_reducer, trim_ratio=args.trim_ratio
                 )
                 scale_comm = reduce_values(
-                    [x["comm_kernel_ms"] for x in scale_samples],
-                    method=args.scale_reducer,
-                    trim_ratio=args.trim_ratio,
+                    scale_comm_values, method=args.scale_reducer, trim_ratio=args.trim_ratio
                 )
                 if dist_compute == 0:
                     diff_pct = 0.0 if scale_compute == 0 else 100.0
@@ -317,7 +483,7 @@ def main() -> int:
                 rows.append(
                     f"| {rank} | {op} | {state} | {len(dist_samples)} | {dist_compute:.4f} | "
                     f"{dist_comm:.4f} | {len(scale_samples)} | {scale_compute:.4f} | "
-                    f"{scale_comm:.4f} | {diff_pct:.2f} | {status} |"
+                    f"{scale_comm:.4f} | {len(shared_names)} | {diff_pct:.2f} | {status} |"
                 )
                 row_records.append(
                     {
@@ -330,6 +496,7 @@ def main() -> int:
                         "scale_samples": len(scale_samples),
                         "scale_compute_ms": scale_compute,
                         "scale_comm_ms": scale_comm,
+                        "shared_kernel_count": len(shared_names),
                         "diff_pct": diff_pct,
                         "status": status,
                     }
@@ -343,6 +510,9 @@ def main() -> int:
     report_lines.append(f"align_by_state={not args.no_align_by_state}")
     report_lines.append(f"dist_reducer={args.dist_reducer}")
     report_lines.append(f"scale_reducer={args.scale_reducer}")
+    report_lines.append(f"compute_metric={args.compute_metric}")
+    report_lines.append(f"kernel_scope={args.kernel_scope}")
+    report_lines.append(f"shared_kernel_source={args.shared_kernel_source}")
     report_lines.append(f"trim_ratio={args.trim_ratio:.4f}")
     report_lines.append(f"threshold_pct={args.threshold_pct:.2f}")
     report_lines.extend(rows)
@@ -350,13 +520,23 @@ def main() -> int:
     report_lines.append("op_rank_median_aux_summary(recommended_for_paper):")
     op_summary_lines, _ = build_op_rank_median_summary(row_records, args.threshold_pct)
     report_lines.extend(op_summary_lines)
+    report_lines.append("")
+    report_lines.append("rank_total_comp_summary(new, sum of all selected fwd/bwd/optimizer rows):")
+    rank_total_lines, rank_total_failed = build_rank_total_summary(
+        row_records, args.threshold_pct
+    )
+    report_lines.extend(rank_total_lines)
+    if rank_total_failed > 0:
+        failed += rank_total_failed
 
     if args.repeat_report is not None:
         series_key = (
             f"dist={args.distributed_json}|scale={args.scaling_json}|"
             f"align={not args.no_align_by_state}|ranks={','.join(str(x) for x in ranks)}|"
             f"ops={','.join(ops)}|dist_reducer={args.dist_reducer}|"
-            f"scale_reducer={args.scale_reducer}|trim={args.trim_ratio:.6f}"
+            f"scale_reducer={args.scale_reducer}|metric={args.compute_metric}|"
+            f"scope={args.kernel_scope}|shared_source={args.shared_kernel_source}|"
+            f"trim={args.trim_ratio:.6f}"
         )
         run_record = {
             "series_key": series_key,

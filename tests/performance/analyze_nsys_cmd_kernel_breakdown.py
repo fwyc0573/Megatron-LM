@@ -47,6 +47,7 @@ class NvtxCmdRange:
 class KernelRecord:
     start_ns: int
     end_ns: int
+    stream_id: int
     name: str
     is_comm: bool
 
@@ -104,6 +105,29 @@ def overlap_ns(window_start: int, window_end: int, kernel_start: int, kernel_end
     lo = max(window_start, kernel_start)
     hi = min(window_end, kernel_end)
     return max(0, hi - lo)
+
+
+def merge_intervals(intervals: Sequence[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """Merge intervals and return a sorted, non-overlapping list."""
+    if not intervals:
+        return []
+    sorted_intervals = sorted(intervals)
+    merged: List[Tuple[int, int]] = []
+    cur_start, cur_end = sorted_intervals[0]
+    for start, end in sorted_intervals[1:]:
+        if start <= cur_end:
+            if end > cur_end:
+                cur_end = end
+            continue
+        merged.append((cur_start, cur_end))
+        cur_start, cur_end = start, end
+    merged.append((cur_start, cur_end))
+    return merged
+
+
+def merged_length_ns(intervals: Sequence[Tuple[int, int]]) -> int:
+    """Compute union length in ns for possibly overlapping intervals."""
+    return sum(end - start for start, end in merge_intervals(intervals))
 
 
 def _resolve_name(candidate: Optional[str], fallback: Optional[int]) -> str:
@@ -175,6 +199,7 @@ def load_kernels_for_ranges(
         SELECT
             k.start,
             k.end,
+            k.streamId,
             k.globalPid,
             s_short.value AS short_name,
             s_dem.value AS demangled_name,
@@ -196,6 +221,7 @@ def load_kernels_for_ranges(
     for (
         start_ns,
         end_ns,
+        stream_id,
         global_pid,
         short_name,
         demangled_name,
@@ -209,6 +235,7 @@ def load_kernels_for_ranges(
             KernelRecord(
                 start_ns=int(start_ns),
                 end_ns=int(end_ns),
+                stream_id=int(stream_id),
                 name=kernel_name,
                 is_comm=classify_kernel_name(kernel_name),
             )
@@ -225,6 +252,12 @@ def summarize_nvtx_ranges(
         compute_ns = 0
         comm_ns = 0
         kernel_hits = 0
+        compute_intervals: List[Tuple[int, int]] = []
+        comm_intervals: List[Tuple[int, int]] = []
+        total_intervals: List[Tuple[int, int]] = []
+        compute_intervals_by_stream: Dict[int, List[Tuple[int, int]]] = defaultdict(list)
+        compute_by_name_ns: Dict[str, int] = defaultdict(int)
+        primary_stream_compute_by_name_ns: Dict[str, int] = {}
         for kernel in kernels:
             if kernel.end_ns <= nvtx_range.start_ns:
                 continue
@@ -236,11 +269,51 @@ def summarize_nvtx_ranges(
             if ov_ns <= 0:
                 continue
             kernel_hits += 1
+            overlap_start = max(nvtx_range.start_ns, kernel.start_ns)
+            overlap_end = min(nvtx_range.end_ns, kernel.end_ns)
+            total_intervals.append((overlap_start, overlap_end))
             if kernel.is_comm:
                 comm_ns += ov_ns
+                comm_intervals.append((overlap_start, overlap_end))
             else:
                 compute_ns += ov_ns
+                compute_intervals.append((overlap_start, overlap_end))
+                compute_intervals_by_stream[kernel.stream_id].append(
+                    (overlap_start, overlap_end)
+                )
+                compute_by_name_ns[kernel.name] += ov_ns
         total_ns = compute_ns + comm_ns
+        compute_union_ns = merged_length_ns(compute_intervals)
+        comm_union_ns = merged_length_ns(comm_intervals)
+        total_union_ns = merged_length_ns(total_intervals)
+        primary_stream_id: Optional[int] = None
+        primary_stream_union_ns = 0
+        if compute_intervals_by_stream:
+            primary_stream_id = max(
+                compute_intervals_by_stream.keys(),
+                key=lambda stream_id: merged_length_ns(
+                    compute_intervals_by_stream[stream_id]
+                ),
+            )
+            primary_stream_union_ns = merged_length_ns(
+                compute_intervals_by_stream[primary_stream_id]
+            )
+            primary_stream_compute_by_name_ns = defaultdict(int)
+            for kernel in kernels:
+                if kernel.is_comm:
+                    continue
+                if kernel.stream_id != primary_stream_id:
+                    continue
+                ov_ns = overlap_ns(
+                    nvtx_range.start_ns,
+                    nvtx_range.end_ns,
+                    kernel.start_ns,
+                    kernel.end_ns,
+                )
+                if ov_ns <= 0:
+                    continue
+                primary_stream_compute_by_name_ns[kernel.name] += ov_ns
+
         wall_ns = nvtx_range.end_ns - nvtx_range.start_ns
         event_rows.append(
             {
@@ -251,9 +324,27 @@ def summarize_nvtx_ranges(
                 "batch_id": nvtx_range.batch_id,
                 "iter_id": nvtx_range.iter_id,
                 "wall_ms": wall_ns / 1_000_000.0,
+                # Backward-compatible overlap-sum fields.
                 "total_kernel_ms": total_ns / 1_000_000.0,
                 "compute_kernel_ms": compute_ns / 1_000_000.0,
                 "comm_kernel_ms": comm_ns / 1_000_000.0,
+                # New union-based fields to avoid overlap double counting.
+                "total_kernel_union_ms": total_union_ns / 1_000_000.0,
+                "compute_kernel_union_ms": compute_union_ns / 1_000_000.0,
+                "comm_kernel_union_ms": comm_union_ns / 1_000_000.0,
+                # Primary-stream compute view for cross-mode comparability.
+                "primary_compute_stream_id": primary_stream_id,
+                "compute_primary_stream_union_ms": primary_stream_union_ns / 1_000_000.0,
+                "compute_stream_count": len(compute_intervals_by_stream),
+                # Per-kernel name attribution for shared-kernel filtering in compare.
+                "compute_kernel_name_overlap_ms": {
+                    name: ns / 1_000_000.0
+                    for name, ns in sorted(compute_by_name_ns.items())
+                },
+                "primary_stream_compute_kernel_name_overlap_ms": {
+                    name: ns / 1_000_000.0
+                    for name, ns in sorted(primary_stream_compute_by_name_ns.items())
+                },
                 "kernel_count": kernel_hits,
                 "label": nvtx_range.label,
             }
@@ -281,10 +372,34 @@ def build_aggregate_rows(event_rows: Sequence[dict]) -> List[dict]:
                 "compute_kernel_ms_median": median(
                     r["compute_kernel_ms"] for r in rows
                 ),
+                "compute_kernel_union_ms_mean": mean(
+                    r["compute_kernel_union_ms"] for r in rows
+                ),
+                "compute_kernel_union_ms_median": median(
+                    r["compute_kernel_union_ms"] for r in rows
+                ),
+                "compute_primary_stream_union_ms_mean": mean(
+                    r["compute_primary_stream_union_ms"] for r in rows
+                ),
+                "compute_primary_stream_union_ms_median": median(
+                    r["compute_primary_stream_union_ms"] for r in rows
+                ),
                 "comm_kernel_ms_mean": mean(r["comm_kernel_ms"] for r in rows),
                 "comm_kernel_ms_median": median(r["comm_kernel_ms"] for r in rows),
+                "comm_kernel_union_ms_mean": mean(
+                    r["comm_kernel_union_ms"] for r in rows
+                ),
+                "comm_kernel_union_ms_median": median(
+                    r["comm_kernel_union_ms"] for r in rows
+                ),
                 "total_kernel_ms_mean": mean(r["total_kernel_ms"] for r in rows),
                 "total_kernel_ms_median": median(r["total_kernel_ms"] for r in rows),
+                "total_kernel_union_ms_mean": mean(
+                    r["total_kernel_union_ms"] for r in rows
+                ),
+                "total_kernel_union_ms_median": median(
+                    r["total_kernel_union_ms"] for r in rows
+                ),
                 "kernel_count_mean": mean(r["kernel_count"] for r in rows),
             }
         )
@@ -295,15 +410,19 @@ def _format_table(aggregate_rows: Sequence[dict]) -> List[str]:
     lines: List[str] = []
     lines.append(
         "| rank | op | mg_state | stage_id | samples | "
-        "compute_ms_mean | compute_ms_median | comm_ms_mean | wall_ms_mean |"
+        "compute_ms_mean(overlap) | compute_ms_mean(union) | "
+        "compute_ms_mean(primary_union) | comm_ms_mean(overlap) | "
+        "comm_ms_mean(union) | wall_ms_mean |"
     )
-    lines.append("|---:|---|---|---:|---:|---:|---:|---:|---:|")
+    lines.append("|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|")
     for row in aggregate_rows:
         lines.append(
             "| "
             f"{row['rank']} | {row['op']} | {row['mg_state']} | {row['stage_id']} | "
             f"{row['samples']} | {row['compute_kernel_ms_mean']:.4f} | "
-            f"{row['compute_kernel_ms_median']:.4f} | {row['comm_kernel_ms_mean']:.4f} | "
+            f"{row['compute_kernel_union_ms_mean']:.4f} | "
+            f"{row['compute_primary_stream_union_ms_mean']:.4f} | "
+            f"{row['comm_kernel_ms_mean']:.4f} | {row['comm_kernel_union_ms_mean']:.4f} | "
             f"{row['wall_ms_mean']:.4f} |"
         )
     return lines

@@ -80,6 +80,18 @@ class TENorm:
         else:
             raise Exception('Only LayerNorm and RMSNorm are curently supported')
 
+        # TE norm modules require input dtype to match parameter dtype exactly.
+        # In scaling/local paths hidden states can stay fp32 while params are bf16.
+        # Cast only when needed to keep legacy paths numerically unchanged.
+        original_forward = instance.forward
+
+        def _forward_with_dtype_cast(x, *args, **kwargs):
+            expected_dtype = instance.weight.dtype if hasattr(instance, "weight") else x.dtype
+            if x.dtype != expected_dtype:
+                x = x.to(expected_dtype)
+            return original_forward(x, *args, **kwargs)
+
+        instance.forward = _forward_with_dtype_cast
         return instance
 
 

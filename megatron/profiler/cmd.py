@@ -129,6 +129,29 @@ class CMD:
             and getattr(self.args, "trace_kernel_ground_truth", False)
         )
 
+    def _get_cmd_sync_mode(self):
+        """Return synchronization mode for top-level CMD timing."""
+        mode = "global"
+        if self.args is not None:
+            mode = getattr(
+                self.args,
+                "trace_cmd_sync_mode",
+                getattr(self.args, "trace_subop_sync_mode", "global"),
+            )
+        if mode not in ("global", "event"):
+            raise ValueError(f"Unsupported trace_cmd_sync_mode: {mode}")
+        return mode
+
+    def _sync_for_cmd_timing(self):
+        """Synchronize according to the configured top-level CMD sync mode."""
+        mode = self._get_cmd_sync_mode()
+        if mode == "event":
+            if self.stop_event is None:
+                raise ValueError("event sync mode requires a stop_event")
+            self.stop_event.synchronize()
+            return
+        torch.cuda.synchronize()
+
     def _build_kernel_ground_truth_nvtx_label(self):
         """Build stable NVTX label for kernel-level ground-truth analysis."""
         if self.args is None:
@@ -208,7 +231,7 @@ class CMD:
             if self.use_cuda:
                 if self.stop_event is not None:
                     self.stop_event.record()
-                    torch.cuda.synchronize()
+                    self._sync_for_cmd_timing()
                     self.stop_time = time.perf_counter()
                     if self.start_event is not None:
                         self.duration = self.start_event.elapsed_time(self.stop_event)
@@ -359,6 +382,7 @@ class CMD:
                         metadata_only_comm = CMD._is_scaling_metadata_only_comm(
                             current_cmd=current_cmd, comm_func=comm_func
                         )
+                        sync_mode = CMD._get_subop_sync_mode(current_cmd=current_cmd)
                         subop_timestamp_ms = round(time.perf_counter() * 1000, 2)
                         if current_cmd.use_cuda:
                             if metadata_only_comm:
@@ -366,15 +390,25 @@ class CMD:
                                 result = func(*args, **kwargs)
                                 duration = 0.0
                             else:
-                                start_event = torch.cuda.Event(enable_timing=True)
-                                stop_event = torch.cuda.Event(enable_timing=True)
-                                start_event.record()
-                                result = func(*args, **kwargs)
-                                stop_event.record()
-                                CMD._sync_for_subop_timing(
-                                    stop_event=stop_event, current_cmd=current_cmd
-                                )
-                                duration = start_event.elapsed_time(stop_event)
+                                if sync_mode == "global":
+                                    # In global sync mode, include synchronization wait in
+                                    # sub-op duration. Otherwise, hidden wait time leaks into
+                                    # enclosing CMD (e.g., forward_step) and inflates comp.
+                                    start_time = time.perf_counter()
+                                    result = func(*args, **kwargs)
+                                    torch.cuda.synchronize()
+                                    end_time = time.perf_counter()
+                                    duration = (end_time - start_time) * 1000
+                                else:
+                                    start_event = torch.cuda.Event(enable_timing=True)
+                                    stop_event = torch.cuda.Event(enable_timing=True)
+                                    start_event.record()
+                                    result = func(*args, **kwargs)
+                                    stop_event.record()
+                                    CMD._sync_for_subop_timing(
+                                        stop_event=stop_event, current_cmd=current_cmd
+                                    )
+                                    duration = start_event.elapsed_time(stop_event)
                         else:
                             if metadata_only_comm:
                                 result = func(*args, **kwargs)
@@ -485,15 +519,20 @@ class CMD:
         # Create timing record
         try:
             with async_records_lock:
+                sync_mode = CMD._get_subop_sync_mode(current_cmd=current_cmd)
                 if current_cmd.use_cuda:
-                    start_event = torch.cuda.Event(enable_timing=True)
-                    start_event.record()
-                    CMD.temp_async_records[unique_key] = {
-                        'attr_info': attr_info, 
-                        'start_event': start_event,
+                    record = {
+                        'attr_info': attr_info,
                         'created_time': time.time(),
-                        'operation_name': operation_name
+                        'operation_name': operation_name,
+                        'sync_mode': sync_mode,
+                        'start_time': time.perf_counter(),
                     }
+                    if sync_mode == "event":
+                        start_event = torch.cuda.Event(enable_timing=True)
+                        start_event.record()
+                        record['start_event'] = start_event
+                    CMD.temp_async_records[unique_key] = record
                 else:
                     start_time = time.perf_counter()
                     CMD.temp_async_records[unique_key] = {
@@ -537,14 +576,21 @@ class CMD:
                     if metadata_only_comm:
                         duration = 0.0
                     elif current_cmd.use_cuda:
-                        start_event = record.get('start_event', None)
-                        if start_event is not None:
-                            stop_event = torch.cuda.Event(enable_timing=True)
-                            stop_event.record()
-                            CMD._sync_for_subop_timing(
-                                stop_event=stop_event, current_cmd=current_cmd
-                            )
-                            duration = start_event.elapsed_time(stop_event)
+                        sync_mode = record.get('sync_mode', CMD._get_subop_sync_mode(current_cmd=current_cmd))
+                        if sync_mode == "global":
+                            torch.cuda.synchronize()
+                            start_time = record.get('start_time', None)
+                            if start_time is not None:
+                                duration = (time.perf_counter() - start_time) * 1000
+                        else:
+                            start_event = record.get('start_event', None)
+                            if start_event is not None:
+                                stop_event = torch.cuda.Event(enable_timing=True)
+                                stop_event.record()
+                                CMD._sync_for_subop_timing(
+                                    stop_event=stop_event, current_cmd=current_cmd
+                                )
+                                duration = start_event.elapsed_time(stop_event)
                     else:
                         start_time = record.get('start_time', None)
                         if start_time is not None:

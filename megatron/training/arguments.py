@@ -536,12 +536,67 @@ def validate_args(args, defaults={}):
     if not args.add_position_embedding and args.position_embedding_type != 'rope':
         raise RuntimeError('--no-position-embedding is deprecated, use --position-embedding-type')
 
+    if args.rope_type == 'yarn':
+        if args.rotary_scaling_factor is None:
+            raise RuntimeError('--rope-type yarn requires --rotary-scaling-factor.')
+        if args.rotary_scaling_factor <= 0:
+            raise RuntimeError('--rotary-scaling-factor must be > 0 when --rope-type yarn is used.')
+        if args.original_max_position_embeddings is None:
+            args.original_max_position_embeddings = args.max_position_embeddings
+
+    if args.multi_latent_attention:
+        if args.position_embedding_type != 'rope':
+            raise RuntimeError('--multi-latent-attention requires --position-embedding-type rope.')
+        required_mla_args = [
+            'q_lora_rank',
+            'kv_lora_rank',
+            'qk_head_dim',
+            'qk_pos_emb_head_dim',
+            'v_head_dim',
+        ]
+        missing_mla_args = [name for name in required_mla_args if getattr(args, name) is None]
+        if missing_mla_args:
+            raise RuntimeError(
+                '--multi-latent-attention requires MLA args to be set: '
+                + ', '.join(f'--{name.replace("_", "-")}' for name in missing_mla_args)
+            )
+        if args.q_lora_rank <= 0 or args.kv_lora_rank <= 0:
+            raise RuntimeError('--q-lora-rank and --kv-lora-rank must be > 0.')
+        if args.qk_head_dim <= 0 or args.qk_pos_emb_head_dim <= 0 or args.v_head_dim <= 0:
+            raise RuntimeError('--qk-head-dim, --qk-pos-emb-head-dim, and --v-head-dim must be > 0.')
+
+    group_limited_enabled = (
+        args.moe_router_num_groups is not None or args.moe_router_group_topk is not None
+    )
+    if group_limited_enabled:
+        if args.moe_router_num_groups is None or args.moe_router_group_topk is None:
+            raise RuntimeError(
+                '--moe-router-num-groups and --moe-router-group-topk must be set together.'
+            )
+        if args.num_experts is None:
+            raise RuntimeError('Group-limited routing requires --num-experts to be set.')
+        if args.moe_router_num_groups <= 0 or args.moe_router_group_topk <= 0:
+            raise RuntimeError('--moe-router-num-groups and --moe-router-group-topk must be > 0.')
+        if args.moe_router_group_topk > args.moe_router_num_groups:
+            raise RuntimeError('--moe-router-group-topk must be <= --moe-router-num-groups.')
+        if args.num_experts % args.moe_router_num_groups != 0:
+            raise RuntimeError('--num-experts must be divisible by --moe-router-num-groups.')
+        if args.moe_router_topk % args.moe_router_group_topk != 0:
+            raise RuntimeError('--moe-router-topk must be divisible by --moe-router-group-topk.')
+
+    if args.moe_router_enable_expert_bias and args.moe_router_bias_update_rate <= 0:
+        raise RuntimeError('--moe-router-bias-update-rate must be > 0 when expert bias is enabled.')
+
     # MoE Spec check
     if args.num_experts is not None:
         assert args.spec is None, "Model Spec must be None when using MoEs"
         if args.tensor_model_parallel_size > 1:
             assert args.sequence_parallel, \
                 "When using MoE and tensor parallelism, sequence parallelism must be used."
+        if args.moe_shared_expert_gate and args.moe_shared_expert_intermediate_size is None:
+            raise RuntimeError(
+                '--moe-shared-expert-gate requires --moe-shared-expert-intermediate-size.'
+            )
         if isinstance(args.moe_layer_freq, list):
             assert len(args.moe_layer_freq) == args.num_layers, \
                 "When --moe-layer-freq is a list, its length must equal --num-layers."
@@ -551,6 +606,17 @@ def validate_args(args, defaults={}):
     else:
         if args.moe_ffn_hidden_size is not None:
             raise RuntimeError('--moe-ffn-hidden-size requires --num-experts to be set.')
+        if (
+            args.moe_router_num_groups is not None
+            or args.moe_router_group_topk is not None
+            or args.moe_shared_expert_intermediate_size is not None
+            or args.moe_shared_expert_gate
+        ):
+            raise RuntimeError(
+                '--moe-router-num-groups/--moe-router-group-topk/--moe-shared-expert-intermediate-size '
+                '--moe-shared-expert-gate '
+                'require --num-experts to be set.'
+            )
 
     # Expert parallelism check
     if args.expert_model_parallel_size  > 1:
@@ -772,6 +838,18 @@ def _add_network_size_args(parser):
                        'attention. This is set to '
                        '   args.hidden_size // args.num_attention_heads '
                        'if not provided.')
+    group.add_argument('--multi-latent-attention', action='store_true',
+                       help='Enable Multi-Latent Attention (MLA).')
+    group.add_argument('--q-lora-rank', type=int, default=None,
+                       help='Low-rank dimension for query compression in MLA.')
+    group.add_argument('--kv-lora-rank', type=int, default=None,
+                       help='Low-rank dimension for key/value compression in MLA.')
+    group.add_argument('--qk-head-dim', type=int, default=None,
+                       help='Query/key head dimension (NoPE part) for MLA.')
+    group.add_argument('--qk-pos-emb-head-dim', type=int, default=None,
+                       help='Query/key head dimension using RoPE for MLA.')
+    group.add_argument('--v-head-dim', type=int, default=None,
+                       help='Value head dimension for MLA.')
     group.add_argument('--group-query-attention', action='store_true',
                           help='Use group-query attention.')
     group.add_argument('--num-query-groups', type=int, default=1)
@@ -789,6 +867,21 @@ def _add_network_size_args(parser):
                        help='Percent of rotary dimension to use, default 100%%')
     group.add_argument('--rotary-base', type=int, default=10000,
                        help='Base period for rotary position embeddings.')
+    group.add_argument('--rope-type', type=str, default='rope',
+                       choices=['rope', 'yarn'],
+                       help='RoPE variant. "rope" is classic RoPE and "yarn" enables YaRN scaling.')
+    group.add_argument('--rotary-scaling-factor', type=float, default=None,
+                       help='Scaling factor used by YaRN RoPE.')
+    group.add_argument('--original-max-position-embeddings', type=int, default=None,
+                       help='Original max position embeddings used by YaRN when context is extended.')
+    group.add_argument('--beta-fast', type=float, default=32.0,
+                       help='YaRN beta_fast parameter.')
+    group.add_argument('--beta-slow', type=float, default=1.0,
+                       help='YaRN beta_slow parameter.')
+    group.add_argument('--mscale', type=float, default=1.0,
+                       help='YaRN mscale parameter.')
+    group.add_argument('--mscale-all-dim', type=float, default=0.0,
+                       help='YaRN mscale_all_dim parameter.')
     group.add_argument('--rotary-interleaved', action='store_true',
                           help='Use interleaved rotary embedding.')
     group.add_argument('--rotary-seq-len-interpolation-factor', type=int, default=None,
@@ -1671,11 +1764,31 @@ def _add_moe_args(parser):
     group.add_argument('--moe-ffn-hidden-size', type=int, default=None,
                        help='Expert FFN hidden size. Defaults to --ffn-hidden-size when MoE is enabled.')
     group.add_argument('--moe-router-load-balancing-type', type=str,
-                       choices=['aux_loss', 'sinkhorn', "none"],
+                       choices=['aux_loss', 'seq_aux_loss', 'sinkhorn', "none"],
                        default='aux_loss',
                        help='Determines the load balancing strategy for the router. "aux_loss" corresponds to the load balancing loss used in GShard and SwitchTransformer, "sinkhorn" corresponds to the balancing algorithm used in S-BASE, and "none" implies no load balancing. The default is "aux_loss".')
     group.add_argument('--moe-router-topk', type=int, default=2,
                        help='Number of experts to route to for each token. The default is 2.')
+    group.add_argument('--moe-router-num-groups', type=int, default=None,
+                       help='Number of expert groups used by group-limited routing.')
+    group.add_argument('--moe-router-group-topk', type=int, default=None,
+                       help='Number of selected groups used by group-limited routing.')
+    group.add_argument('--moe-router-score-function', type=str, default='softmax',
+                       choices=['softmax', 'sigmoid'],
+                       help='Router score function used before top-k expert selection.')
+    group.add_argument('--moe-router-topk-scaling-factor', type=float, default=None,
+                       help='Optional scaling factor multiplied to top-k routing scores.')
+    group.add_argument('--moe-router-enable-expert-bias', action='store_true',
+                       help='Enable per-expert routing bias update for MoE router.')
+    group.add_argument('--moe-router-bias-update-rate', type=float, default=1e-3,
+                       help='Per-step update rate for router expert bias.')
+    group.add_argument('--moe-router-dtype', type=str, default='none',
+                       choices=['fp32', 'fp64', 'none'],
+                       help='Precision used in router gating computation.')
+    group.add_argument('--moe-shared-expert-intermediate-size', type=int, default=None,
+                       help='Intermediate FFN size for shared experts added to MoE output.')
+    group.add_argument('--moe-shared-expert-gate', action='store_true',
+                       help='Enable sigmoid gating for shared expert output.')
     group.add_argument('--moe-grouped-gemm', action='store_true',
                        help='When there are multiple experts per rank, compress multiple local (potentially small) gemms in a single kernel launch to improve the utilization and performance by leveraging the Grouped GEMM feature introduced since CUTLASS 2.8 (https://github.com/fanshiqing/grouped_gemm).')
     group.add_argument('--moe-aux-loss-coeff', type=float, default=0.0,
@@ -1730,6 +1843,17 @@ def _add_trace_args(parser):
         ),
     )
     group.add_argument(
+        '--trace-cmd-sync-mode',
+        type=str,
+        default='global',
+        choices=['global', 'event'],
+        help=(
+            'Synchronization mode for top-level CMD timing. '
+            '"global" uses torch.cuda.synchronize(); '
+            '"event" uses stop_event.synchronize() to avoid unrelated stream drain.'
+        ),
+    )
+    group.add_argument(
         '--trace-kernel-ground-truth',
         action='store_true',
         help=(
@@ -1775,6 +1899,33 @@ def _add_fake_args(parser):
                        help='Number of experts for fake MoE training.')
     group.add_argument('--fake-current-rank-id', type=int, default=0,
                        help='Current process rank ID for fake distributed training.')
+    group.add_argument(
+        '--scaling-min-warmup-iters',
+        type=int,
+        default=3,
+        help=(
+            'Minimum number of warmup iterations in scaling mode before the profiled iteration. '
+            'Set to 0 for strict alignment with trace_start semantics.'
+        ),
+    )
+    group.add_argument(
+        '--scaling-profile-iters',
+        type=int,
+        default=1,
+        help=(
+            'Number of profiled iterations per fake rank in scaling mode. '
+            'Use values > 1 to reduce single-iteration timing noise.'
+        ),
+    )
+    group.add_argument(
+        '--scaling-replay-cache-tag',
+        type=str,
+        default='',
+        help=(
+            'Optional run tag for scaling replay cache. '
+            'When set, activation/gradient replay cache is isolated per run to avoid stale files.'
+        ),
+    )
     group.add_argument('--trace-memory', action='store_true',
                        help='Enable memory tracking.')
     # group.add_argument('--trace-memory-dir', type=str, default='memory_traces',

@@ -1,5 +1,69 @@
 #! /bin/bash
 
+# Basic argument check
+if [ "$#" -ne 9 ]; then
+  echo "Usage: $0 <NNODES> <NODE_RANK> <MASTER_PORT> <MASTER_ADDR> <PP> <EP> <NUM_EXPERTS> <MOE_EXP_SIGNLE_SIZE> <MAX_SEQ_LEN>"
+  exit 1
+fi
+
+# WORLD_SIZE=32, PP=4, EP=DP=8, NUM_EXPERTS=8, MOE_EXP_SIGNLE_SIZE=7, MAX_SEQ_LEN=4096 (8x7B)
+# ./examples/pretrain_gpt_moe-copy3.sh 4 0 6000 localhost 4 8 8 7 4096
+
+# WORLD_SIZE=32, PP=4, EP=DP=8, NUM_EXPERTS=32, MOE_EXP_SIGNLE_SIZE=1.75 MAX_SEQ_LEN=4096 (32x1.75B)
+# ./examples/pretrain_gpt_moe-copy3.sh 4 0 6000 localhost 4 8 32 1.75 4096
+
+# WORLD_SIZE=32, PP=4, EP=DP=8, NUM_EXPERTS=16, MOE_EXP_SIGNLE_SIZE=1.75 MAX_SEQ_LEN=4096 (16x1.75B)
+# ./examples/pretrain_gpt_moe-copy3.sh 4 0 6000 localhost 4 8 16 1.75 4096
+
+# WORLD_SIZE=32, PP=4, EP=4 (DP=8), NUM_EXPERTS=16, MOE_EXP_SIGNLE_SIZE=1.75 MAX_SEQ_LEN=4096 (16x1.75B)
+# ./examples/pretrain_gpt_moe-copy3.sh 4 0 6000 localhost 4 4 16 1.75 4096
+
+# WORLD_SIZE=32, PP=8, EP=4 (DP=4), NUM_EXPERTS=16, MOE_EXP_SIGNLE_SIZE=1.75 MAX_SEQ_LEN=4096 (16x1.75B)
+# ./examples/pretrain_gpt_moe-copy3.sh 4 0 6000 localhost 4 4 16 1.75 4096
+
+
+# WORLD_SIZE=8, PP=2, EP=4 (DP=4), NUM_EXPERTS=8, MOE_EXP_SIGNLE_SIZE=1.75 MAX_SEQ_LEN=4096 (8x1.75B)
+# ./examples/pretrain_gpt_moe-copy3.sh 1 0 6001 localhost 2 4 8 1.75 4096
+
+#                                                       pp2   ep2   num exp   model_zie     seq
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    2         8        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    2         8        1.75     1024
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    4         8        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    4         8        1.75     1024
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    8         8        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    8         8        1.75     1024
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    4         16        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    4         16        1.75     1024
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    8         16        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    8         16        1.75     1024
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   4    2         8        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   4    2         8        1.75     1024
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   4    4         8        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   4    4         8        1.75     4096
+
+
+ ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   4    4         16        1.75     1024
+ ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   4    4         16        1.75     1024
+
+
+#  ./pretrain_gpt_moe-copy3.sh 2 0 6001 10.232.194.226   2    8         8        7     1024
+#  ./pretrain_gpt_moe-copy3.sh 2 1 6001 10.232.194.226   2    8         8        7     1024
+
+
+
+
+
 # Setting the environment variables
 # export OMP_NUM_THREADS=1
 export CUDA_DEVICE_MAX_CONNECTIONS=1
@@ -13,52 +77,54 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
 # Distributed training variables
-NNODES=1
+NNODES=$1
 GPUS_PER_NODE=8
 GPU_NUM=$((${GPUS_PER_NODE}*${NNODES}))
 WORLD_SIZE=$((${GPUS_PER_NODE}*${NNODES}))
-NODE_RANK=0
-MASTER_PORT=6000
-MASTER_ADDR="localhost" #"localhost"
+NODE_RANK=$2
+MASTER_PORT=$3
+MASTER_ADDR="$4" #"localhost"
 
 
 # Parallelism variables
-PP=2
+PP=$5
 TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
 BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
 
 
-NUM_MICBATCH=1
+NUM_MICBATCH=4*${PP}
 MICRO_BATCH_SIZE=1
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
-# size variables
-NUM_EXPERTS=8 # 专家总数（必须是EP的倍数）
-MODEL_SIZE="Mixtral_${NUM_EXPERTS}x1.75B"
-# if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
-# elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
-# elif [[ ${MODEL_SIZE} == 175 ]];  then HIDDEN_SIZE=12288;  NUM_HEAD=96; NUM_LAYERS=96;
-# elif [[ ${MODEL_SIZE} == "tiny" ]]; then HIDDEN_SIZE=128;  NUM_HEAD=8; NUM_LAYERS=4;
-# elif [[ ${MODEL_SIZE} == 30 ]];   then HIDDEN_SIZE=7680;  NUM_HEAD=48; NUM_LAYERS=40;
-# elif [[ ${MODEL_SIZE} == 40 ]];   then HIDDEN_SIZE=9216;  NUM_HEAD=72; NUM_LAYERS=40;
-# elif [[ ${MODEL_SIZE} == 6.7 ]];  then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=32;
-if [[ ${MODEL_SIZE} == "Mixtral_${NUM_EXPERTS}x1.75B" ]]; then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=8 ; FFN_HIDDEN_SIZE=14336;
-elif [[ ${MODEL_SIZE} == "Mixtral_${NUM_EXPERTS}x22B" ]]; then HIDDEN_SIZE=6144;  NUM_HEAD=56; NUM_LAYERS=56; FFN_HIDDEN_SIZE=16384;
+EP=$6
+NUM_EXPERTS=$7
+MOE_EXP_SIGNLE_SIZE=$8
+MODEL_SIZE="Mixtral_${NUM_EXPERTS}x${MOE_EXP_SIGNLE_SIZE}B"
+if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
+elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
+elif [[ ${MODEL_SIZE} == 175 ]];  then HIDDEN_SIZE=12288;  NUM_HEAD=96; NUM_LAYERS=96;
+elif [[ ${MODEL_SIZE} == "tiny" ]]; then HIDDEN_SIZE=128;  NUM_HEAD=8; NUM_LAYERS=4;
+elif [[ ${MODEL_SIZE} == 30 ]];   then HIDDEN_SIZE=7680;  NUM_HEAD=48; NUM_LAYERS=40;
+elif [[ ${MODEL_SIZE} == 40 ]];   then HIDDEN_SIZE=9216;  NUM_HEAD=72; NUM_LAYERS=40;
+elif [[ ${MODEL_SIZE} == 6.7 ]];  then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=32;
+elif [[ ${MODEL_SIZE} == "Mixtral_${NUM_EXPERTS}x1.75B" ]]; then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=8 ; FFN_HIDDEN_SIZE=14336;
+elif [[ ${MODEL_SIZE} == "Mixtral_${NUM_EXPERTS}x7B" ]]; then HIDDEN_SIZE=4096;  NUM_HEAD=32; NUM_LAYERS=32; FFN_HIDDEN_SIZE=14336;
+# elif [[ ${MODEL_SIZE} == "Mixtral_${NUM_EXPERTS}x22B" ]]; then HIDDEN_SIZE=6144;  NUM_HEAD=56; NUM_LAYERS=56; FFN_HIDDEN_SIZE=16384;
 else echo "invalid MODEL_SIZE: ${MODEL_SIZE}"; exit 1
 fi
 # vocab_size=32000
 
 DO_TRACE=True
 # TRACE控制参数
-TRAIN_ITERS=10
+TRAIN_ITERS=5
 TRACE_ITER_NUM=1 # trace_iter_num的范围<=train_iters-1（除去第一次）
 TRACE_START=$(($TRAIN_ITERS-$TRACE_ITER_NUM+1)) # [start, train_iters]
 NSIGHT_START=$(($TRAIN_ITERS)) # [start, train_iters)
 
 
-MAX_SEQ_LEN=1024 # 4096 2048
+MAX_SEQ_LEN=$9 # 4096 2048
 MAX_POSITION_EMBEDDINGS=32768 # 4096 2048
 
 # 检查trace_iter_num是否在合理的范围内
@@ -96,8 +162,7 @@ SIM_ARGS=" \
        --fake-dp $FAKE_DP \
        --fake-tp $FAKE_TP \
        --trace-memory \
-       --is-scaling-mode \
-       --trace-memory-interval 0.005 \
+       --trace-memory-interval 0.001 \
        "
     #    --trace-memory \
     #    --trace-memory-interval 0.005 \
@@ -113,7 +178,6 @@ if echo "$SIM_ARGS" | grep -q -- "--is-scaling-mode"; then
 fi
 
 
-EP=4 # 专家并行度
 
 if [ "$((NUM_EXPERTS % EP))" -ne "0" ]; then
     echo "Error: NUM_EXPERTS must be divisible by EP"
@@ -159,6 +223,7 @@ GPT_ARGS="
     --weight-decay 1e-2 \
     --lr-warmup-fraction .01 \
     --clip-grad 1.0 \
+    --mock-data \
 "
     # --fp16
 

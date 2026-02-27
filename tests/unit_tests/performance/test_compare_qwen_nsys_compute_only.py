@@ -94,3 +94,37 @@ def test_build_repeat_op_rank_median_summary():
     assert any("| backward_step | 2 | 3.00 | PASS |" in line for line in lines)
     assert any("| forward_step | 2 | 5.00 | PASS |" in line for line in lines)
     assert failed == 0
+
+
+def test_build_rank_total_summary_aggregates_selected_rows():
+    rows = [
+        {"rank": 0, "dist_compute_ms": 10.0, "scale_compute_ms": 9.0},
+        {"rank": 0, "dist_compute_ms": 5.0, "scale_compute_ms": 6.0},
+        {"rank": 1, "dist_compute_ms": 20.0, "scale_compute_ms": 21.0},
+    ]
+    lines, failed = module.build_rank_total_summary(rows, threshold_pct=10.0)
+    assert any("| 0 | 2 | 15.0000 | 15.0000 | 0.00 | PASS |" in line for line in lines)
+    assert any("| 1 | 1 | 20.0000 | 21.0000 | 5.00 | PASS |" in line for line in lines)
+    assert failed == 0
+
+
+def test_shared_kernel_names_intersection_works():
+    dist_samples = [
+        {"primary_stream_compute_kernel_name_overlap_ms": {"a": 1.0, "b": 2.0}},
+        {"primary_stream_compute_kernel_name_overlap_ms": {"a": 0.5, "c": 0.5}},
+    ]
+    scale_samples = [
+        {"primary_stream_compute_kernel_name_overlap_ms": {"a": 1.3, "d": 0.2}},
+    ]
+    shared = module._shared_kernel_names(
+        dist_samples, scale_samples, shared_kernel_source="primary_stream"
+    )
+    assert shared == {"a"}
+
+
+def test_shared_overlap_metric_uses_only_shared_names():
+    row = {"primary_stream_compute_kernel_name_overlap_ms": {"a": 1.0, "b": 2.0}}
+    metric = module._shared_overlap_metric(
+        row=row, shared_names={"b"}, shared_kernel_source="primary_stream"
+    )
+    assert metric == pytest.approx(2.0)

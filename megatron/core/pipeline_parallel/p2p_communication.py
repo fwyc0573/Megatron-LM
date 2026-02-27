@@ -19,6 +19,21 @@ from megatron.core.parallel_state import (
 Shape = Union[List[int], torch.Size]
 
 
+def _align_forward_tensor_dtype(
+    tensor: Optional[torch.Tensor], config: ModelParallelConfig
+) -> Optional[torch.Tensor]:
+    """Cast forward activations to pipeline dtype before p2p to avoid dtype mismatch corruption."""
+    if tensor is None:
+        return None
+    if not getattr(config, "multi_latent_attention", False):
+        return tensor
+    if config.pipeline_dtype is None or not tensor.is_floating_point():
+        return tensor
+    if tensor.dtype == config.pipeline_dtype:
+        return tensor
+    return tensor.to(dtype=config.pipeline_dtype)
+
+
 def _communicate_shapes(tensor_send_next, tensor_send_prev, recv_prev, recv_next, config):
     """Communicate tensor shapes between stages. Used to communicate
     tensor shapes before the actual tensor communication happens.
@@ -401,6 +416,7 @@ def send_forward(output_tensor: torch.Tensor, config: ModelParallelConfig) -> No
     """
 
     if not core.parallel_state.is_pipeline_last_stage():
+        output_tensor = _align_forward_tensor_dtype(output_tensor, config)
         if config.timers is not None:
             config.timers('forward-send', log_level=2).start()
         _communicate(
@@ -445,6 +461,7 @@ def send_forward_recv_backward(
     if core.parallel_state.is_pipeline_last_stage():
         output_tensor_grad = None
     else:
+        output_tensor = _align_forward_tensor_dtype(output_tensor, config)
         if config.timers is not None:
             config.timers('forward-send-backward-recv', log_level=2).start()
         _, output_tensor_grad, _ = _communicate(
@@ -498,6 +515,7 @@ def send_forward_recv_forward(
     """
     if config.timers is not None:
         config.timers('forward-send-forward-recv', log_level=2).start()
+    output_tensor = _align_forward_tensor_dtype(output_tensor, config)
     input_tensor, _, wait_handles = _communicate(
         tensor_send_next=output_tensor,
         tensor_send_prev=None,
@@ -557,6 +575,7 @@ def send_forward_backward_recv_forward_backward(
     """
     if config.timers is not None:
         config.timers('forward-backward-send-forward-backward-recv', log_level=2).start()
+    output_tensor = _align_forward_tensor_dtype(output_tensor, config)
     input_tensor, output_tensor_grad, _ = _communicate(
         tensor_send_next=output_tensor,
         tensor_send_prev=input_tensor_grad,

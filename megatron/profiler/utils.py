@@ -8,6 +8,19 @@ from megatron.core.utils import get_attr_wrapped_model
 from megatron.profiler.cmd import CMD, current_cmd_var
 
 
+def resolve_scaling_replay_path(cache_dir, rank_id, current_iter):
+    if cache_dir is None:
+        return None
+    if current_iter is not None:
+        iter_path = os.path.join(cache_dir, f"activation_to_rank{rank_id}_iter{current_iter}.pt")
+        if os.path.exists(iter_path):
+            return iter_path
+    legacy_path = os.path.join(cache_dir, f"activation_to_rank{rank_id}.pt")
+    if os.path.exists(legacy_path):
+        return legacy_path
+    return None
+
+
 def first_or_last_stage_fake_get_batch(is_pre_process:bool, pp_size:int, args):
     if pp_size == 1:
         tokens = torch.randint(1, 1001, (args.micro_batch_size, args.seq_length), dtype=torch.int64, device=torch.cuda.current_device())
@@ -371,10 +384,10 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
     input_tensor_shapes = []
     if not args.is_pre_process:
         cache_dir = getattr(args, "scaling_replay_cache_dir", None)
-        replay_path = None
-        if cache_dir is not None:
-            replay_path = os.path.join(cache_dir, f"activation_to_rank{rank_id}.pt")
-        if replay_path is not None and os.path.exists(replay_path):
+        replay_path = resolve_scaling_replay_path(
+            cache_dir=cache_dir, rank_id=rank_id, current_iter=getattr(args, "current_iter", None)
+        )
+        if replay_path is not None:
             replay_tensor = torch.load(replay_path, map_location="cpu")
             # Keep replay copy completion outside forward_step CMD timing window.
             # This aligns scaling with distributed where recv_forward is timed separately.
@@ -419,7 +432,7 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
             description="simulation", 
             group_kind="tp",
             trace_start=args.trace_start,
-            current_iter=args.trace_start,
+            current_iter=args.current_iter,
             args=args
         )
         CMD.set_current_cmd(cmd)
@@ -472,7 +485,7 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
     simu_start=args.simu_start,
     description="simulation", 
     trace_start=args.trace_start,
-    current_iter=args.trace_start,
+    current_iter=args.current_iter,
     args=args
     )
     CMD.set_current_cmd(cmd)
@@ -513,7 +526,7 @@ def sim_forward_step(rank_id, model, model_type, args, parallel_state, config, t
         simu_start=args.simu_start,
         description="simulation: loss_func, calculate and DP allreduce for the last stage", 
         trace_start=args.trace_start,
-        current_iter=args.trace_start,
+        current_iter=args.current_iter,
         args=args
         )
         CMD.set_current_cmd(cmd)

@@ -479,11 +479,16 @@ def _profiled_all_to_all_single(input_, output_split_sizes, input_split_sizes, g
         output_rows = int(sum(output_split_sizes))
         if output_rows == int(input_.size(0)):
             return input_
-        return input_.new_empty(
+        # Keep scaling comm outputs finite and deterministic so downstream compute
+        # timing is not polluted by uninitialized payloads.
+        output = input_.new_zeros(
             size=[output_rows] + list(input_.size()[1:]),
             dtype=input_.dtype,
-            device=torch.cuda.current_device(),
         )
+        rows_to_copy = min(output_rows, int(input_.size(0)))
+        if rows_to_copy > 0:
+            output[:rows_to_copy].copy_(input_[:rows_to_copy])
+        return output
 
     if output_split_sizes is None:
         output = torch.empty_like(input_)

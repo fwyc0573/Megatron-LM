@@ -7,6 +7,7 @@ from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 from .. import parallel_state
 from ..transformer.transformer_config import TransformerConfig
+from ..transformer.moe.moe_utils import get_updated_expert_bias
 from ..utils import get_attr_wrapped_model, get_model_config
 
 import torch.cuda.nvtx as nvtx
@@ -104,6 +105,36 @@ def _allreduce_layernorm_grads(model: List[torch.nn.Module], config: Transformer
             )
             for buf, synced in zip(grads, _unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
+
+
+def _update_router_expert_bias(model: List[torch.nn.Module], config: TransformerConfig):
+    """Update router expert_bias after a global-batch step."""
+    tokens_per_expert_list = []
+    expert_bias_list = []
+    for model_chunk in model:
+        for module in get_attr_wrapped_model(model_chunk, 'modules')():
+            if hasattr(module, 'expert_bias') and hasattr(module, 'local_tokens_per_expert') and module.training:
+                if module.expert_bias is None or module.local_tokens_per_expert is None:
+                    continue
+                tokens_per_expert_list.append(module.local_tokens_per_expert)
+                expert_bias_list.append(module.expert_bias)
+
+    if len(expert_bias_list) == 0:
+        return
+
+    stacked_tokens_per_expert = torch.stack(tokens_per_expert_list, dim=0)
+    stacked_expert_bias = torch.stack(expert_bias_list, dim=0)
+    stacked_updated_expert_bias = get_updated_expert_bias(
+        stacked_tokens_per_expert,
+        stacked_expert_bias,
+        config.moe_router_bias_update_rate,
+        is_scaling_mode=config.is_scaling_mode,
+    )
+    for expert_bias, updated_expert_bias, tokens_per_expert in zip(
+        expert_bias_list, stacked_updated_expert_bias, tokens_per_expert_list
+    ):
+        expert_bias.copy_(updated_expert_bias)
+        tokens_per_expert.zero_()
 
 
 def finalize_model_grads(model: List[torch.nn.Module], args):
@@ -233,3 +264,6 @@ def finalize_model_grads(model: List[torch.nn.Module], args):
 
     if config.timers is not None:
         config.timers('embedding-grads-all-reduce').stop()
+
+    if config.moe_router_enable_expert_bias:
+        _update_router_expert_bias(model, config)

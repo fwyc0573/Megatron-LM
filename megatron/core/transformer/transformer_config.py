@@ -86,6 +86,33 @@ class TransformerConfig(ModelParallelConfig):
     first half and second half (LLaMa style). Default to False."""
     rotary_base: int = 10000
     """Base period for rotary position embeddings."""
+    rope_type: str = "rope"
+    """RoPE variant. Supported values: "rope" and "yarn"."""
+    rotary_scaling_factor: Optional[float] = None
+    """Scaling factor used by YaRN RoPE."""
+    original_max_position_embeddings: Optional[int] = None
+    """Original max context length used by YaRN RoPE."""
+    beta_fast: float = 32.0
+    """YaRN beta_fast parameter."""
+    beta_slow: float = 1.0
+    """YaRN beta_slow parameter."""
+    mscale: float = 1.0
+    """YaRN mscale parameter."""
+    mscale_all_dim: float = 0.0
+    """YaRN mscale_all_dim parameter."""
+
+    multi_latent_attention: bool = False
+    """Enable Multi-Latent Attention (MLA)."""
+    q_lora_rank: Optional[int] = None
+    """Low-rank dimension for query compression in MLA."""
+    kv_lora_rank: Optional[int] = None
+    """Low-rank dimension for key/value compression in MLA."""
+    qk_head_dim: Optional[int] = None
+    """NoPE head dimension used by Q/K in MLA."""
+    qk_pos_emb_head_dim: Optional[int] = None
+    """RoPE head dimension used by Q/K in MLA."""
+    v_head_dim: Optional[int] = None
+    """Head dimension used by V in MLA."""
 
     window_size: Optional[Tuple[int, int]] = None
     """If not None, then will use sliding window attention. The size of the window is specified by
@@ -232,6 +259,24 @@ class TransformerConfig(ModelParallelConfig):
 
     moe_router_topk: int = 2
     """Number of experts to route to for each token."""
+    moe_router_score_function: str = "softmax"
+    """Router score function. Supported values: "softmax" and "sigmoid"."""
+    moe_router_num_groups: Optional[int] = None
+    """Number of groups for group-limited routing."""
+    moe_router_group_topk: Optional[int] = None
+    """Number of selected groups in group-limited routing."""
+    moe_router_topk_scaling_factor: Optional[float] = None
+    """Optional scaling factor multiplied to top-k routing scores."""
+    moe_router_enable_expert_bias: bool = False
+    """Enable per-expert routing bias update."""
+    moe_router_bias_update_rate: float = 1e-3
+    """Update rate used when adjusting router expert bias."""
+    moe_router_dtype: str = "none"
+    """Router gating computation dtype. Supported values: "fp32", "fp64", and "none"."""
+    moe_shared_expert_intermediate_size: Optional[int] = None
+    """FFN hidden size for shared experts added alongside routed experts."""
+    moe_shared_expert_gate: bool = False
+    """Enable sigmoid gating for shared expert output."""
 
     moe_grouped_gemm: bool = False
     """When there are multiple experts per rank, compress multiple local (potentially small) gemms
@@ -322,6 +367,50 @@ class TransformerConfig(ModelParallelConfig):
                 f"tensor_model_parallel_size ({effective_tp_size})."
             )
 
+        if self.rope_type not in ("rope", "yarn"):
+            raise ValueError(f'Unsupported rope_type "{self.rope_type}".')
+
+        if self.rope_type == "yarn":
+            if self.rotary_scaling_factor is None or self.rotary_scaling_factor <= 0:
+                raise ValueError(
+                    "rotary_scaling_factor must be > 0 when rope_type is yarn."
+                )
+            if self.original_max_position_embeddings is None:
+                if self.max_position_embeddings is not None and self.max_position_embeddings > 0:
+                    self.original_max_position_embeddings = self.max_position_embeddings
+                else:
+                    raise ValueError(
+                        "original_max_position_embeddings must be set for yarn rope."
+                    )
+
+        if self.multi_latent_attention:
+            required_mla_values = {
+                "q_lora_rank": self.q_lora_rank,
+                "kv_lora_rank": self.kv_lora_rank,
+                "qk_head_dim": self.qk_head_dim,
+                "qk_pos_emb_head_dim": self.qk_pos_emb_head_dim,
+                "v_head_dim": self.v_head_dim,
+            }
+            missing = [name for name, value in required_mla_values.items() if value is None]
+            if missing:
+                raise ValueError(
+                    "multi_latent_attention requires MLA fields to be set: "
+                    + ", ".join(missing)
+                )
+            invalid = [name for name, value in required_mla_values.items() if value <= 0]
+            if invalid:
+                raise ValueError(
+                    "MLA fields must be > 0: " + ", ".join(invalid)
+                )
+            if getattr(self, "position_embedding_type", "rope") != "rope":
+                raise ValueError(
+                    "multi_latent_attention requires position_embedding_type to be rope."
+                )
+            if self.rope_type == "yarn" and self.rotary_scaling_factor is None:
+                raise ValueError(
+                    "multi_latent_attention with rope_type=yarn requires rotary_scaling_factor."
+                )
+
         if self.apply_query_key_layer_scaling:
             self.attention_softmax_in_fp32 = True
 
@@ -354,9 +443,69 @@ class TransformerConfig(ModelParallelConfig):
                     "moe_layer_freq must be an int or a list of 0/1 values, "
                     f"got {type(self.moe_layer_freq)}"
                 )
+
+            if self.moe_router_score_function not in ("softmax", "sigmoid"):
+                raise ValueError(
+                    f'Unsupported moe_router_score_function "{self.moe_router_score_function}".'
+                )
+            if self.moe_router_dtype not in ("fp32", "fp64", "none"):
+                raise ValueError(f'Unsupported moe_router_dtype "{self.moe_router_dtype}".')
+
+            group_limited_enabled = (
+                self.moe_router_num_groups is not None
+                or self.moe_router_group_topk is not None
+            )
+            if group_limited_enabled:
+                if self.moe_router_num_groups is None or self.moe_router_group_topk is None:
+                    raise ValueError(
+                        "moe_router_num_groups and moe_router_group_topk must be set together."
+                    )
+                if self.moe_router_num_groups <= 0 or self.moe_router_group_topk <= 0:
+                    raise ValueError(
+                        "moe_router_num_groups and moe_router_group_topk must be > 0."
+                    )
+                if self.moe_router_group_topk > self.moe_router_num_groups:
+                    raise ValueError(
+                        "moe_router_group_topk must be <= moe_router_num_groups."
+                    )
+                if self.num_moe_experts % self.moe_router_num_groups != 0:
+                    raise ValueError(
+                        "num_moe_experts must be divisible by moe_router_num_groups."
+                    )
+                if self.moe_router_topk % self.moe_router_group_topk != 0:
+                    raise ValueError(
+                        "moe_router_topk must be divisible by moe_router_group_topk."
+                    )
+
+            if self.moe_router_enable_expert_bias and self.moe_router_bias_update_rate <= 0:
+                raise ValueError(
+                    "moe_router_bias_update_rate must be > 0 when expert bias is enabled."
+                )
+
+            if (
+                self.moe_shared_expert_intermediate_size is not None
+                and self.moe_shared_expert_intermediate_size <= 0
+            ):
+                raise ValueError("moe_shared_expert_intermediate_size must be > 0.")
+            if self.moe_shared_expert_gate and self.moe_shared_expert_intermediate_size is None:
+                raise ValueError(
+                    "moe_shared_expert_gate requires moe_shared_expert_intermediate_size to be set."
+                )
         else:
             if self.moe_ffn_hidden_size is not None:
                 raise ValueError("moe_ffn_hidden_size is only valid when num_moe_experts is set.")
+            if self.moe_shared_expert_intermediate_size is not None:
+                raise ValueError(
+                    "moe_shared_expert_intermediate_size is only valid when num_moe_experts is set."
+                )
+            if self.moe_shared_expert_gate:
+                raise ValueError(
+                    "moe_shared_expert_gate is only valid when num_moe_experts is set."
+                )
+            if self.moe_router_num_groups is not None or self.moe_router_group_topk is not None:
+                raise ValueError(
+                    "moe_router_num_groups/moe_router_group_topk require num_moe_experts."
+                )
 
         if self.cpu_offloading and (
             self.cpu_offloading_num_layers < 0 or self.cpu_offloading_num_layers >= self.num_layers

@@ -15,6 +15,10 @@ from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
+from megatron.core.transformer.multi_latent_attention import (
+    MLASelfAttention,
+    MLASelfAttentionSubmodules,
+)
 from megatron.core.transformer.moe.moe_layer import MoELayer
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_block import (
@@ -27,8 +31,15 @@ from megatron.core.transformer.transformer_layer import TransformerLayer, Transf
 
 # Use this spec to use lower level Transformer Engine modules (required for fp8 training)
 def get_gpt_layer_with_transformer_engine_spec(
-    num_experts: int = None, moe_grouped_gemm: bool = False, qk_layernorm: bool = False
+    num_experts: int = None,
+    moe_grouped_gemm: bool = False,
+    qk_layernorm: bool = False,
+    multi_latent_attention: bool = False,
 ) -> ModuleSpec:
+    if multi_latent_attention:
+        raise ValueError(
+            "multi_latent_attention is not supported with transformer_engine path in this fork."
+        )
     mlp = _get_mlp_module_spec(
         use_te=True, num_experts=num_experts, moe_grouped_gemm=moe_grouped_gemm
     )
@@ -56,28 +67,45 @@ def get_gpt_layer_with_transformer_engine_spec(
 
 # Use this spec for an implementation using only modules in megatron core
 def get_gpt_layer_local_spec(
-    num_experts: int = None, moe_grouped_gemm: bool = False, qk_layernorm: bool = False
+    num_experts: int = None,
+    moe_grouped_gemm: bool = False,
+    qk_layernorm: bool = False,
+    multi_latent_attention: bool = False,
+    normalization: str = "LayerNorm",
 ) -> ModuleSpec:
     mlp = _get_mlp_module_spec(
         use_te=False, num_experts=num_experts, moe_grouped_gemm=moe_grouped_gemm
     )
+    norm_impl = TENorm if normalization == "RMSNorm" else FusedLayerNorm
+    if multi_latent_attention:
+        attention_spec = ModuleSpec(
+            module=MLASelfAttention,
+            params={"attn_mask_type": AttnMaskType.causal},
+            submodules=MLASelfAttentionSubmodules(
+                linear_q_up_proj=ColumnParallelLinear,
+                linear_kv_up_proj=ColumnParallelLinear,
+                linear_proj=RowParallelLinear,
+            ),
+        )
+    else:
+        attention_spec = ModuleSpec(
+            module=SelfAttention,
+            params={"attn_mask_type": AttnMaskType.causal},
+            submodules=SelfAttentionSubmodules(
+                linear_qkv=ColumnParallelLinear,
+                core_attention=DotProductAttention,
+                linear_proj=RowParallelLinear,
+                q_layernorm=norm_impl if qk_layernorm else IdentityOp,
+                k_layernorm=norm_impl if qk_layernorm else IdentityOp,
+            ),
+        )
     return ModuleSpec(
         module=TransformerLayer,
         submodules=TransformerLayerSubmodules(
-            input_layernorm=FusedLayerNorm,
-            self_attention=ModuleSpec(
-                module=SelfAttention,
-                params={"attn_mask_type": AttnMaskType.causal},
-                submodules=SelfAttentionSubmodules(
-                    linear_qkv=ColumnParallelLinear,
-                    core_attention=DotProductAttention,
-                    linear_proj=RowParallelLinear,
-                    q_layernorm=FusedLayerNorm if qk_layernorm else IdentityOp,
-                    k_layernorm=FusedLayerNorm if qk_layernorm else IdentityOp,
-                ),
-            ),
+            input_layernorm=norm_impl,
+            self_attention=attention_spec,
             self_attn_bda=get_bias_dropout_add,
-            pre_mlp_layernorm=FusedLayerNorm,
+            pre_mlp_layernorm=norm_impl,
             mlp=mlp,
             mlp_bda=get_bias_dropout_add,
             sharded_state_dict_keys_map={
@@ -124,22 +152,28 @@ def get_gpt_decoder_layer_specs(
             num_experts=None,
             moe_grouped_gemm=False,
             qk_layernorm=config.qk_layernorm,
+            multi_latent_attention=config.multi_latent_attention,
         )
         moe_layer_spec = get_gpt_layer_with_transformer_engine_spec(
             num_experts=config.num_moe_experts,
             moe_grouped_gemm=config.moe_grouped_gemm,
             qk_layernorm=config.qk_layernorm,
+            multi_latent_attention=config.multi_latent_attention,
         )
     else:
         dense_layer_spec = get_gpt_layer_local_spec(
             num_experts=None,
             moe_grouped_gemm=False,
             qk_layernorm=config.qk_layernorm,
+            multi_latent_attention=config.multi_latent_attention,
+            normalization=config.normalization,
         )
         moe_layer_spec = get_gpt_layer_local_spec(
             num_experts=config.num_moe_experts,
             moe_grouped_gemm=config.moe_grouped_gemm,
             qk_layernorm=config.qk_layernorm,
+            multi_latent_attention=config.multi_latent_attention,
+            normalization=config.normalization,
         )
 
     layer_pattern = _get_moe_layer_pattern(config)

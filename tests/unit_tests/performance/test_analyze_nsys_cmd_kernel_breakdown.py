@@ -63,10 +63,18 @@ def test_summarize_nvtx_ranges_splits_compute_and_comm_overlap():
     kernels_by_pid = {
         1: [
             module.KernelRecord(
-                start_ns=120, end_ns=180, name="gemm_kernel", is_comm=False
+                start_ns=120,
+                end_ns=180,
+                stream_id=7,
+                name="gemm_kernel",
+                is_comm=False,
             ),
             module.KernelRecord(
-                start_ns=150, end_ns=260, name="ncclKernel_AllToAll", is_comm=True
+                start_ns=150,
+                end_ns=260,
+                stream_id=41,
+                name="ncclKernel_AllToAll",
+                is_comm=True,
             ),
         ]
     }
@@ -76,4 +84,13 @@ def test_summarize_nvtx_ranges_splits_compute_and_comm_overlap():
     row = rows[0]
     assert row["compute_kernel_ms"] == pytest.approx((180 - 120) / 1_000_000.0)
     assert row["comm_kernel_ms"] == pytest.approx((260 - 150) / 1_000_000.0)
+    assert row["compute_kernel_union_ms"] == pytest.approx(row["compute_kernel_ms"])
+    assert row["comm_kernel_union_ms"] == pytest.approx(row["comm_kernel_ms"])
+    assert row["compute_primary_stream_union_ms"] == pytest.approx(
+        row["compute_kernel_ms"]
+    )
+    assert row["primary_compute_stream_id"] == 7
+    assert row["compute_stream_count"] == 1
+    assert "gemm_kernel" in row["compute_kernel_name_overlap_ms"]
+    assert "gemm_kernel" in row["primary_stream_compute_kernel_name_overlap_ms"]
     assert row["kernel_count"] == 2

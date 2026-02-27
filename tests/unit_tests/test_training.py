@@ -98,6 +98,110 @@ class TestTraining:
             with pytest.raises(SystemExit):
                 parse_args(ignore_unknown_args=False)
 
+    def test_trace_cmd_sync_mode_default_global(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.trace_cmd_sync_mode == "global"
+
+    def test_trace_cmd_sync_mode_event(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--trace-cmd-sync-mode", "event",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.trace_cmd_sync_mode == "event"
+
+    def test_trace_cmd_sync_mode_invalid_value(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--trace-cmd-sync-mode", "bad-value",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            with pytest.raises(SystemExit):
+                parse_args(ignore_unknown_args=False)
+
+    def test_scaling_min_warmup_iters_default(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.scaling_min_warmup_iters == 3
+
+    def test_scaling_min_warmup_iters_custom(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--scaling-min-warmup-iters", "0",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.scaling_min_warmup_iters == 0
+
+    def test_scaling_profile_iters_default(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.scaling_profile_iters == 1
+
+    def test_scaling_profile_iters_custom(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--scaling-profile-iters", "3",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.scaling_profile_iters == 3
+
+    def test_scaling_replay_cache_tag_default(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.scaling_replay_cache_tag == ""
+
+    def test_scaling_replay_cache_tag_custom(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--scaling-replay-cache-tag", "runA",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.scaling_replay_cache_tag == "runA"
+
     def test_trace_kernel_ground_truth_defaults(self):
         test_argv = [
             "test_training.py",

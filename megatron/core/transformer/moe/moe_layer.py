@@ -9,6 +9,7 @@ from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.moe.experts import GroupedMLP, SequentialMLP
 from megatron.core.transformer.moe.router import TopKRouter
+from megatron.core.transformer.moe.shared_experts import SharedExpertMLP
 from megatron.core.transformer.moe.token_dispatcher import (
     MoEAllGatherTokenDispatcher,
     MoEAlltoAllTokenDispatcher,
@@ -145,20 +146,19 @@ class MoELayer(BaseMoELayer):
             raise ValueError(
                 f"Unsupported token dispatcher type: {config.moe_token_dispatcher_type}"
             )
+        self.shared_experts = (
+            SharedExpertMLP(self.config)
+            if self.config.moe_shared_expert_intermediate_size is not None
+            else None
+        )
 
     def forward(self, hidden_states: torch.Tensor):
         # process MoE
         
         if self.config.is_scaling_mode:
             exp_rank = self.config.exp_rank
-            pp_rank = self.config.pp_rank
-            dp_rank = self.config.dp_rank
-            tp_rank = self.config.tp_rank
         else:
             exp_rank = parallel_state.get_expert_model_parallel_rank()
-            pp_rank = parallel_state.get_pipeline_model_parallel_rank()
-            dp_rank = parallel_state.get_data_parallel_rank()
-            tp_rank = parallel_state.get_tensor_model_parallel_rank()
 
         # hidden_states shape = [seq_len, micro_batch_size, hidden_size]
         # TODO-YC:
@@ -166,35 +166,19 @@ class MoELayer(BaseMoELayer):
 
         pre_fixed_routing_results = getattr(self.config, "pre_fixed_routing_results", None)
         if pre_fixed_routing_results:
-            # --- START of a new block to fix the graph ---
-            # 1. DO NOT replace hidden_states. Use the real one from the previous layer.
-            # 2. Run router's gating to get logits. This keeps the graph connected to router weights.
+            seq_length, micro_batch_size = hidden_states.shape[:2]
             logits = self.router.gating(hidden_states)
             logits = logits.view(-1, self.config.num_moe_experts)
-            
-            # 3. Apply z_loss to keep it in the backward pass.
             logits = self.router.apply_z_loss(logits)
-            
-            # 4. Use the pre-computed indices.
+
             indices = pre_fixed_routing_results[exp_rank]['indices']
-            if not indices.is_cuda:
-                indices = indices.cuda()
-
-            # 5. Re-compute scores from real logits and fixed indices.
-            top_logits = torch.gather(logits, 1, indices)
-            if not torch.isfinite(top_logits).all():
-                # Keep fixed-routing runs numerically stable in scaling/debug mode.
-                top_logits = torch.nan_to_num(top_logits, nan=0.0, posinf=1e4, neginf=-1e4)
-            scores = torch.softmax(top_logits, dim=-1, dtype=torch.float32).type_as(logits)
-
-            # 6. Re-apply load balancing loss to keep it in the backward pass.
-            if self.config.moe_router_load_balancing_type == 'aux_loss':
-                finite_logits = logits
-                if not torch.isfinite(finite_logits).all():
-                    finite_logits = torch.nan_to_num(finite_logits, nan=0.0, posinf=1e4, neginf=-1e4)
-                probs = torch.softmax(finite_logits, dim=-1, dtype=torch.float32)
-                scores = self.router.apply_load_balancing_loss(probs, indices, activation=scores)
-            # --- END of the new block ---
+            indices = indices.to(device=logits.device, non_blocking=True)
+            scores = self.router.compute_scores_from_logits_and_indices(
+                logits=logits,
+                indices=indices,
+                seq_length=seq_length,
+                batch_size=micro_batch_size,
+            )
         else:
             # Original path for real running mode
             scores, indices = self.router(hidden_states)
@@ -206,4 +190,6 @@ class MoELayer(BaseMoELayer):
 
         expert_output, mlp_bias = self.experts(dispatched_input, tokens_per_expert)
         output, mlp_bias = self.token_dispatcher.token_unpermutation(expert_output, mlp_bias)
+        if self.shared_experts is not None:
+            output = output + self.shared_experts(hidden_states)
         return output, mlp_bias
