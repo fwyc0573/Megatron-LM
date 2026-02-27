@@ -3,6 +3,7 @@
 """Pretrain utilities."""
 
 import dataclasses
+from contextlib import nullcontext
 from datetime import datetime
 import gc
 import logging
@@ -68,6 +69,12 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.profiler.trace_memory import get_memory_tracker
 
 stimer = StragglerDetector()
+
+OPTIMIZER_MICROPHASE_OPS = (
+    "optimizer_main_update",
+    "optimizer_state_update",
+    "optimizer_post_update",
+)
 
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
@@ -179,6 +186,45 @@ def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)  # 如果使用多GPU
+
+
+def _maybe_add_optimizer_microphase_batch_ids(micro_batch_ids):
+    """Ensure optimizer microphase batch-id counters exist."""
+    if micro_batch_ids is None:
+        return micro_batch_ids
+    for phase_name in OPTIMIZER_MICROPHASE_OPS:
+        micro_batch_ids.setdefault(phase_name, -1)
+    return micro_batch_ids
+
+
+def _should_trace_optimizer_microphases(args):
+    return bool(
+        getattr(args, "trace_optimizer_microphases", False)
+        and getattr(args, "stage_operations_trace", None) is not None
+        and getattr(args, "simu_micro_batch_ids", None) is not None
+    )
+
+
+def _optimizer_microphase_cmd(args, phase_name, rank_id, stage_id, mg_state, description):
+    if phase_name not in OPTIMIZER_MICROPHASE_OPS:
+        raise ValueError(f"Unsupported optimizer microphase: {phase_name}")
+    if not _should_trace_optimizer_microphases(args):
+        return nullcontext()
+    _maybe_add_optimizer_microphase_batch_ids(args.simu_micro_batch_ids)
+    return CMD(
+        rank_id=rank_id,
+        mg_state=mg_state,
+        name_cmd=phase_name,
+        use_cuda=True,
+        stage_operations_trace_dict=args.stage_operations_trace,
+        micro_batch_ids_dict=args.simu_micro_batch_ids,
+        stage_id=stage_id,
+        simu_start=getattr(args, "simu_start", False),
+        description=description,
+        trace_start=getattr(args, "trace_start", 0),
+        current_iter=getattr(args, "current_iter", 0),
+        args=args,
+    )
     
     
 def pretrain(train_valid_test_dataset_provider,
@@ -302,7 +348,8 @@ def pretrain(train_valid_test_dataset_provider,
         args.simu_micro_batch_ids = {
             "recv_forward": -1, "forward_step": -1, "send_forward": -1, "recv_backward": -1,
             "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
-            "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1
+            "tp_allreduce": -1, "optimizer_step": -1, 'get_batch': -1, 'loss_func': -1, 'ep_allreduce': -1,
+            "optimizer_main_update": -1, "optimizer_state_update": -1, "optimizer_post_update": -1
         }
 
     def _get_scaling_pipeline_states(rank_instance=None):
@@ -672,9 +719,34 @@ def pretrain(train_valid_test_dataset_provider,
             _prepare_scaling_optimizer_step(optimizer)
             with cmd:
                 nvtx.range_push(f"rank:{rank_id}, optimizer_step")
-                update_successful = _scaling_optimizer_step(optimizer)
+                with _optimizer_microphase_cmd(
+                    args=args,
+                    phase_name="optimizer_main_update",
+                    rank_id=rank_id,
+                    stage_id=args.pp_rank,
+                    mg_state="finalize",
+                    description="optimizer.step()",
+                ):
+                    update_successful = _scaling_optimizer_step(optimizer)
                 nvtx.range_pop()
-            _scaling_scheduler_step(opt_param_scheduler, update_successful)
+            with _optimizer_microphase_cmd(
+                args=args,
+                phase_name="optimizer_state_update",
+                rank_id=rank_id,
+                stage_id=args.pp_rank,
+                mg_state="finalize",
+                description="opt_param_scheduler.step()",
+            ):
+                _scaling_scheduler_step(opt_param_scheduler, update_successful)
+            with _optimizer_microphase_cmd(
+                args=args,
+                phase_name="optimizer_post_update",
+                rank_id=rank_id,
+                stage_id=args.pp_rank,
+                mg_state="finalize",
+                description="post-optimizer hooks",
+            ):
+                pass
             print(
                 f"rank:{rank_id}, finish optimizer.step profile iter {profile_iter + 1}/{profile_iters} ..."
             )
@@ -1125,7 +1197,15 @@ def train_step(forward_step_func, data_iterator,
         # start_event = torch.cuda.Event(enable_timing=True)
         # end_event = torch.cuda.Event(enable_timing=True)
         # start_event.record()
-        update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
+        with _optimizer_microphase_cmd(
+            args=args,
+            phase_name="optimizer_main_update",
+            rank_id=args.simu_rank,
+            stage_id=args.simu_stage_id,
+            mg_state=args.simu_state,
+            description="optimizer.step()",
+        ):
+            update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
         # end_event.record()
         # torch.cuda.synchronize()
         # elapsed_optim_time_ms = start_event.elapsed_time(end_event)
@@ -1155,14 +1235,39 @@ def train_step(forward_step_func, data_iterator,
         increment = get_num_microbatches() * \
                     args.micro_batch_size * \
                     args.data_parallel_size
-        opt_param_scheduler.step(increment=increment)
+        with _optimizer_microphase_cmd(
+            args=args,
+            phase_name="optimizer_state_update",
+            rank_id=args.simu_rank,
+            stage_id=args.simu_stage_id,
+            mg_state=args.simu_state,
+            description="opt_param_scheduler.step()",
+        ):
+            opt_param_scheduler.step(increment=increment)
         skipped_iter = 0
     else:
+        with _optimizer_microphase_cmd(
+            args=args,
+            phase_name="optimizer_state_update",
+            rank_id=args.simu_rank,
+            stage_id=args.simu_stage_id,
+            mg_state=args.simu_state,
+            description="opt_param_scheduler.step() skipped",
+        ):
+            pass
         skipped_iter = 1
 
     # Empty unused memory.
-    if args.empty_unused_memory_level >= 2:
-        torch.cuda.empty_cache()
+    with _optimizer_microphase_cmd(
+        args=args,
+        phase_name="optimizer_post_update",
+        rank_id=args.simu_rank,
+        stage_id=args.simu_stage_id,
+        mg_state=args.simu_state,
+        description="post-optimizer hooks",
+    ):
+        if args.empty_unused_memory_level >= 2:
+            torch.cuda.empty_cache()
     nvtx.range_pop()
 
     if mpu.is_pipeline_last_stage(ignore_virtual=True):
@@ -1603,7 +1708,8 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         args.simu_micro_batch_ids = {
             "recv_forward": -1, "forward_step": -1, "send_forward": -1, "recv_backward": -1,
             "backward_step": -1, "send_backward": -1, "tp_load_batch_broadcast": -1, "dp_allreduce": -1,
-            "tp_allreduce": -1, "optimizer_step": -1, "loss_func": -1, 'get_batch': -1, "ep_allreduce": -1
+            "tp_allreduce": -1, "optimizer_step": -1, "loss_func": -1, 'get_batch': -1, "ep_allreduce": -1,
+            "optimizer_main_update": -1, "optimizer_state_update": -1, "optimizer_post_update": -1
         }
         if iteration < args.trace_start:
             args.stage_operations_trace = {}

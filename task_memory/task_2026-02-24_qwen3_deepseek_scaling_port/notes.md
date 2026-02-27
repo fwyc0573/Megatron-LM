@@ -2,6 +2,8 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Added stage-2 optimizer microphase protocolfix8 phase-aware fidelity findings (run1/2/3 + median-of-runs) |
+| 2026-02-27 | Implemented stage-2 optimizer microphase trace-only path (default-off) and added unit-validation notes |
 | 2026-02-27 | Added stage-2 protocolfix8 fidelity notes and optimizer semantic-touching proposal (design-only, pending user confirmation) |
 | 2026-02-27 | Added stage-2 round5 replay-cache iteration-alignment design notes and latest fidelity status |
 | 2026-02-24 | Added architecture comparison, gap analysis, stage-1 simplifications, and stage-2 backlog |
@@ -334,3 +336,78 @@ upstream 里 expert bias 的更新通常发生在 global batch 粒度，需要 a
      - 单测：trace 结构完整性（phase 名称、顺序、总和一致性）；
      - 集成：同一 run_config 下 distributed/scaling 对比；
      - 门限：先看 `optimizer_step` op-rank-median，再看 phase 归因是否稳定。
+
+## 10) Stage-2 optimizer microphase 实施结果（2026-02-27, round9）
+
+1. **实现范围（已落地）**
+   - 新增 flag（默认关闭）：
+     - `--trace-optimizer-microphases`
+   - 在 distributed/scaling 两侧增加同构 microphase trace 点：
+     - `optimizer_main_update`
+     - `optimizer_state_update`
+     - `optimizer_post_update`
+   - 保留原有 top-level `optimizer_step` CMD，不改变其名称和存在性。
+
+2. **语义约束执行情况**
+   - 未修改 optimizer 算法、参数更新顺序、学习率调度逻辑条件。
+   - 默认路径（未开启新 flag）不新增 microphase CMD，避免影响既有模型默认性能与 trace 口径。
+   - microphase 仅作为附加诊断视图；开启后只增加 trace 边界与记录，不引入 fallback 分支。
+
+3. **代码触点**
+   - `megatron/training/arguments.py`
+     - 新增 `--trace-optimizer-microphases`。
+   - `megatron/training/training.py`
+     - 新增 `_optimizer_microphase_cmd(...)` 等 helper；
+     - distributed `train_step` 和 scaling profiling 路径均接入同名 phase；
+     - 扩展 `simu_micro_batch_ids` 字典，保证 phase batch_id 可独立递增记录。
+
+4. **验证结论（单测）**
+   - 新增 `tests/unit_tests/test_training_optimizer_microphase.py`：
+     - parser 默认值/开启值校验；
+     - microphase key 注入校验；
+     - phase 顺序/存在性校验；
+     - invalid phase fail-fast 校验。
+   - 当前结果：
+     - `pytest -q tests/unit_tests/test_training_optimizer_microphase.py` → `6 passed`。
+
+## 11) Stage-2 optimizer microphase fidelity 结果（2026-02-27, round10）
+
+1. **执行协议**
+   - distributed/scaling 均启用：
+     - `TRACE_START=4`, `TRAIN_ITERS=6`
+     - `TRACE_SUBOP_SYNC_MODE=global`, `TRACE_CMD_SYNC_MODE=global`
+     - `TRACE_OPTIMIZER_MICROPHASES=1`
+   - scaling 固定执行协议：
+     - rank-order：`0,4,1,5,2,6,3,7`
+     - run1/run2/run3（端口 `9630/9631/9632`），同一 distributed baseline (`ts=20260227174546`)。
+
+2. **phase-aware 单次证据（op-rank-median）**
+   - run1:
+     - `forward=8.34%`, `backward=6.81%`, `optimizer_step=11.19%`
+     - `optimizer_main_update=10.86%`
+     - `optimizer_state_update=33.33%`
+     - `optimizer_post_update=0.00%`
+   - run2:
+     - `forward=10.53%`, `backward=13.39%`, `optimizer_step=10.43%`
+     - `optimizer_main_update=9.75%`
+     - `optimizer_state_update=27.78%`
+     - `optimizer_post_update=16.67%`
+   - run3:
+     - `forward=7.79%`, `backward=8.17%`, `optimizer_step=13.22%`
+     - `optimizer_main_update=12.52%`
+     - `optimizer_state_update=30.00%`
+     - `optimizer_post_update=12.50%`
+
+3. **median-of-runs（3 runs, op-rank-median）**
+   - `forward_step=8.34%`
+   - `backward_step=8.17%`
+   - `optimizer_step=11.19%`
+   - `optimizer_main_update=10.86%`
+   - `optimizer_state_update=30.00%`
+   - `optimizer_post_update=12.50%`
+
+4. **结论（当前阶段）**
+   - microphase trace 已提供归因能力，但 fidelity 未达 `<=5%`：
+     - optimizer 主残差并非集中在 `state_update/post_update`；
+     - `optimizer_main_update` 本身仍在 ~10% 量级，说明 residual 主要仍来自 optimizer 主更新阶段的跨模式执行差异。
+   - `optimizer_state_update` / `optimizer_post_update` 由于绝对时长很短（约 `0.01~0.05ms`），相对误差易放大；应结合绝对时长解读，不宜单独作为主 gate。

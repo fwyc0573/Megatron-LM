@@ -1867,6 +1867,15 @@ def _add_trace_args(parser):
         default='cmd_trace',
         help='NVTX label prefix used when --trace-kernel-ground-truth is enabled.',
     )
+    group.add_argument(
+        '--trace-optimizer-microphases',
+        action='store_true',
+        help=(
+            'Emit additional optimizer microphase CMD traces '
+            '(optimizer_main_update/state_update/post_update). '
+            'Disabled by default to avoid affecting baseline trace behavior.'
+        ),
+    )
     # 添加 --nsight-start 参数
     group.add_argument('--nsight-start', type=int, default=0,
                        help='The iteration to start Nsight Systems profiling.')

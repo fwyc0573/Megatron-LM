@@ -2,6 +2,8 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Completed stage-2 optimizer microphase protocolfix8 fidelity reruns (single + repeat aggregation), and archived phase-aware compare evidence |
+| 2026-02-27 | Implemented stage-2 optimizer microphase trace path (default-off) across distributed/scaling, added unit tests, and archived validation report |
 | 2026-02-27 | Added stage-2 protocolfix8 repeated-pairing execution (fixed ports/rank-order), archived single+aggregate fidelity evidence, and documented residual backward/optimizer gaps |
 | 2026-02-27 | Added stage-2 round5 iteration-indexed replay-cache alignment implementation and validation evidence |
 | 2026-02-24 | Recorded stage-1 implementation progress and checkpoints |
@@ -107,6 +109,9 @@
   - current compare (`forward_step/backward_step/optimizer_step`) remains far above 5% threshold.
 - Investigate remaining distributed-vs-scaling compute-gap drivers under architecture-standard profile:
   - likely includes warmup/steady-state attribution mismatch and sub-op accounting asymmetry.
+- Run phase-aware fidelity reruns with `--trace-optimizer-microphases` enabled:
+  - compare `optimizer_main_update/state_update/post_update` across distributed/scaling to locate optimizer residual concentration.
+- Propose next semantic-touching optimizer alignment option (default-off), and wait for explicit user confirmation before code changes.
 - Prepare optional focused diagnostics (default-off) if needed for next round, while keeping existing model paths unchanged.
 
 
@@ -145,6 +150,67 @@
     - median-of-runs (op-rank-median): forward `8.48%`, backward `15.02%`, optimizer `6.69%` (all FAIL).
   - New report:
     - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-27_stage2_protocolfix8_repeat_report.md`
+
+- Continued stage-2 implementation (round9, optimizer microphase trace-only segmentation):
+  - Code updates (default-off, no optimizer algorithm change):
+    - `megatron/training/arguments.py`: added `--trace-optimizer-microphases` flag (default disabled).
+    - `megatron/training/training.py`:
+      - added shared helper `_optimizer_microphase_cmd(...)` and phase constants:
+        - `optimizer_main_update`
+        - `optimizer_state_update`
+        - `optimizer_post_update`
+      - wired microphase trace points into both distributed `train_step` and scaling profiler `optimizer_step` path with the same phase names/order.
+      - kept top-level `optimizer_step` CMD intact; microphase traces are additive diagnostics.
+      - extended `simu_micro_batch_ids` initialization to include the three microphase keys.
+  - Validation:
+    - new unit test file: `tests/unit_tests/test_training_optimizer_microphase.py`
+      - parser default/on checks for `--trace-optimizer-microphases`.
+      - microphase key injection check.
+      - phase-order/presence check via mocked CMD context.
+      - invalid phase fail-fast check.
+    - command evidence:
+      - `pytest -q tests/unit_tests/test_training_optimizer_microphase.py` → `6 passed`.
+      - `python -m py_compile megatron/training/training.py megatron/training/arguments.py tests/unit_tests/test_training_optimizer_microphase.py` → exit code `0`.
+  - Evidence report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-27_stage2_optimizer_microphase_impl.md`
+
+- Continued stage-2 fidelity execution (round10, microphase protocolfix8 evidence):
+  - Runtime pre-check:
+    - `nvidia-smi` confirmed 8 GPUs all `SM=0%` before runs.
+    - Serena tool call retried (`list_mcp_resources(server=\"serena\")`) and continued with local execution.
+  - Distributed + scaling reruns (`TRACE_OPTIMIZER_MICROPHASES=1`) completed:
+    - distributed:
+      - `logs/deepseek_v3_stage2_dist_microphase_trace4_iter6.log`
+      - paired trace timestamp: `20260227174546`
+    - scaling run1/run2/run3 (`SCALING_FAKE_RANK_ORDER=0,4,1,5,2,6,3,7`):
+      - `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_protocolfix8_run1.log`
+      - `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_protocolfix8_run2.log`
+      - `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_protocolfix8_run3.log`
+  - Compare evidence (phase-aware ops included):
+    - run1 compare: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_protocolfix8_run1.log`
+    - run2 compare: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_protocolfix8_run2.log`
+    - run3 compare: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_protocolfix8_run3.log`
+    - repeat JSONL (3 runs):
+      - `logs/deepseek_v3_stage2_repeat_microphase_protocolfix8_subtract.jsonl`
+  - Key op-rank-median evidence (primary, subtract-comm):
+    - run1:
+      - `forward_step=8.34%`, `backward_step=6.81%`, `optimizer_step=11.19%`
+      - `optimizer_main_update=10.86%`, `optimizer_state_update=33.33%`, `optimizer_post_update=0.00%`
+    - run2:
+      - `forward_step=10.53%`, `backward_step=13.39%`, `optimizer_step=10.43%`
+      - `optimizer_main_update=9.75%`, `optimizer_state_update=27.78%`, `optimizer_post_update=16.67%`
+    - run3:
+      - `forward_step=7.79%`, `backward_step=8.17%`, `optimizer_step=13.22%`
+      - `optimizer_main_update=12.52%`, `optimizer_state_update=30.00%`, `optimizer_post_update=12.50%`
+  - Median-of-runs on op-rank-median:
+    - `forward_step=8.34%`
+    - `backward_step=8.17%`
+    - `optimizer_step=11.19%`
+    - `optimizer_main_update=10.86%`
+    - `optimizer_state_update=30.00%`
+    - `optimizer_post_update=12.50%`
+  - New phase-aware report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-27_stage2_microphase_fidelity_protocolfix8.md`
 
 ## 2026-02-24
 

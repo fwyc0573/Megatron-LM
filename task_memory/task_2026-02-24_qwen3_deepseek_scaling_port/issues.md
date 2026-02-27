@@ -2,6 +2,8 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Added Issue 38 for optimizer microphase phase-aware evidence: main-update residual remains dominant after protocolfix8 run1/2/3 repeats |
+| 2026-02-27 | Added Issue 37 for newly landed optimizer microphase trace path: phase-level fidelity evidence still pending (runtime verification next step) |
 | 2026-02-27 | Added Issue 36 for protocolfix8 residual fidelity drift after fixed-port/fixed-order repeated pairing; updated Serena availability note to intermittent |
 | 2026-02-27 | Added Issue 35 for stage-2 residual fidelity risks after iter-replay alignment fix |
 | 2026-02-24 | Added stage-1 blockers/risks and mitigation notes |
@@ -450,6 +452,42 @@
    - Mitigation:
      - keep current protocol as baseline evidence path;
      - before any runtime-semantics change, provide design proposal and obtain explicit user approval.
+
+37. **Optimizer microphase path已落地，但 phase-level fidelity 证据尚未补齐**
+   - 当前状态：
+     - 代码已支持 `--trace-optimizer-microphases`（default-off），distributed/scaling 均输出同名三段：
+       - `optimizer_main_update`
+       - `optimizer_state_update`
+       - `optimizer_post_update`
+     - 单元测试已通过（结构/顺序/参数解析）。
+   - 未完成项：
+     - 尚未完成基于同一 pairset 的 phase-level 对比报告（尤其 `optimizer_state_update` vs `optimizer_main_update` 的误差贡献分解）。
+   - 影响：
+     - 目前仍无法用 phase-level 证据证明 optimizer residual 的主因归属。
+   - 下一步缓解：
+     - 在固定 protocol（端口段 + rank-order + repeated pairing）下启用 microphase flag 进行 distributed/scaling rerun；
+     - 使用 compare 脚本 `--ops` 扩展到三段 microphase，沉淀 phase-aware 证据后再决定是否申请语义触及优化。
+
+38. **Microphase phase-aware 证据显示 optimizer 主残差仍由 `optimizer_main_update` 主导**
+   - 新证据（protocolfix8, run1/run2/run3, fixed distributed baseline）：
+     - `optimizer_main_update` op-rank-median:
+       - run1 `10.86%`
+       - run2 `9.75%`
+       - run3 `12.52%`
+       - median-of-runs `10.86%`（FAIL）
+     - `optimizer_step` op-rank-median:
+       - run1 `11.19%`
+       - run2 `10.43%`
+       - run3 `13.22%`
+       - median-of-runs `11.19%`（FAIL）
+   - 解释：
+     - microphase 已验证记录链路正确，但 residual 并未主要来自 scheduler/post hooks；
+     - 主更新阶段（`optimizer_main_update`）本身跨模式差异仍高，说明后续若继续压误差，可能需要触及 scaling 执行语义或测量边界设计。
+   - 补充观察：
+     - `optimizer_state_update`/`optimizer_post_update` 绝对时长极短（约 `0.01~0.05ms`），相对误差百分比易被放大，不宜单独作为主门限结论。
+   - 缓解建议：
+     - 保持当前 microphase 路径 default-off；
+     - 下一步先提交“可能触及语义”的方案并等待用户确认，再做代码修改。
 
 ## Resolved During Stage-1
 
