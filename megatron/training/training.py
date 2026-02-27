@@ -76,6 +76,9 @@ OPTIMIZER_MICROPHASE_OPS = (
     "optimizer_post_update",
 )
 
+SCALING_REPLAY_WRITE_PHASES = ("pre_optimizer", "post_optimizer")
+SCALING_REPLAY_WRITE_PHASE_DEFAULT = "pre_optimizer"
+
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
     torch.distributed.barrier()
@@ -225,6 +228,25 @@ def _optimizer_microphase_cmd(args, phase_name, rank_id, stage_id, mg_state, des
         current_iter=getattr(args, "current_iter", 0),
         args=args,
     )
+
+
+def _should_defer_scaling_grad_replay_write(args):
+    replay_write_phase = getattr(
+        args, "scaling_replay_write_phase", SCALING_REPLAY_WRITE_PHASE_DEFAULT
+    )
+    if replay_write_phase not in SCALING_REPLAY_WRITE_PHASES:
+        raise ValueError(
+            "Unsupported --scaling-replay-write-phase value: "
+            f"{replay_write_phase}. Expected one of {SCALING_REPLAY_WRITE_PHASES}."
+        )
+    return replay_write_phase == "post_optimizer"
+
+
+def _get_scaling_scheduler_increment_dp_size(args):
+    """Select dp-size factor for scaling scheduler increment."""
+    if getattr(args, "scaling_align_scheduler_increment", False):
+        return int(getattr(args, "data_parallel_size", 1))
+    return int(getattr(args, "fake_dp", 1))
     
     
 def pretrain(train_valid_test_dataset_provider,
@@ -418,7 +440,8 @@ def pretrain(train_valid_test_dataset_provider,
 
     def _scaling_scheduler_step(opt_param_scheduler, update_successful):
         if update_successful:
-            increment = get_num_microbatches() * args.micro_batch_size * args.fake_dp
+            dp_size_for_increment = _get_scaling_scheduler_increment_dp_size(args)
+            increment = get_num_microbatches() * args.micro_batch_size * dp_size_for_increment
             opt_param_scheduler.step(increment=increment)
 
     def _get_scaling_replay_cache_dir():
@@ -512,6 +535,7 @@ def pretrain(train_valid_test_dataset_provider,
             for _ in range(warm_up_iter):
                 warmup_has_step = True
                 args.current_iter = args.iteration + 1
+                pending_grad_replay_write = None
                 # forward_step_func()
                 args.simu_state = fwd_state
                 output_tensor, input_tensor = sim_forward_step(rank_id, model, model_type, args, parallel_state, config, train_data_iterator)
@@ -530,16 +554,23 @@ def pretrain(train_valid_test_dataset_provider,
                 if not args.is_pre_process and args.pp_prev_rank is not None:
                     grad_tensor = input_tensor_grad[0] if isinstance(input_tensor_grad, list) else input_tensor_grad
                     if grad_tensor is not None:
-                        torch.save(
-                            grad_tensor.detach().cpu(),
-                            _get_grad_cache_path(args.pp_prev_rank, iteration=args.current_iter),
+                        grad_cache_path = _get_grad_cache_path(
+                            args.pp_prev_rank, iteration=args.current_iter
                         )
+                        if _should_defer_scaling_grad_replay_write(args):
+                            pending_grad_replay_write = (grad_tensor, grad_cache_path)
+                        else:
+                            torch.save(grad_tensor.detach().cpu(), grad_cache_path)
 
                 # optimizer.step()
                 args.simu_state = "finalize"
                 _prepare_scaling_optimizer_step(optimizer)
                 update_successful = _scaling_optimizer_step(optimizer)
                 _scaling_scheduler_step(opt_param_scheduler, update_successful)
+
+                if pending_grad_replay_write is not None:
+                    grad_tensor, grad_cache_path = pending_grad_replay_write
+                    torch.save(grad_tensor.detach().cpu(), grad_cache_path)
 
                 for model_chunk in model:
                     model_chunk.zero_grad_buffer()
@@ -570,6 +601,7 @@ def pretrain(train_valid_test_dataset_provider,
             global_iter = warm_up_iter + profile_iter
             args.iteration = global_iter
             args.current_iter = global_iter
+            pending_grad_replay_write = None
             if memory_tracker is not None:
                 memory_tracker.next_iteration(global_iter)
 
@@ -639,10 +671,13 @@ def pretrain(train_valid_test_dataset_provider,
                     input_tensor_grad[0] if isinstance(input_tensor_grad, list) else input_tensor_grad
                 )
                 if grad_tensor is not None:
-                    torch.save(
-                        grad_tensor.detach().cpu(),
-                        _get_grad_cache_path(args.pp_prev_rank, iteration=args.current_iter),
+                    grad_cache_path = _get_grad_cache_path(
+                        args.pp_prev_rank, iteration=args.current_iter
                     )
+                    if _should_defer_scaling_grad_replay_write(args):
+                        pending_grad_replay_write = (grad_tensor, grad_cache_path)
+                    else:
+                        torch.save(grad_tensor.detach().cpu(), grad_cache_path)
 
             # dp_allreduce
             pos_p_t = (args.pp_rank,args.tp_rank)
@@ -747,6 +782,9 @@ def pretrain(train_valid_test_dataset_provider,
                 description="post-optimizer hooks",
             ):
                 pass
+            if pending_grad_replay_write is not None:
+                grad_tensor, grad_cache_path = pending_grad_replay_write
+                torch.save(grad_tensor.detach().cpu(), grad_cache_path)
             print(
                 f"rank:{rank_id}, finish optimizer.step profile iter {profile_iter + 1}/{profile_iters} ..."
             )

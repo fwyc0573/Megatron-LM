@@ -38,6 +38,8 @@ TRACE_OPTIMIZER_MICROPHASES=${TRACE_OPTIMIZER_MICROPHASES:-0}
 DO_TRACE=${DO_TRACE:-True}
 SCALING_MIN_WARMUP_ITERS=${SCALING_MIN_WARMUP_ITERS:-0}
 SCALING_PROFILE_ITERS=${SCALING_PROFILE_ITERS:-3}
+SCALING_REPLAY_WRITE_PHASE=${SCALING_REPLAY_WRITE_PHASE:-pre_optimizer}
+SCALING_ALIGN_SCHEDULER_INCREMENT=${SCALING_ALIGN_SCHEDULER_INCREMENT:-0}
 SCALING_REPLAY_CACHE_TAG=${SCALING_REPLAY_CACHE_TAG:-}
 if [[ -z "${SCALING_REPLAY_CACHE_TAG}" ]]; then
   SCALING_REPLAY_CACHE_TAG=$(date +%Y%m%d%H%M%S)
@@ -124,6 +126,14 @@ FAKE_DP=${FAKE_DP:-$((FAKE_WORLD_SIZE / FAKE_PP / FAKE_TP))}
 
 if (( FAKE_DP * FAKE_PP * FAKE_TP != FAKE_WORLD_SIZE )); then
   echo "[ERROR] Invalid fake parallel setup: fake_dp * fake_pp * fake_tp != fake_world_size"
+  exit 1
+fi
+if [[ "${SCALING_REPLAY_WRITE_PHASE}" != "pre_optimizer" && "${SCALING_REPLAY_WRITE_PHASE}" != "post_optimizer" ]]; then
+  echo "[ERROR] SCALING_REPLAY_WRITE_PHASE must be pre_optimizer or post_optimizer, got ${SCALING_REPLAY_WRITE_PHASE}."
+  exit 1
+fi
+if [[ "${SCALING_ALIGN_SCHEDULER_INCREMENT}" != "0" && "${SCALING_ALIGN_SCHEDULER_INCREMENT}" != "1" ]]; then
+  echo "[ERROR] SCALING_ALIGN_SCHEDULER_INCREMENT must be 0 or 1, got ${SCALING_ALIGN_SCHEDULER_INCREMENT}."
   exit 1
 fi
 
@@ -217,6 +227,7 @@ COMMON_ARGS=(
   --log-interval 1
   --eval-interval 10000
   --bf16
+  --scaling-replay-write-phase "${SCALING_REPLAY_WRITE_PHASE}"
 )
 
 if (( USE_BF16 == 0 )); then
@@ -247,6 +258,10 @@ if (( MOE_SHARED_EXPERT_GATE == 0 )); then
     fi
   done
   COMMON_ARGS=("${FILTERED_COMMON_ARGS[@]}")
+fi
+
+if [[ "${SCALING_ALIGN_SCHEDULER_INCREMENT}" == "1" ]]; then
+  COMMON_ARGS+=(--scaling-align-scheduler-increment)
 fi
 
 if [[ "${MODE}" == "distributed" ]]; then

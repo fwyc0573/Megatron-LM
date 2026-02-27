@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Added stage-2 round11 semantic-alignment experiment progress (replay write-phase + scheduler increment switch), with new compare evidence |
 | 2026-02-27 | Completed stage-2 optimizer microphase protocolfix8 fidelity reruns (single + repeat aggregation), and archived phase-aware compare evidence |
 | 2026-02-27 | Implemented stage-2 optimizer microphase trace path (default-off) across distributed/scaling, added unit tests, and archived validation report |
 | 2026-02-27 | Added stage-2 protocolfix8 repeated-pairing execution (fixed ports/rank-order), archived single+aggregate fidelity evidence, and documented residual backward/optimizer gaps |
@@ -211,6 +212,43 @@
     - `optimizer_post_update=12.50%`
   - New phase-aware report:
     - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-27_stage2_microphase_fidelity_protocolfix8.md`
+
+- Continued stage-2 fidelity execution (round11, semantic-touching scaling-only experiments):
+  - Code/path updates (default-off, no default behavior change):
+    - `megatron/training/arguments.py`:
+      - added `--scaling-replay-write-phase {pre_optimizer,post_optimizer}`.
+      - added `--scaling-align-scheduler-increment` (bool, default disabled).
+    - `megatron/training/training.py`:
+      - added `_should_defer_scaling_grad_replay_write(...)` and deferred grad replay write support.
+      - added `_get_scaling_scheduler_increment_dp_size(...)` for optional scheduler increment alignment.
+      - scaling warmup/profile loops now support post-optimizer replay write when enabled.
+    - `examples/pretrain_deepseek_v3_moe.sh`:
+      - added `SCALING_REPLAY_WRITE_PHASE` and `SCALING_ALIGN_SCHEDULER_INCREMENT` env knobs (fail-fast validation + argument wiring).
+    - `tests/unit_tests/test_training_optimizer_microphase.py`:
+      - expanded to 12 tests (new parser/helper coverage for the two scaling knobs).
+  - Validation:
+    - `pytest -q tests/unit_tests/test_training_optimizer_microphase.py` → `12 passed`.
+    - `python -m py_compile megatron/training/training.py megatron/training/arguments.py tests/unit_tests/test_training_optimizer_microphase.py` → exit code `0`.
+    - `bash -n examples/pretrain_deepseek_v3_moe.sh` → exit code `0`.
+  - New stage-2 runtime evidence (same distributed baseline `ts=20260227182456`):
+    - distributed baseline run log:
+      - `logs/deepseek_v3_stage2_dist_microphase_trace4_iter6_replayphasepost_baseline.log`
+    - scaling + compare (post write):
+      - scaling log: `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_replayphasepost_run1.log`
+      - compare: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_replayphasepost_run1.log`
+      - op-rank-median: `forward=10.74%`, `backward=12.71%`, `optimizer=6.56%`, `optimizer_main_update=6.21%`
+    - scaling + compare (pre write control):
+      - scaling log: `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_replayphasepre_run1.log`
+      - compare: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_replayphasepre_run1.log`
+      - op-rank-median: `forward=14.09%`, `backward=19.52%`, `optimizer=6.47%`, `optimizer_main_update=6.04%`
+    - scaling + compare (post write + align scheduler increment):
+      - scaling log: `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_replayphasepost_aligninc_run1.log`
+      - compare: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_replayphasepost_aligninc_run1.log`
+      - op-rank-median: `forward=8.10%`, `backward=10.92%`, `optimizer=7.16%`, `optimizer_main_update=6.50%`
+  - Conclusion of round11:
+    - post-optimizer replay write can improve forward/backward stability relative to pre-write control;
+    - optimizer main residual remains around ~6% and does not yet cross 5%;
+    - scheduler increment alignment switch did not improve optimizer gate in this round.
 
 ## 2026-02-24
 

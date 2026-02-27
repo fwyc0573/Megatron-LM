@@ -116,3 +116,88 @@ def test_trace_optimizer_microphases_enabled():
     with mock.patch.object(sys, "argv", test_argv):
         args = parse_args(ignore_unknown_args=True)
     assert args.trace_optimizer_microphases is True
+
+
+def test_scaling_replay_write_phase_default_pre_optimizer():
+    test_argv = [
+        "test_training_optimizer_microphase.py",
+        "--num-layers",
+        "2",
+        "--hidden-size",
+        "128",
+        "--num-attention-heads",
+        "8",
+    ]
+    with mock.patch.object(sys, "argv", test_argv):
+        args = parse_args(ignore_unknown_args=True)
+    assert args.scaling_replay_write_phase == "pre_optimizer"
+
+
+def test_scaling_replay_write_phase_can_be_post_optimizer():
+    test_argv = [
+        "test_training_optimizer_microphase.py",
+        "--num-layers",
+        "2",
+        "--hidden-size",
+        "128",
+        "--num-attention-heads",
+        "8",
+        "--scaling-replay-write-phase",
+        "post_optimizer",
+    ]
+    with mock.patch.object(sys, "argv", test_argv):
+        args = parse_args(ignore_unknown_args=True)
+    assert args.scaling_replay_write_phase == "post_optimizer"
+
+
+def test_should_defer_scaling_grad_replay_write_behaves_as_expected():
+    args = SimpleNamespace(scaling_replay_write_phase="post_optimizer")
+    assert training_module._should_defer_scaling_grad_replay_write(args) is True
+
+    args.scaling_replay_write_phase = "pre_optimizer"
+    assert training_module._should_defer_scaling_grad_replay_write(args) is False
+
+    args.scaling_replay_write_phase = "bad_phase"
+    with pytest.raises(ValueError, match="Unsupported --scaling-replay-write-phase value"):
+        training_module._should_defer_scaling_grad_replay_write(args)
+
+
+def test_scaling_align_scheduler_increment_default_disabled():
+    test_argv = [
+        "test_training_optimizer_microphase.py",
+        "--num-layers",
+        "2",
+        "--hidden-size",
+        "128",
+        "--num-attention-heads",
+        "8",
+    ]
+    with mock.patch.object(sys, "argv", test_argv):
+        args = parse_args(ignore_unknown_args=True)
+    assert args.scaling_align_scheduler_increment is False
+
+
+def test_scaling_align_scheduler_increment_enabled():
+    test_argv = [
+        "test_training_optimizer_microphase.py",
+        "--num-layers",
+        "2",
+        "--hidden-size",
+        "128",
+        "--num-attention-heads",
+        "8",
+        "--scaling-align-scheduler-increment",
+    ]
+    with mock.patch.object(sys, "argv", test_argv):
+        args = parse_args(ignore_unknown_args=True)
+    assert args.scaling_align_scheduler_increment is True
+
+
+def test_get_scaling_scheduler_increment_dp_size_switch():
+    args = SimpleNamespace(
+        scaling_align_scheduler_increment=False, fake_dp=4, data_parallel_size=1
+    )
+    assert training_module._get_scaling_scheduler_increment_dp_size(args) == 4
+
+    args.scaling_align_scheduler_increment = True
+    assert training_module._get_scaling_scheduler_increment_dp_size(args) == 1

@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Added Issue 39 for round11 semantic-touching experiments: replay-write timing helps stability but optimizer main residual remains >5%, scheduler increment switch not beneficial |
 | 2026-02-27 | Added Issue 38 for optimizer microphase phase-aware evidence: main-update residual remains dominant after protocolfix8 run1/2/3 repeats |
 | 2026-02-27 | Added Issue 37 for newly landed optimizer microphase trace path: phase-level fidelity evidence still pending (runtime verification next step) |
 | 2026-02-27 | Added Issue 36 for protocolfix8 residual fidelity drift after fixed-port/fixed-order repeated pairing; updated Serena availability note to intermittent |
@@ -486,8 +487,31 @@
    - 补充观察：
      - `optimizer_state_update`/`optimizer_post_update` 绝对时长极短（约 `0.01~0.05ms`），相对误差百分比易被放大，不宜单独作为主门限结论。
    - 缓解建议：
-     - 保持当前 microphase 路径 default-off；
-     - 下一步先提交“可能触及语义”的方案并等待用户确认，再做代码修改。
+   - 保持当前 microphase 路径 default-off；
+   - 下一步先提交“可能触及语义”的方案并等待用户确认，再做代码修改。
+
+39. **Round11 semantic-touching试验后，optimizer主残差仍未过线（`~6%`）**
+   - 新增试验改动（均 default-off）：
+     - `--scaling-replay-write-phase {pre_optimizer,post_optimizer}`：
+       - post 模式把 grad replay 写回延后到 optimizer 之后。
+     - `--scaling-align-scheduler-increment`：
+       - scaling scheduler increment 改用 real `data_parallel_size` 口径（实验开关）。
+   - 对照证据（同 distributed baseline `20260227182456`）：
+     - post-write:
+       - `forward=10.74%`, `backward=12.71%`, `optimizer=6.56%`, `main=6.21%`
+       - report: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_replayphasepost_run1.log`
+     - pre-write:
+       - `forward=14.09%`, `backward=19.52%`, `optimizer=6.47%`, `main=6.04%`
+       - report: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_replayphasepre_run1.log`
+     - post-write + align-increment:
+       - `forward=8.10%`, `backward=10.92%`, `optimizer=7.16%`, `main=6.50%`
+       - report: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_replayphasepost_aligninc_run1.log`
+   - 结论：
+     - replay-write 时序调整对 forward/backward 漂移有正向效果，但 optimizer main/update 仍在约 `6%` 区间，尚未满足 `<=5%`。
+     - scheduler increment 对齐开关在本轮未改善 optimizer gate，且有回退风险。
+   - 后续缓解建议：
+     - 继续保持这两项为 default-off 实验开关；
+     - 下一轮优先针对 `stage1 ranks` 做更细粒度 optimizer 主更新路径归因（参数桶/主梯度集合一致性）并配合 repeated median 报告。
 
 ## Resolved During Stage-1
 

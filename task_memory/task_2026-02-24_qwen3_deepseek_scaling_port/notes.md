@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-27 | Added stage-2 round11 scaling replay-write-phase / scheduler-increment semantic-alignment experiments and new fidelity evidence |
 | 2026-02-27 | Added stage-2 optimizer microphase protocolfix8 phase-aware fidelity findings (run1/2/3 + median-of-runs) |
 | 2026-02-27 | Implemented stage-2 optimizer microphase trace-only path (default-off) and added unit-validation notes |
 | 2026-02-27 | Added stage-2 protocolfix8 fidelity notes and optimizer semantic-touching proposal (design-only, pending user confirmation) |
@@ -411,3 +412,55 @@ upstream 里 expert bias 的更新通常发生在 global batch 粒度，需要 a
      - optimizer 主残差并非集中在 `state_update/post_update`；
      - `optimizer_main_update` 本身仍在 ~10% 量级，说明 residual 主要仍来自 optimizer 主更新阶段的跨模式执行差异。
    - `optimizer_state_update` / `optimizer_post_update` 由于绝对时长很短（约 `0.01~0.05ms`），相对误差易放大；应结合绝对时长解读，不宜单独作为主 gate。
+
+## 12) Stage-2 fidelity round11（2026-02-27）：语义触及优化试验（scaling only, default-off）
+
+1. **根因聚焦（round10 后）**
+   - phase-aware 结果显示 `optimizer_main_update` 残差仍主导，且主要集中在 `PP stage1` ranks。
+   - 推断 scaling replay I/O（尤其 grad replay 写回）在 profiling iteration 内的时序会对后续测量产生扰动。
+
+2. **试验 A：replay grad 写回时序可选对齐（已落地）**
+   - 新增 fake/scaling 参数：
+     - `--scaling-replay-write-phase {pre_optimizer,post_optimizer}`（default=`pre_optimizer`）
+   - `training.py` 行为：
+     - `post_optimizer` 下将 `grad_to_rank*.pt` 写回推迟到 `optimizer_step` 之后；
+     - 保持 replay 语义可用（同 iteration 文件仍写出），默认路径不变。
+   - 脚本接线：
+     - `examples/pretrain_deepseek_v3_moe.sh` 新增 `SCALING_REPLAY_WRITE_PHASE`（校验 + 透传）。
+
+3. **试验 B：scheduler increment 对齐开关（已落地，默认关闭）**
+   - 新增 fake/scaling 参数：
+     - `--scaling-align-scheduler-increment`（default-off）
+   - 作用：
+     - scaling scheduler increment 由 `fake_dp` 切换为真实 `data_parallel_size` 口径（仅启用时生效）。
+   - 目的：
+     - 验证 optimizer dynamics 对残差的贡献是否明显。
+
+4. **round11 证据（同一 distributed baseline: `20260227182456`）**
+   - `post_optimizer`（A）：
+     - report: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_replayphasepost_run1.log`
+     - op-rank-median:
+       - `forward=10.74%`
+       - `backward=12.71%`
+       - `optimizer_step=6.56%`
+       - `optimizer_main_update=6.21%`
+   - `pre_optimizer`（对照）：
+     - report: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_replayphasepre_run1.log`
+     - op-rank-median:
+       - `forward=14.09%`
+       - `backward=19.52%`
+       - `optimizer_step=6.47%`
+       - `optimizer_main_update=6.04%`
+   - `post_optimizer + align_scheduler_increment`（A+B）：
+     - report: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_replayphasepost_aligninc_run1.log`
+     - op-rank-median:
+       - `forward=8.10%`
+       - `backward=10.92%`
+       - `optimizer_step=7.16%`
+       - `optimizer_main_update=6.50%`
+
+5. **round11 结论**
+   - A（post write）对 `forward/backward` 有稳定改善迹象；对 `optimizer_main_update` 仅小幅波动（~6% 区间），尚未跨过 `<=5%`。
+   - B（scheduler increment 对齐）在本轮未带来 optimizer 主指标收益，且 `optimizer_step` 有回退风险；建议继续保持 default-off，仅作实验开关。
+   - 当前最稳健结论：
+     - **主要残差仍在 `optimizer_main_update` 的 stage1 ranks；distributed baseline run-to-run 漂移仍显著影响 gate 结论。**

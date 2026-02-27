@@ -1935,6 +1935,24 @@ def _add_fake_args(parser):
             'When set, activation/gradient replay cache is isolated per run to avoid stale files.'
         ),
     )
+    group.add_argument(
+        '--scaling-replay-write-phase',
+        type=str,
+        default='pre_optimizer',
+        choices=['pre_optimizer', 'post_optimizer'],
+        help=(
+            'Control when scaling-mode gradient replay tensors are persisted to cache. '
+            'Use post_optimizer to reduce optimizer-step measurement perturbation from replay I/O.'
+        ),
+    )
+    group.add_argument(
+        '--scaling-align-scheduler-increment',
+        action='store_true',
+        help=(
+            'In scaling mode, use real data_parallel_size (instead of fake_dp) when computing '
+            'optimizer scheduler increment. Disabled by default for backward compatibility.'
+        ),
+    )
     group.add_argument('--trace-memory', action='store_true',
                        help='Enable memory tracking.')
     # group.add_argument('--trace-memory-dir', type=str, default='memory_traces',
