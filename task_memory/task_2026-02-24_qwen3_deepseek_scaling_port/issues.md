@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-28 | Added Issue 40 for round12 repeated post-optimizer replay-write evidence: backward/optimizer residual remains above 5% despite fixed protocol and median-of-runs aggregation |
 | 2026-02-27 | Added Issue 39 for round11 semantic-touching experiments: replay-write timing helps stability but optimizer main residual remains >5%, scheduler increment switch not beneficial |
 | 2026-02-27 | Added Issue 38 for optimizer microphase phase-aware evidence: main-update residual remains dominant after protocolfix8 run1/2/3 repeats |
 | 2026-02-27 | Added Issue 37 for newly landed optimizer microphase trace path: phase-level fidelity evidence still pending (runtime verification next step) |
@@ -512,6 +513,33 @@
    - 后续缓解建议：
      - 继续保持这两项为 default-off 实验开关；
      - 下一轮优先针对 `stage1 ranks` 做更细粒度 optimizer 主更新路径归因（参数桶/主梯度集合一致性）并配合 repeated median 报告。
+
+40. **Round12 重复验证后，`post_optimizer` 写回方案仍无法将 backward/optimizer 压到 `<=5%`**
+   - 固定协议（已执行 3 runs）：
+     - fixed rank-order: `0,4,1,5,2,6,3,7`
+     - fixed high-port 段：`990x/995x`
+     - `TRACE_START=4`, `TRAIN_ITERS=6`, `TRACE_OPTIMIZER_MICROPHASES=1`
+     - `SCALING_REPLAY_WRITE_PHASE=post_optimizer`, `SCALING_ALIGN_SCHEDULER_INCREMENT=0`
+   - 证据（single-run, op-rank-median）：
+     - run1（pair `20260228051919`）：
+       - `forward=5.69%`, `backward=8.24%`, `optimizer=12.44%`, `main=12.03%`
+       - report: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_round12_postwrite_run1.log`
+     - run2（pair `20260228052156`）：
+       - `forward=8.23%`, `backward=12.65%`, `optimizer=7.76%`, `main=7.70%`
+       - report: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_round12_postwrite_run2.log`
+     - run3（pair `20260228052432`）：
+       - `forward=8.13%`, `backward=13.03%`, `optimizer=6.11%`, `main=6.14%`
+       - report: `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_round12_postwrite_run3.log`
+   - 聚合证据（median-of-runs）：
+     - `forward=8.13%`, `backward=12.65%`, `optimizer=7.76%`, `optimizer_main_update=7.70%`
+     - repeat artifact: `logs/deepseek_v3_stage2_repeat_microphase_round12_postwrite_subtract.jsonl`
+   - 风险评估：
+     - 非语义协议对齐 + repeat aggregation 已基本饱和，仍无法稳定达到 `<=5%`；
+     - backward/optimizer 的 run-to-run 漂移继续影响 gate 判定稳健性；
+     - optimizer 主残差虽较 round10 降低，但仍显著高于目标阈值。
+   - 缓解建议：
+     - 继续保持当前语义触及开关 default-off（不影响默认路径）；
+     - 下一步先做更细粒度 `optimizer_main_update` 诊断（参数桶/主梯度集合/phase 切分），再决定是否申请新的执行语义调整。
 
 ## Resolved During Stage-1
 

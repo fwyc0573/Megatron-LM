@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-28 | Added stage-2 round12 post-optimizer replay-write repeated-pairing fidelity evidence (run1/2/3 + median-of-runs), and updated residual-risk interpretation |
 | 2026-02-27 | Added stage-2 round11 scaling replay-write-phase / scheduler-increment semantic-alignment experiments and new fidelity evidence |
 | 2026-02-27 | Added stage-2 optimizer microphase protocolfix8 phase-aware fidelity findings (run1/2/3 + median-of-runs) |
 | 2026-02-27 | Implemented stage-2 optimizer microphase trace-only path (default-off) and added unit-validation notes |
@@ -464,3 +465,52 @@ upstream 里 expert bias 的更新通常发生在 global batch 粒度，需要 a
    - B（scheduler increment 对齐）在本轮未带来 optimizer 主指标收益，且 `optimizer_step` 有回退风险；建议继续保持 default-off，仅作实验开关。
    - 当前最稳健结论：
      - **主要残差仍在 `optimizer_main_update` 的 stage1 ranks；distributed baseline run-to-run 漂移仍显著影响 gate 结论。**
+
+## 13) Stage-2 fidelity round12（2026-02-28）：`post_optimizer` 写回 + 固定协议 repeated pairing
+
+1. **执行协议（与 round11 一致，补 3-run 统计）**
+   - distributed/scaling 共同参数：
+     - `TRACE_START=4`, `TRAIN_ITERS=6`
+     - `TRACE_SUBOP_SYNC_MODE=global`, `TRACE_CMD_SYNC_MODE=global`
+     - `TRACE_OPTIMIZER_MICROPHASES=1`
+   - scaling 语义实验开关：
+     - `SCALING_REPLAY_WRITE_PHASE=post_optimizer`
+     - `SCALING_ALIGN_SCHEDULER_INCREMENT=0`
+   - 固定 compare 口径：
+     - `distributed_subtract_comm=True`
+     - `ops=forward_step,backward_step,optimizer_step,optimizer_main_update,optimizer_state_update,optimizer_post_update`
+   - 固定运行协议：
+     - fixed rank-order：`0,4,1,5,2,6,3,7`
+     - fixed port segments：`990x/995x`（避免端口漂移）
+     - repeated runs：`run1/run2/run3`，并采用 timestamp pairing。
+
+2. **single-run 证据（op-rank-median）**
+   - run1（pair `20260228051919`）：
+     - `forward=5.69%`
+     - `backward=8.24%`
+     - `optimizer_step=12.44%`
+     - `optimizer_main_update=12.03%`
+   - run2（pair `20260228052156`）：
+     - `forward=8.23%`
+     - `backward=12.65%`
+     - `optimizer_step=7.76%`
+     - `optimizer_main_update=7.70%`
+   - run3（pair `20260228052432`）：
+     - `forward=8.13%`
+     - `backward=13.03%`
+     - `optimizer_step=6.11%`
+     - `optimizer_main_update=6.14%`
+
+3. **median-of-runs（3 runs）**
+   - `forward_step=8.13%`
+   - `backward_step=12.65%`
+   - `optimizer_step=7.76%`
+   - `optimizer_main_update=7.70%`
+   - `optimizer_state_update=10.56%`
+   - `optimizer_post_update=12.50%`
+
+4. **round12 结论**
+   - 与 round10（`optimizer_main_update` median-of-runs `10.86%`）相比，`post_optimizer` 写回策略在本轮将 `optimizer_main_update` 降至 `7.70%`，但仍未达到 `<=5%` gate。
+   - backward residual 依然显著（`12.65%`），且 run-to-run 漂移仍大于 gate 边界，说明仅靠非语义协议对齐无法稳定收敛到目标阈值。
+   - `optimizer_state_update`/`optimizer_post_update` 绝对时长仍处于 `0.01~0.05ms` 量级，百分比波动继续放大，不应作为主 gate 判据。
+   - 现阶段仍可维持结论：**主残差集中在 `optimizer_main_update` + stage1 ranks 的跨模式执行差异，后续若继续压 `optimizer_step` 需要更细粒度主更新路径归因。**

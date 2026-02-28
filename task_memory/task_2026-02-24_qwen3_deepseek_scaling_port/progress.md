@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-02-28 | Added stage-2 round12 post-optimizer replay-write repeated-fidelity execution records (run1/2/3, median-of-runs), and archived new compare/repeat artifacts |
 | 2026-02-27 | Added stage-2 round11 semantic-alignment experiment progress (replay write-phase + scheduler increment switch), with new compare evidence |
 | 2026-02-27 | Completed stage-2 optimizer microphase protocolfix8 fidelity reruns (single + repeat aggregation), and archived phase-aware compare evidence |
 | 2026-02-27 | Implemented stage-2 optimizer microphase trace path (default-off) across distributed/scaling, added unit tests, and archived validation report |
@@ -31,6 +32,47 @@
 | 2026-02-27 | Continued stage-2 fidelity round4: mirrored distributed optimizer pre-CMD side effects in scaling (`numel` pre-scan), reran paired traces, and reduced optimizer residual gap (partial) |
 
 # Progress
+
+## 2026-02-28
+
+### Completed
+
+- Completed stage-2 round12 repeated validation for semantic-touching experiment A (`SCALING_REPLAY_WRITE_PHASE=post_optimizer`, default-off path):
+  - distributed/scaling protocol fixed at:
+    - `TRACE_START=4`, `TRAIN_ITERS=6`
+    - `TRACE_SUBOP_SYNC_MODE=global`, `TRACE_CMD_SYNC_MODE=global`
+    - `TRACE_OPTIMIZER_MICROPHASES=1`
+    - `SCALING_ALIGN_SCHEDULER_INCREMENT=0`
+    - fixed fake rank order `0,4,1,5,2,6,3,7`.
+- Archived 3-round distributed/scaling execution logs:
+  - distributed:
+    - `logs/deepseek_v3_stage2_dist_microphase_trace4_iter6_round12_postwrite_run1.log`
+    - `logs/deepseek_v3_stage2_dist_microphase_trace4_iter6_round12_postwrite_run2.log`
+    - `logs/deepseek_v3_stage2_dist_microphase_trace4_iter6_round12_postwrite_run3.log`
+  - scaling:
+    - `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_round12_postwrite_run1.log`
+    - `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_round12_postwrite_run2.log`
+    - `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_round12_postwrite_run3.log`
+- Archived compare + repeat artifacts:
+  - compare:
+    - `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_round12_postwrite_run1.log`
+    - `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_round12_postwrite_run2.log`
+    - `logs/deepseek_v3_stage2_compare_trace4_iter6_microphase_round12_postwrite_run3.log`
+  - repeat aggregate:
+    - `logs/deepseek_v3_stage2_repeat_microphase_round12_postwrite_subtract.jsonl`
+- Round12 key metrics（op-rank-median）:
+  - run1: `forward=5.69%`, `backward=8.24%`, `optimizer_step=12.44%`, `optimizer_main_update=12.03%`
+  - run2: `forward=8.23%`, `backward=12.65%`, `optimizer_step=7.76%`, `optimizer_main_update=7.70%`
+  - run3: `forward=8.13%`, `backward=13.03%`, `optimizer_step=6.11%`, `optimizer_main_update=6.14%`
+  - median-of-runs: `forward=8.13%`, `backward=12.65%`, `optimizer_step=7.76%`, `optimizer_main_update=7.70%`.
+- Added round report:
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-28_stage2_round12_postwrite_repeat.md`
+
+### Pending
+
+- Continue stage-2 fidelity convergence:
+  - `backward_step` and `optimizer_step` still exceed `<=5%` gate under fixed protocol.
+- Before any further semantic-touching runtime changes, keep all new switches default-off and provide explicit proposal/evidence for user confirmation.
 
 ## 2026-02-27
 
