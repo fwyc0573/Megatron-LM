@@ -2,9 +2,59 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-03-01 | Added stage-2 backward comp-gap governance plan: freeze official metric semantics (`seq8192 + phase-pure + repeat-x5`), isolate advanced diagnostics, and constrain next experiments to `attn_core_sdpa_bwd` iter-bucket analysis |
 | 2026-02-24 | Created stage-1 implementation plan for Qwen3-MoE + DeepSeek-V3-Proxy scaling-mode port |
 | 2026-02-27 | Added stage-2 implementation plan for DeepSeek-V3 (architecture standard) distributed+scaling bring-up (MLA/YaRN RoPE/router semantics/shared experts) |
 | 2026-02-27 | Added stage-2 fidelity round4 execution note: scaling optimizer pre-CMD side-effect parity and refreshed pairing protocol status |
+
+# Stage-2 Plan Addendum (2026-03-01): Backward Comp-gap Governance
+
+## Goal
+
+Turn the retrospective conclusion into executable governance:
+
+1. Freeze one official backward metric semantics for decision-making.
+2. Keep debug/experimental knobs explicit and opt-in only.
+3. Avoid broad code-level fixes outside the confirmed dominant path.
+
+## Official Metric Semantics (Frozen)
+
+- Primary acceptance/evaluation protocol:
+  - `SEQ_LEN=8192`
+  - `phase-pure` NSYS metric (`pure_primary_union`)
+  - contamination gate (`<=1%`, target `0%`)
+  - `repeat-x5` robust aggregation (`median/IQR/range`)
+- Diagnostic-only views (not official gate):
+  - `trace subtract / no-subtract`
+  - stage-aware/op-map subtraction
+
+## Diagnostic Profile Separation
+
+- Baseline profile (default):
+  - no advanced perturbation knobs
+  - advanced knobs remain available but require explicit opt-in
+- Advanced diagnostics profile (opt-in):
+  - `trace_optimizer_microphases`
+  - `scaling_strict_grad_replay`
+  - `scaling_replay_write_phase=post_optimizer`
+  - `scaling_align_scheduler_increment`
+  - `scaling_comm_adjacent_copy_iters>0`
+  - `scaling_disable_ddp_wrap`
+  - `trace_attention_backward_segments`
+
+## Scope Constraint for Future Fixes
+
+- Stop broad/non-targeted code-level A/B.
+- Continue only if the change targets:
+  - `attn_core_sdpa_bwd`
+  - iter-bucket asymmetry (`iter1` vs `iter0/2`)
+  - same-stream pre-fmha neighborhood/runtime context.
+
+## Acceptance Criteria for This Addendum
+
+1. Governance is documented in `task_memory` with explicit metric hierarchy.
+2. Example scripts enforce explicit opt-in for advanced diagnostics.
+3. New experiment proposals outside attention-SDPA path are marked out-of-scope unless a new root-cause proof appears.
 
 # Stage-1 Plan: Qwen3-MoE + DeepSeek-V3-Proxy Port
 

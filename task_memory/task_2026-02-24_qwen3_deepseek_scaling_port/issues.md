@@ -2,6 +2,33 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-03-01 | Added Issues 69-71 for governance implementation: official backward semantics freeze (`seq8192 + phase-pure + repeat-x5`), advanced-diagnostics opt-in policy in example scripts, and scope lock to attention SDPA iter-bucket diagnosis |
+| 2026-03-01 | Added Issue 68 for attention-core deep-segment repeat-x5 variability bucketing: residual is iter1-dominant with stable pre-fmha adjacency shift, so backward freeze needs explicit iter-bucket robustness constraints |
+| 2026-03-01 | Added Issue 67 for seq8192 SDPA-subsegment formal repeat-x5: `fmha_cutlassB` remains top1 in 5/5 runs with zero contamination, but run-level variability (especially scaling_off) remains high and blocks backward freeze |
+| 2026-03-01 | Added Issue 66 for `attn_core_sdpa_bwd` immediate-neighbor threshold sweep: pre-fmha `FillFunctor` path is present on both branches; count asymmetry at `60us` is threshold-sensitive and does not change residual gap |
+| 2026-03-01 | Added Issue 65 for attention-core micro-segment x1: residual is further localized to `attn_core_sdpa_bwd` (~98% fmha share), while `attn_core_precast_bwd`/`attn_core_postcast_bwd` are near-zero; pre-fmha top adjacent kernel is stabilized as `FillFunctor<unsigned char>` |
+| 2026-03-01 | Added Issues 63-64 for attention-segment debug + repeat-x5: residual is stably concentrated in `attn_core_bwd/fmha_cutlassB` with no stream-set mismatch, but backward gate remains >5% even after segmentation-based localization |
+| 2026-03-01 | Added Issue 62 for patched clean-x1 attention-family deep diagnosis: `fmha_cutlassB` remains top residual in stage1 backward (`rank4..7`) for both scaling DDP on/off, with exact launch-config parity, so root-cause focus shifts to attention runtime-context rather than launch-shape mismatch |
+| 2026-03-01 | Added Issue 61 for post-fix clean x1 result: NVTX structural gate now passes on dist/scaling on/off (`open/overlap=0`), but backward residual remains above threshold (DDP-on 17.42%, DDP-off 10.52%), so root cause focus must shift to attention-family path |
+| 2026-03-01 | Added Issue 60 for NVTX attribution corruption: repeat-x5 traces show systematic forward/backward CMD overlap and unclosed `row_g_fwd` labels caused by missing NVTX pop on TP world_size==1 fast path; minimal fix landed with RED→GREEN unit evidence |
+| 2026-03-01 | Added Issue 59 for seq8192 phase-pure formal repeat-x5 freeze round: DDP-off only partially improves backward and does not improve stability; `fmha_cutlassB` remains dominant (5/5 top1), so attention-family diagnostics become next priority |
+| 2026-03-01 | Added Issue 58 for seq8192 x1 probe drift: residual direction/sign differs from historical round68 high-gap set (scale>dist in this probe), indicating strong protocol/run-context sensitivity and the need for repeat-x5 freeze evidence |
+| 2026-03-01 | Added Issue 57 for seq8192 phase-pure DDP probe A/B: contamination remains zero and DDP-off improves metrics, but backward still exceeds 5% and attention-family residual remains dominant |
+| 2026-03-01 | Added Issue 56 for scaling DDP-hook hypothesis validation: scaling DDP hook overhead exists and is measurable, but disabling it does not improve backward residual and does not support “scaling hook missing” as primary cause |
+| 2026-03-01 | Added Issue 55 for cross-run validation: non-comm (`fmha_cutlassB`) dominance in backward residual is stable across `round68 seq8192 run1..5`, and `_AllToAll` micro-repro does not support autograd-node-count inflation as primary root cause |
+| 2026-03-01 | Added Issue 54 for backward residual deep-dive + scaling comm-adjacent emulation: emulation knob is feasible but x1 backward improvement is marginal, and dominant residual contribution appears non-comm (`fmha_cutlassB` family) |
+| 2026-03-01 | Added Issue 53 for postfix all_to_all comm-adjacent attribution fix validation: contamination remains zero and behavior is correct, but backward residual does not materially improve in x1 sanity compare |
+| 2026-03-01 | Added Issue 52 for phase-label NSYS sanity x1 rerun: contamination is zero in both distributed/scaling pure windows, but fidelity residual remains high, so freeze must proceed with seq8192 repeat-x5 protocol |
+| 2026-03-01 | Added Issue 51 for newly landed phase-level pure-compute semantics path: implementation complete, but official freeze still depends on fresh NSYS captures with phase labels and repeat-x5 acceptance checks |
+| 2026-02-28 | Added Issues 49-50 for Round6-8 NSYS repeat-x5 tri-view findings: backward remains high under current NSYS compute-only semantics, and official backward gate semantics is still unfrozen without introducing calibration-dependent stage-aware fitting |
+| 2026-02-28 | Added Issue 48 for seq8192 backward semantics matrix: baseline full subtraction causes stage1 over-subtraction inflation, while stage-aware/op-map auxiliary views restore low backward spread and isolate optimizer as remaining residual |
+| 2026-02-28 | Added Issue 47 for measurement-regime change result at seq8192: forward noise improved but backward subtraction bias exploded, so <=5% gate is still blocked by semantics rather than only smoke-scale noise |
+| 2026-02-28 | Added Issue 46 for Round6-8 workload-scaling OOM boundary: full profile (61L/7168H) remains infeasible even at short sequence, limiting model-size escalation path in current environment |
+| 2026-02-28 | Added Issue 45 for intermittent distributed abort (`double free or corruption`) observed during long repeat runs; rerun succeeded but indicates environment/runtime instability risk |
+| 2026-02-28 | Added Issue 44 for O1 pre-CMD optimizer-drain A/B repeat5 outcome: backward/optimizer and composite regressions, spread non-convergence, and rejection under noise-floor criterion |
+| 2026-02-28 | Added Issue 43 for round6-8 noise-floor repeat5 and sequential-scaling pairing-cap pitfall; clarified O1 acceptance must account for measured noise floor |
+| 2026-02-28 | Added Issue 42 for round6-8-baseline O2/B1 follow-up: O2 not supported, strict-grad-replay works as integrity guard but does not improve gate metrics, and O1 becomes next priority |
+| 2026-02-28 | Added Issue 41 for current-latest Round12-protocol rerun: metrics regress vs Round4/Round6-8, best round remains Round6-8, and Round9+ retrospective indicates diagnostic-path/value-path decoupling is required |
 | 2026-02-28 | Added Issue 40 for round12 repeated post-optimizer replay-write evidence: backward/optimizer residual remains above 5% despite fixed protocol and median-of-runs aggregation |
 | 2026-02-27 | Added Issue 39 for round11 semantic-touching experiments: replay-write timing helps stability but optimizer main residual remains >5%, scheduler increment switch not beneficial |
 | 2026-02-27 | Added Issue 38 for optimizer microphase phase-aware evidence: main-update residual remains dominant after protocolfix8 run1/2/3 repeats |
@@ -540,6 +567,554 @@
    - 缓解建议：
      - 继续保持当前语义触及开关 default-off（不影响默认路径）；
      - 下一步先做更细粒度 `optimizer_main_update` 诊断（参数桶/主梯度集合/phase 切分），再决定是否申请新的执行语义调整。
+
+41. **Current latest rerun（Round12 协议）相对 Round4 / Round6-8 明显回退，best round 仍为 Round6-8**
+   - 当前复测（3 runs，固定协议）：
+     - shared protocol:
+       - `TRACE_START=4`, `TRAIN_ITERS=6`
+       - `TRACE_SUBOP_SYNC_MODE=global`, `TRACE_CMD_SYNC_MODE=global`
+       - `TRACE_OPTIMIZER_MICROPHASES=1`
+     - scaling protocol:
+       - `SCALING_REPLAY_WRITE_PHASE=post_optimizer`
+       - `SCALING_ALIGN_SCHEDULER_INCREMENT=0`
+       - `SCALING_FAKE_RANK_ORDER=0,4,1,5,2,6,3,7`
+   - current single-run（op-rank-median）：
+     - run1 (`pair=20260228072907`): `forward=5.21%`, `backward=12.03%`, `optimizer=11.61%`
+     - run2 (`pair=20260228073218`): `forward=9.35%`, `backward=17.87%`, `optimizer=9.43%`
+     - run3 (`pair=20260228073523`): `forward=6.14%`, `backward=15.11%`, `optimizer=7.84%`
+   - current median-of-runs：
+     - `forward=6.14%`, `backward=15.11%`, `optimizer=9.43%`
+     - `mean_3ops=10.23%`, `max_3ops=15.11%`
+   - 历史对比：
+     - Round4: `4.02% / 5.11% / 7.68%`（`mean_3ops=5.60%`, `max_3ops=7.68%`）
+     - Round6-8 best-single: `3.06% / 7.51% / 5.97%`（`mean_3ops=5.51%`, `max_3ops=7.51%`）
+   - 判定（主判据 mean，辅判据 max）：
+     - **best round 仍为 Round6-8**；current 明显劣于 Round4/Round6-8。
+   - retrospective 风险结论：
+     - Round9+ 中 microphase/replay-write 路径对诊断价值明确，但未转化为主 gate 的稳定收益；
+     - single-run 与 repeated median 差异继续说明噪声显著，必须坚持 repeated pairing；
+     - 后续需将“诊断路径”和“主 gate 路径”解耦（例如 default gate 不强制 microphase）。
+
+42. **Round6-8 基线 follow-up：O2 被证伪，B1 仅具完整性价值但不提升主指标**
+   - O2 A/B（3-run repeated pairing）证据：
+     - micro0 (`TRACE_OPTIMIZER_MICROPHASES=0`) median-of-runs:
+       - `forward=8.37%`, `backward=10.47%`, `optimizer=8.61%`
+       - `mean_3ops=9.15%`, `max_3ops=10.47%`
+     - micro1 (`TRACE_OPTIMIZER_MICROPHASES=1`) median-of-runs:
+       - `forward=5.71%`, `backward=9.34%`, `optimizer=8.36%`
+       - `mean_3ops=7.80%`, `max_3ops=9.34%`
+   - O2 结论：
+     - “microphase instrumentation 恶化 fidelity”在该基线/协议下不成立，反向证据更强（micro1 全面优于 micro0）。
+   - B1（strict grad replay）证据：
+     - strict single-pass probe 能在缺 cache 时 fail-fast（rank0 backward profile 首次即报错），说明完整性守卫生效；
+     - strict two-pass（warm+strict）3-run median-of-runs：
+       - `forward=5.84%`, `backward=9.51%`, `optimizer=9.29%`
+       - `mean_3ops=8.21%`, `max_3ops=9.51%`
+   - 对比 O2-best（micro1）：
+     - `forward +0.13%`, `backward +0.17%`, `optimizer +0.93%`
+     - 说明 B1 不改善 gate fidelity（尤其 optimizer 有明显回退）。
+   - 风险与下一步：
+     - B1 应保留为 default-off 的完整性/诊断开关，而非主 gate 运行口径；
+     - 下一优先级转向 O1：`optimizer_main_update` timing boundary / queue contamination 的最小变量 A/B。
+
+43. **Round6-8 纯噪声基线（repeat x5）显示测量地板较高，且存在顺序 scaling 的 timestamp-cap 配对陷阱**
+   - 纯噪声量化（不改代码，microphase=1，fixed protocol）：
+     - single-run:
+       - run1: `5.64% / 14.66% / 9.09%`
+       - run2: `10.36% / 10.54% / 8.28%`
+       - run3: `7.16% / 11.67% / 11.13%`
+       - run4: `8.37% / 15.85% / 4.89%`
+       - run5: `4.57% / 10.55% / 6.12%`
+     - median-of-runs:
+       - `forward=7.16%`, `backward=11.67%`, `optimizer=8.28%`
+     - run range:
+       - `forward=5.79%`, `backward=5.31%`, `optimizer=6.24%`
+   - 配对陷阱证据：
+     - 顺序 scaling 下若用 rank0 timestamp 作为 cap，可能导致后续 rank 尚未落盘而触发错配/异常（run1 复现过 `IsADirectoryError`）。
+     - 需改为 end-of-run cap（实操采用 rank7 timestamp）以保证同批次覆盖。
+   - 影响：
+     - 在该测量体系下，`<~1-2%` 级别 A/B 改善可信度不足；
+     - O1 后续验收不能只看单次结果，必须结合 repeat median 与 spread 一致下降。
+   - 缓解建议：
+     - 固化 pairing policy：使用每轮 end-of-run timestamp cap；
+     - O1 开发保持单变量，且至少 repeat x5 才做结论判断。
+
+44. **O1（pre-CMD optimizer drain）在 Round6-8 基线 A/B repeat5 下未通过噪声地板判定**
+   - 实施机制（单变量）：
+     - `--trace-optimizer-pre-cmd-drain` 开启后，仅在进入 top-level `optimizer_step` CMD 前调用一次 `torch.cuda.synchronize()`；
+     - distributed/scaling 对称启用；不改 barrier 与 CMD 边界。
+   - A/B median-of-runs（op-rank-median）：
+     - drain0: `forward=12.84%`, `backward=10.06%`, `optimizer=8.23%`, `mean_3ops=8.80%`, `max_3ops=12.84%`
+     - drain1: `forward=11.55%`, `backward=14.63%`, `optimizer=10.00%`, `mean_3ops=12.10%`, `max_3ops=14.63%`
+   - 关键回退（drain1 - drain0）：
+     - `backward +4.57%`
+     - `optimizer +1.77%`
+     - `mean_3ops +3.30%`
+     - `max_3ops +1.79%`
+   - spread 观察（range/IQR）：
+     - 多数核心项未下降（尤其 backward 与 max 指标），未满足“精度提升 + 波动收敛”的联合条件。
+   - 结论：
+     - O1 在当前协议下应判定为 **不通过**；
+     - 保留该开关 default-off，仅作诊断用途，不纳入主 gate。
+
+45. **长时间 repeated distributed 运行中出现一次间歇性 abort（`double free or corruption`）**
+   - 现象：
+     - O1 `drain1` 第一次批量执行在 run3 distributed 结束后出现：
+       - `double free or corruption (!prev)`，`SIGABRT`，rank5 退出（`exitcode -6`）。
+   - 影响：
+     - 该次批量执行中断，需要 rerun run3~run5。
+   - 后续处理：
+     - 采用新的端口段重新执行 run3~run5 后全部完成，compare/repeat 结果可复现。
+   - 风险判断：
+   - 当前更像环境/运行时偶发不稳定，而非 O1 逻辑确定性错误；
+   - 但对长批次重复实验会增加失败重试成本，应持续监控。
+
+46. **Round6-8 workload scaling 的模型尺寸上限受内存硬约束（full profile 不可行）**
+   - 现象（script-parameter-only OOM sweep）：
+     - `MODEL_PROFILE=full`（61L/7168H）在 distributed 下即便 `SEQ_LEN=96` 也 OOM；
+     - `SEQ_LEN=128/192/256` 同样 OOM。
+   - 影响：
+     - 当前环境无法通过“同时放大 `NUM_LAYERS/HIDDEN_SIZE`”来推进测量体制；
+     - 后续 workload 扩大只能沿 smoke 线加大 `SEQ_LEN`（或更换资源/并行配置）。
+   - 缓解建议：
+     - 若必须验证 full 维度路径，需资源侧变更（更大单卡显存或不同并行切分）；
+     - 在现有资源下，优先利用 smoke `SEQ_LEN` 扩展做测量分析，但需防范 subtraction 语义偏置。
+
+47. **测量体制放大到 `SEQ_LEN=8192` 后，backward 指标由系统偏置主导而非纯噪声**
+   - 证据（Round6-8 baseline, rank7-cap repeat x5）：
+     - median-of-runs:
+       - `forward=2.00%`（显著改善）
+       - `backward=62.73%`（显著恶化）
+       - `optimizer=6.72%`（仍 >5%）
+     - range:
+       - `forward=3.23%`, `backward=34.41%`, `optimizer=4.35%`
+   - 对比旧 smoke 基线（seq256）：
+     - `forward` 从 `7.16%` 降到 `2.00%`，
+     - `backward` 从 `11.67%` 升到 `62.73%`。
+   - 结论：
+     - “smoke 太小导致全部指标噪声吞没”并非完整解释；
+     - 在长序列下，`distributed_subtract_comm` 对 backward 的系统偏置成为主导因素。
+   - 风险：
+     - 若继续在该语义下推进代码级 A/B，容易把测量偏置误判为代码改进/回退。
+   - 缓解建议：
+     - 暂停新代码假设实验，先验证 backward measurement semantics；
+     - 同时保留 rank7-cap + repeat-x5 作为固定统计纪律。
+
+48. **同批次语义矩阵验证确认：backward 失真主因是 stage1 overlap 下的 comm 过度扣减**
+   - 方法（同一批次/同一 pair 集）：
+     - baseline subtract（alpha=1.0）；
+     - op-map subtract（`forward=0.787, backward=0.176`）；
+     - stage-aware subtract（`forward@stage1=0.787, backward@stage1=0.107`）；
+     - no-subtract total control。
+   - repeat x5 median 结果：
+     - baseline: `forward=2.00%`, `backward=62.73%`, `optimizer=6.72%`
+     - op-map: `forward=1.74%`, `backward=5.85%`, `optimizer=6.72%`
+     - stage-aware: `forward=1.74%`, `backward=3.86%`, `optimizer=6.72%`
+     - no-subtract: `forward=9.32%`, `backward=7.74%`, `optimizer=6.72%`
+   - backward spread 对比：
+     - baseline range/IQR: `34.41% / 6.84%`
+     - op-map range/IQR: `0.75% / 0.47%`
+     - stage-aware range/IQR: `1.81% / 0.64%`
+   - 行级证据（run1 stage1 rank4~7）：
+     - baseline 将 `dist_comm~42~44ms` 全扣，`dist_comp` 压到 `~22ms`，对比 `scale_comp~54~63ms`，导致 `146%~177%` diff；
+     - stage-aware 仅有效扣减 `~4.5~4.7ms`，`dist_comp~61ms`，与 scaling 接近，diff 大幅回落。
+   - 结论：
+     - backward 的主要问题是测量语义（over-subtraction），而不是训练逻辑回退；
+     - 当前真正剩余 gate residual 是 optimizer（`median 6.72%`）。
+   - 缓解建议：
+   - 在 backward 语义未冻结前，不启动新的代码级 A/B；
+   - 语义层固定后再恢复单变量实验，并把优化重点放在 optimizer phase。
+
+49. **Round6-8 seq8192 NSYS repeat-x5 显示：当前 compute-only 口径下 backward 仍稳定高残差（~38%）**
+   - 条件：
+     - baseline round68、rank7-cap repeat x5；
+     - NSYS compare 口径：`compute-metric=primary_stream_union` + `kernel-scope=shared` + `shared-kernel-source=primary_stream`。
+   - 结果（median-of-runs）：
+     - `forward=0.33%`
+     - `backward=38.30%`
+     - `optimizer=0.81%`
+   - spread：
+     - backward `range=3.26%`, `IQR=0.43%`（低方差但高偏差）。
+   - 风险结论：
+     - 当前 NSYS compute-only 方案在该 workload 下不适合作为唯一 backward gate（稳定但系统偏高）。
+
+50. **backward 三视图长期分歧（subtract vs no-subtract vs NSYS）表明官方语义仍未冻结**
+   - 同一批次 repeat x5 对照：
+     - trace subtract backward median: `35.21%`
+     - trace no-subtract backward median: `10.40%`
+     - NSYS compute-only backward median: `38.30%`
+   - 解读：
+     - subtract 与 no-subtract 差距依然大，说明 subtraction 口径仍有系统偏置风险；
+     - stage-aware 虽能压低 backward，但依赖标定参数，不可作为正式可扩展方案。
+   - 缓解建议：
+     - 继续执行“无标定”语义收敛实验（测量边界纯化 + 同步语义对照）；
+     - 在 backward 官方语义冻结之前，暂停基于该指标的代码级收益宣称。
+
+51. **phase-level pure-compute 语义路径已落地，但官方 freeze 仍依赖“新采集”验证而非旧 traces 回放**
+   - 已完成（实现侧）：
+     - 新增 trace 参数：`--trace-kernel-ground-truth-phase`、`--trace-kernel-boundary-sync-mode`；
+     - backward compute 区间已在 distributed/scaling 路径标注 `phase=compute`；
+     - comm 区间已在 comm decorator/top-level comm CMD 标注 `phase=comm`；
+     - NSYS analyzer 已输出 `compute_pure_*` 与 `contamination_*`；
+     - compare 已支持 `pure_primary_union` 与 contamination gate。
+   - 当前风险：
+     - 现有 round68 历史 NSYS trace 不含新 phase labels（`phase_window_parents=0`），仅能做兼容回放验证，不能直接证明“纯化后 backward residual”。
+   - 影响：
+     - backward 官方 gate 语义不能仅凭历史 sqlite 重跑冻结，必须基于新一轮带 phase labels 的 repeat-x5 结果。
+   - 缓解建议：
+   - 在固定协议（rank7-cap + repeat-x5 + seq8192）下重采 distributed/scaling NSYS；
+   - 使用 `compute_metric=pure_primary_union` + contamination gate 复核 acceptance 条件后再冻结口径。
+
+52. **phase-label NSYS x1 新采集已验证“无污染”，但 fidelity 仍未达标（非 comm-contamination 主因）**
+   - 新采集条件（smoke `SEQ_LEN=1024`，distributed/scaling 对齐）：
+     - `TRACE_KERNEL_GROUND_TRUTH=1`
+     - `TRACE_KERNEL_GROUND_TRUTH_PHASE=1`
+     - `TRACE_KERNEL_BOUNDARY_SYNC_MODE=event`
+   - 证据：
+     - distributed/scaling 分析均为 `phase_window_parents=48`, `event_rows=72`;
+     - contamination 指标在 event/aggregate 均为 `0.00%`;
+     - compare 在 `--compute-metric pure_primary_union --require-low-contamination-pct 1` 下 contamination gate 全量 PASS。
+   - 结果：
+     - op-rank-median 仍 FAIL：`forward=10.25%`, `backward=17.97%`, `optimizer=5.75%`。
+   - 结论：
+     - 当前 residual 不能归因于“comm 混入 compute-only”；
+     - 单次 x1 不具冻结代表性，必须继续执行固定协议 `seq8192 + rank7-cap + repeat-x5`。
+   - 缓解建议：
+   - 以新 phase 语义跑完整 repeat-x5；
+   - 仅当 acceptance 四条件同时满足时再冻结官方 backward comp-only 口径。
+
+53. **all_to_all comm-adjacent attribution postfix 已验证正确性，但并未显著降低 backward residual（x1）**
+   - postfix 内容（已落地）：
+     - `_profiled_all_to_all_single` 内执行 `input_.contiguous()`（归属 comm phase）；
+     - scaling bypass 取消 alias fast-return，`output_split_sizes=None` 与 equal-rows 场景均强制 materialize copy。
+   - 验证结果：
+     - unit/static 均 PASS（`test_mappings_moe_api.py` 5/5）；
+     - 局部 autograd 微复现实验中，`_AllToAll.apply` 在 `is_scaling_mode=False/True` 下图节点计数一致（均为 3，且都包含 `_AllToAllBackward`）；
+     - postfix NSYS analyzer（dist/scale）均 `phase_window_parents=48`, contamination `0.00%`；
+     - compare（`pure_primary_union + contamination gate`）仍 FAIL：
+       - op-rank median: `forward=12.25%`, `backward=19.72%`, `optimizer=5.32%`。
+   - pre/post 对照（同一 x1 协议）：
+     - backward median `17.97% -> 19.72%`（无改善）；
+     - stage1 backward (`rank4..7, steady`) pair-median `21.62% -> 21.73%`（近似不变）。
+   - 结论：
+     - 该 postfix 是语义硬化/归因修正，不是当前 residual 的主因修复；
+     - 仍需按 `seq8192 + rank7-cap + repeat-x5` 做 phase 语义冻结验证。
+
+54. **scaling comm-adjacent 补齐方案可行但对 x1 backward 收敛效果有限，且主残差并非 comm-adjacent 主导**
+   - 深入归因证据（`round68 run5`, `seq8192`, stage1 backward ranks 4-7）：
+     - `dist-scale` gap（primary_union）=`238.288 ms`；
+     - comm-adjacent/data-movement 分类贡献 `70.559 ms`（`27.31%`）；
+     - 主要增量来自非 comm kernel 家族：`fmha_cutlassB` delta `149.201 ms`。
+   - 实验改动（default-off）：
+     - 新增 `--scaling-comm-adjacent-copy-iters`，在 scaling all_to_all backward 路径注入可控 copy 代价。
+   - x1 验证（`SEQ_LEN=1024`, phase-pure compare）：
+     - copy0: `backward=19.72%`
+     - copy2: `backward=19.56%`
+     - copy8: `backward=19.67%`
+   - 结论：
+   - 该方案技术可行，但当前观测下对 backward residual 改善不具决定性；
+   - 需要把下一步重点转向非 comm 主导项（尤其 attention backward 家族）与 stage1 语义对齐。
+
+55. **cross-run 证据确认：backward residual 的主导项稳定为 non-comm（`fmha_cutlassB`），`_AllToAll` 图节点膨胀假设在微复现层面不成立**
+   - 数据范围（历史 artifacts 复核）：
+     - `round68 seq8192 run1..5`
+     - 过滤片段：`stage1 backward steady`, `rank=4..7`
+   - 稳定性证据：
+     - 每轮 `dist-scale` gap 均在 `~225.6..240.6 ms`；
+     - 每轮 top-1 增量 kernel 都是 `fmha_cutlassB...`，贡献 `146.581..153.787 ms`；
+     - 说明“non-comm 主导”不是单次偶发现象。
+   - `_AllToAll` 微复现证据：
+     - distributed/scaling 两分支的 autograd 节点集合和计数一致：
+       - `['MulBackward0', 'SumBackward0', '_AllToAllBackward']`，均为 3 节点。
+   - 结论：
+     - “distributed backward 主要因为 scaling bypass 丢失 `_AllToAll` backward 节点而导致图更大”缺乏直接证据；
+     - 根因定位应继续聚焦 attention-family / non-comm 路径差异，而非仅 comm-adjacent 补齐。
+   - 缓解建议：
+     - 在现有 phase-pure 语义下增加 attention-family 诊断标签与归因报表（rank/stage/state 分桶）；
+     - 保留 `--scaling-comm-adjacent-copy-iters` 作为 debug-only 开关，不纳入官方 gate 语义。
+
+56. **DDP-hook 假设验证结论：scaling 中 hook 成本并非缺失，且不是当前 backward 残差主导项**
+   - 实验方式：
+     - 新增 debug 开关 `--scaling-disable-ddp-wrap`（在 scaling 下禁用 DDP param-hook accumulation path，保持 DDP wrapper 接口）；
+     - 运行 x1 NSYS 协议（`SEQ_LEN=1024`, phase-pure）做 scaling A/B。
+   - 关键证据（stage1 backward steady, rank4..7）：
+     - `compute_pure_primary_union_ms`: `78.899 -> 71.230`（`-9.72%`）；
+     - `kernel_count`: `7576 -> 6988`（`-7.76%`）；
+     - 主要减少 kernel 是 `CUDAFunctor_add<float>`（`-7.597 ms`）；
+     - `fmha_cutlassB` 在该 A/B 中变化极小（`-0.007 ms`）。
+   - 对齐影响：
+     - dist-vs-scale compare 下 backward rank-median 未改善（`19.72% -> 20.08%`）。
+   - 结论：
+     - “scaling backward 基本没有 DDP hook 行为”不成立；
+     - DDP hook overhead 存在但不足以解释主残差，当前主导项仍需继续聚焦 non-comm 路径（attention family）。
+   - 备注（执行中发现并已处理）：
+     - 直接跳过 DDP wrapper 会触发训练接口不兼容（如 `zero_grad_buffer`/`expert_parallel_buffers` 依赖）；
+   - 已转为“保留 wrapper、禁用 hook accumulation”的 debug 路径，并补充优化器 buffer-collection 健壮性判断。
+
+57. **seq8192 phase-pure DDP probe A/B 显示：DDP-off 可降低残差但不足以冻结 backward，主残差仍由 attention-family 主导**
+   - 新采集范围（x1 probe）：
+     - distributed: `deepseek_phase_sl8192_dist_ddp_probe`
+     - scaling on/off: `deepseek_phase_sl8192_scaling_ddp_on|off`
+   - 语义洁净性：
+     - 三组数据均为 `phase_window_parents=48`, `event_rows=72`, `aggregate_rows=24`;
+     - contamination 全量 `0.00%`，排除 comm-window 泄漏作为主因。
+   - compare（`pure_primary_union + shared(primary_stream)`）：
+     - DDP-on rank-median: `forward=7.20%`, `backward=16.88%`, `optimizer=5.45%`
+     - DDP-off rank-median: `forward=4.91%`, `backward=9.00%`, `optimizer=1.96%`
+   - stage1 backward steady (`rank4..7`)：
+     - DDP-on median diff `8.83%`；
+     - DDP-off median diff `6.04%`（改善但仍 >5%）。
+   - kernel-family 证据：
+     - dist-vs-scale top delta 在 on/off 两组都仍是 `fmha_cutlassB`：
+       - on: `+40.965 ms`
+       - off: `+32.653 ms`
+   - 风险结论：
+     - DDP hook accumulation 是“可观但次级”贡献项，不足以单独解释并修复 backward residual；
+     - backward 官方 freeze 仍需 `seq8192 + rank7-cap + repeat x5` 的 phase-pure 协议验证，并继续聚焦 attention-family 归因。
+
+58. **seq8192 x1 probe 与历史 round68 高残差集出现“方向翻转”（本轮 scale>dist），说明单轮结论对协议/运行上下文高度敏感**
+   - 现象：
+     - 本轮 seq8192 probe（phase-pure）中，stage1 backward steady（rank4..7）呈现 `scale > dist`：
+       - DDP-on median diff `+8.83%`
+       - DDP-off median diff `+6.04%`
+     - 但历史 `round68 seq8192 run1..5` 高残差集主要表现为 `dist > scale`（且 `fmha_cutlassB` 主导）。
+   - 影响：
+     - 若只基于单轮 x1 probe，容易得到与历史 repeat 数据方向不一致的结论；
+     - backward freeze 结论的可信度需要更严格的重复采样和稳健聚合。
+   - 缓解建议：
+     - 坚持官方冻结协议：`seq8192 + rank7-cap + repeat x5`；
+     - 除 median 外同时看 IQR/P75 与 rank-level稳定性（尤其 rank1/6/7 异常敏感点）；
+     - 在 freeze 轮中保留 DDP on/off 与 attention-family 归因快照，避免“方向翻转”误判。
+
+59. **seq8192 phase-pure 正式 repeat-x5 结果显示：DDP-off 仅部分改善 backward，且稳定性未收敛；attention-family 仍为主导残差**
+   - 正式轮结果（`pure_primary_union`, shared primary-stream）：
+     - DDP-on backward median/IQR：`13.02% / 4.23`
+     - DDP-off backward median/IQR：`12.27% / 5.26`
+     - 结论：DDP-off 仅小幅改善 backward median（`-0.75pp`），但 IQR 变大，未达到冻结条件。
+   - 语义完整性：
+     - distributed/scaling on/off 全部 run 均 `contamination_pct=0.00%`，可排除 comm-window 泄漏。
+   - kernel-family 稳健证据（stage1 backward steady, rank4..7）：
+     - `fmha_cutlassB` 在 on/off 两分支均为 `5/5` run 的 top1 absolute delta；
+     - fmha delta median：
+       - on: `38.447 ms`
+       - off: `30.666 ms`
+   - 风险结论：
+     - backward residual 不能通过 DDP-hook 路径单独收敛；
+     - 继续增加 comm-adjacent emulation 的收益预期低。
+   - 优先级调整：
+     - 下一步优先 attention-family 诊断（debug-only NVTX tags/segmentation），并保留现有 comm-adjacent knobs 为 debug-only。
+
+60. **NVTX 归属污染已被确认：`row_g_fwd` push/pop 不平衡导致 forward CMD 长窗泄漏并系统性覆盖 backward**
+   - 证据（基于已采集 `seq8192 phase repeat-x5` sqlite，非新采集）：
+     - 所有 run/branch（dist/scaling_on/scaling_off）均出现：
+       - `open_forward=24`, `open_backward=0`;
+       - `forward/backward overlap_cnt=48`；
+     - unclosed label 指纹稳定：
+       - `row_g_fwd_open` 持续非零（dist=48，scaling=96）；
+       - `cmd_forward_open=24`。
+   - 根因定位：
+     - `megatron/core/tensor_parallel/mappings.py` 中 `_ReduceFromModelParallelRegion.forward` 在 `world_size==1` 分支提前 `return`，未执行 `nvtx.range_pop()`。
+     - 该路径在当前 TP=1 workload 为高频路径，导致 NVTX 栈持续泄漏，后续 CMD pop 目标错位。
+   - 影响：
+     - op-window 归属语义（尤其 forward/backward 边界）可被系统性污染；
+     - 受污染 traces 上的 per-op kernel 计数/时长结论可信度下降。
+   - 修复状态：
+     - 已落地最小修复：`try/finally` 保证 `row_g_fwd` 总能 pop；
+     - 已完成 RED→GREEN 单测验证（新增 `world_size==1/ >1` NVTX 平衡用例）。
+   - 后续风险与要求：
+     - 在 patched 代码上必须先做一轮 seq8192 x1 重新采集，确认 `open_forward==0` 且不再出现系统性 fwd/bwd overlap；
+     - 通过后再进行正式 repeat-x5 freeze 复测。
+
+61. **post-fix clean x1 已通过 NVTX 结构 gate，但 backward residual 仍显著超阈值，说明主矛盾已转向 attention-family 路径**
+   - 新证据（patched `seq8192 phase-pure x1`）：
+     - dist/scaling_on/scaling_off 三组都满足：
+       - `open_forward_step=0`
+       - `open_backward_step=0`
+       - `forward_backward_overlap_count=0`
+     - 同时三组 contamination 仍为 `0.00%`。
+   - 对比结果（`pure_primary_union`, shared primary-stream）：
+     - DDP-on：`forward=15.63%`, `backward=17.42%`, `optimizer=3.51%`
+     - DDP-off：`forward=15.74%`, `backward=10.52%`, `optimizer=2.35%`
+   - 结论：
+     - NVTX 结构污染已不是当前 x1 残差的主要解释；
+     - backward 在 clean traces 上仍高于门限，且 DDP-off 仅部分改善。
+   - 新优先级：
+     - 转向 attention-family 根因诊断（debug-only tags/segmentation）；
+     - 在 attention 诊断得到可执行修复方向前，不进入 repeat-x5 freeze 正式轮。
+
+62. **attention-family 深诊断确认：`fmha_cutlassB` 仍为 patched clean-x1 backward 残差主导，且不是 launch-config mismatch**
+   - 诊断范围：
+     - 数据源：patched `seq8192 phase-pure x1`；
+     - 过滤：`op=backward_step`, `state=steady`, `stage=1`, `phase=compute`, `rank=4..7`；
+     - 比对：`dist vs scaling_on`、`dist vs scaling_off`。
+   - 关键证据：
+     - pairing 完整：两组均 `paired_windows=12`, `missing=0`；
+     - 残差分解：
+       - on：`gap=+42.122 ms`, `fmha_gap=+25.442 ms`, share=`60.40%`；
+       - off：`gap=+28.344 ms`, `fmha_gap=+20.650 ms`, share=`72.86%`；
+     - launch parity：
+       - 两组均 `dist_unique_cfg=1`, `scale_unique_cfg=1`, `cfg_sets_equal=True`；
+       - 说明 kernel launch shape/config 并未分叉。
+     - top-k：
+       - 两组 top1 absolute delta 均是 `fmha_cutlassB...`。
+   - 风险结论：
+     - DDP-off 只能部分减小 gap，但不改变主导项；
+     - 根因优先级应转向 attention-path runtime context（邻接 memory traffic / stream scheduling / micro-phase 归因），而非继续扩展 comm-adjacent emulation 或 kernel-shape 假设。
+   - 缓解建议：
+     - 增加 debug-only attention 微分段 tags（qkv / softmax-bwd / dropout-bwd / proj-bwd）并复用 phase-pure compare；
+     - 在进入下一轮 repeat-x5 freeze 前，先完成一轮 clean x1 attention 微分段验证。
+
+63. **attention backward 微分段定位已稳定：主残差集中在 `attn_core_bwd`，且 top1 恒为 `fmha_cutlassB`（repeat-x5）**
+   - 实施：
+     - 新增 debug-only 开关 `--trace-attention-backward-segments`；
+     - 分段标签 `attn_bwd_segment=*` 覆盖 SelfAttention 与 MLA 路径（DeepSeek workload）。
+   - clean x1 + repeat-x5 证据（`stage1 backward steady rank4..7`）：
+     - `attn_core_bwd` 是唯一 material-gap segment；
+     - core segment 的 `fmha_gap_share` 中位数：
+       - scaling_on: `98.01%`
+       - scaling_off: `97.96%`
+     - top1 delta kernel 在 on/off 的 `5/5` run 都是 `fmha_cutlassB`。
+   - 结论：
+     - 分段定位已收敛，可判定 residual 主源为 attention core runtime-context。
+
+64. **stream-set 不匹配证据不足，但 distributed 在 fmha 前邻接小 kernel 成本持续更高（core segment）**
+   - repeat-x5 core-segment 诊断：
+     - `primary_stream_id_mismatch_pairs=0`、`fmha_stream_set_mismatch_pairs=0`（各 run 均无异常）；
+     - 但 pre-fmha small-kernel 邻接统计稳定偏高于 scaling：
+       - count median: dist `35` vs scale `22`
+       - ms median: dist `1.751` vs scale `~1.10`
+   - 风险结论：
+   - 当前更像同流内邻接负载/时序上下文差异，而非 stream route mismatch；
+   - 仍需更细 attention 邻接诊断（core 前后 micro-tag）来识别可消减项。
+   - gate 影响：
+     - 即使定位收敛，op-level backward 在 repeat-x5 仍 >5%（on `11.20%`, off `8.99%`），官方 backward freeze 仍未达成。
+
+65. **attention-core 进一步微分段后确认：残差几乎全部集中在 `attn_core_sdpa_bwd`，pre/post-cast 子段可忽略**
+   - 新增证据（`seq8192` clean x1，dist/scaling on/off）：
+     - 新增子段标签：
+       - `attn_core_precast_bwd`
+       - `attn_core_sdpa_bwd`
+       - `attn_core_postcast_bwd`
+     - 三分支标签计数一致（`attn_core_*_bwd` 各 `96`），排除标签覆盖偏差。
+   - 定位结果（`stage1 backward steady rank4..7`）：
+     - scaling_on：
+       - `attn_core_bwd gap=23.419ms`
+       - `attn_core_sdpa_bwd gap=23.115ms`, `fmha_share=98.02%`
+       - `attn_core_precast_bwd gap=0.000ms`
+       - `attn_core_postcast_bwd gap=0.000ms`
+     - scaling_off：
+       - `attn_core_bwd gap=34.155ms`
+       - `attn_core_sdpa_bwd gap=33.740ms`, `fmha_share=98.11%`
+       - `attn_core_precast_bwd gap=0.000ms`
+       - `attn_core_postcast_bwd gap=0.000ms`
+   - 新邻接证据（top-name）：
+     - `attn_core_sdpa_bwd` pre-fmha 邻接主导 kernel 稳定为
+       - `vectorized_elementwise_kernel<... FillFunctor<unsigned char> ...>`
+     - dist vs scale pre-fmha 统计：
+       - scaling_on：`35 / 1.751ms` vs `27 / 1.393ms`
+       - scaling_off：`35 / 1.751ms` vs `18 / 0.900ms`
+   - 风险结论：
+     - 当前 residual 不是“core 内多段均匀扩散”，而是 SDPA-backward 邻域上下文主导；
+     - 后续应优先做 SDPA 邻域专项诊断（mask/build 与 memory-traffic 邻接），而非继续扩大 comm-adjacent 仿真范围。
+
+66. **`attn_core_sdpa_bwd` immediate-neighbor 诊断显示：pre-fmha 邻接差异对阈值敏感，不能作为主残差根因**
+   - 变更与方法：
+     - 在 `analyze_nsys_attention_family_delta.py` 新增 immediate same-stream 邻接统计：
+       - `small_kernel_immediate_pre/post_count`
+       - `small_kernel_immediate_pre/post_ms`
+       - immediate pre/post top names（`name/ms/count`）。
+     - 使用现有 `seq8192` clean x1 sqlite（`dist/scaling_on/scaling_off`）重分析 `attn_core_sdpa_bwd`（`stage1 backward steady rank4..7`）。
+   - 证据（默认阈值 `small_kernel_threshold_us=60`）：
+     - scaling_on immediate pre：dist `35 / 1.751ms` vs scale `27 / 1.393ms`
+     - scaling_off immediate pre：dist `35 / 1.751ms` vs scale `18 / 0.900ms`
+     - top1 immediate pre kernel 在两侧都相同：
+       - `vectorized_elementwise_kernel<... FillFunctor<unsigned char> ...>`
+   - 阈值扫（`small_kernel_threshold_us=80`）：
+     - scaling_on immediate pre：dist `44 / 2.311ms` vs scale `44 / 2.451ms`
+     - scaling_off immediate pre：dist `44 / 2.311ms` vs scale `44 / 2.518ms`
+     - `gap_ms` 不变（on `23.115ms`, off `33.740ms`）。
+   - 结论：
+     - pre-fmha immediate-neighbor 路径在 distributed/scaling 均存在，不支持“scaling 缺失该邻接路径”为主因；
+     - `60us` 口径下的 count 差异主要由 small-kernel 分类阈值敏感性导致；
+     - backward 主残差仍应聚焦 fmha runtime-context 本体（`attn_core_sdpa_bwd`），而非邻接 path 缺失假设。
+
+67. **seq8192 attention-core SDPA-subsegment 正式 repeat-x5 显示：主导源稳定但 run-level 波动仍高，backward freeze 仍未满足**
+   - 协议：
+     - `dist + scaling_on + scaling_off`，`SEQ_LEN=8192`，`TRAIN_ITERS=3`；
+     - phase-pure 与 attention segment tracing 配置保持不变（无训练语义改动）。
+   - gate 与语义洁净性：
+     - NVTX structure gate 在 run1..5 三分支全部通过；
+     - contamination gate 在 run1..5 三分支全部为 `0.00%`。
+   - 稳健定位（`stage1 backward steady rank4..7`, `segment=attn_core_sdpa_bwd`）：
+     - top1 kernel 在 on/off 均为 `5/5` 的 `fmha_cutlassB...`；
+     - `fmha_gap_share_pct` median：
+       - scaling_on: `98.022%`
+       - scaling_off: `98.041%`
+     - pre-fmha top-name 在 on/off 全部 run 稳定为 `FillFunctor<unsigned char>`；
+     - distributed pre-fmha 邻接负载中位数仍高于 scaling（count/ms: `35/1.751` vs `21/~1.05`）。
+   - 波动风险：
+     - `gap_ms` IQR：
+       - scaling_on: `7.021`
+       - scaling_off: `20.024`（显著更高）
+     - backward op-rank-median（compare logs）仍存在较大 run 间漂移，未达到 freeze 收敛预期。
+   - 结论与影响：
+   - `attn_core_sdpa_bwd` 主导来源已可视为稳健事实（非单轮伪影）；
+   - backward freeze 仍被 run-level variability 阻塞，下一步应继续 SDPA 邻域 runtime-context 的 targeted 诊断，而不是扩展 comm-adjacent emulation。
+
+68. **attention-core deep-segment repeat-x5 波动分桶显示：residual 主要由 iter1 子桶驱动，freeze 需补充按-iter 稳健性约束**
+   - 协议与语义状态：
+     - `seq8192`, run1..5, `dist + scaling_on + scaling_off`；
+     - phase-pure 与 NVTX structure gate 全通过（`open/overlap=0`），contamination 全为 `0.00%`。
+   - 主导源稳定性（复核）：
+     - `attn_core_sdpa_fmha_bwd` 仍是主导段；
+     - top1 kernel `fmha_cutlassB...` 在 on/off 都是 `5/5`。
+   - 分桶证据（`stage1/backward/steady/rank4..7`, fmha segment paired windows）：
+     - on/off 各 `n=240`；
+     - `iter1` 是一致的高-gap 子桶：
+       - on: `fmha_gap median ~1.766ms`
+       - off: `fmha_gap median ~1.777ms`
+     - `iter0` 与 `iter2` 接近低-gap子桶（中位数接近 0）；
+     - `iter1` 同时出现稳定 pre-fmha 邻接偏移：
+       - `small_pre_count_gap_median = -1.0`
+       - `small_pre_gap_ms_median ~ -0.05ms`
+   - 风险结论：
+     - backward residual 不是纯随机噪声，也不是 phase 泄漏，而是有稳定的 iter-context 结构性来源；
+     - 当前 freeze 口径若不区分 iter 子桶，会把结构性上下文波动混成单一 IQR，导致 gate 判定不稳定。
+   - 缓解建议：
+     - freeze 评估增加按-iter 子桶报告（至少独立报告 iter1 与 iter0/2）；
+     - 在深分段语义下优先诊断 iter1 对应的 runtime-context（同流 pre-fmha 邻接、batch/调度相位）后再决定是否收紧/放宽 backward 稳健性约束。
+
+69. **官方 backward 口径已冻结为 `seq8192 + phase-pure + repeat-x5`，stage-aware/op-map/no-subtract 降级为诊断视图**
+   - 决策依据：
+     - round68 以后三视图长期分歧已被确认，stage-aware 虽可降数值但属于不可扩展标定口径；
+     - phase-pure 路径已提供 contamination=0 的可验证语义。
+   - 实施状态：
+     - 在 task plan/notes 中落盘“主口径冻结”条款；
+     - 后续汇报必须优先给出 `median/IQR/range`，再附诊断口径对照。
+   - 风险控制：
+     - 避免以口径切换替代 root-cause 修复；
+     - 避免使用 stage-aware 数值作为官方对外结论。
+
+70. **示例脚本已实施 advanced-diagnostics 显式确认策略，降低默认路径被实验开关污染的风险**
+   - 变更摘要：
+     - `examples/pretrain_deepseek_v3_moe.sh`、`examples/pretrain_qwen3_30b_a3b_moe.sh` 新增 `ADVANCED_DIAGNOSTICS=0|1`；
+     - 当检测到高级诊断开关被设置且未显式确认时，脚本 fail-fast 并输出活动开关列表。
+   - 影响：
+     - baseline 运行语义保持不变；
+     - 实验性开关不再“静默混入”默认流程。
+   - 后续要求：
+     - 所有涉及高级诊断开关的报告需显式记录 `ADVANCED_DIAGNOSTICS=1`。
+
+71. **后续代码级修复范围已锁定：仅允许 `attn_core_sdpa_bwd` iter-bucket（尤其 iter1）定向诊断，不再扩展非主线 A/B**
+   - 决策依据：
+     - `fmha_cutlassB` 在多轮 repeat 中稳定 top1；
+     - comm-adjacent 与 DDP-hook 路径已验证为次级项。
+   - 允许方向：
+     - `attn_core_sdpa_bwd` 前后微段与同流邻接 runtime-context 诊断；
+     - iter1 vs iter0/2 分桶一致性验证。
+   - 禁止方向（除非新证据）：
+     - 扩大 comm-adjacent emulation 口径；
+     - 继续以 subtraction-policy 调参追求数值对齐。
 
 ## Resolved During Stage-1
 

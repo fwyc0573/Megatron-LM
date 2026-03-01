@@ -2,6 +2,32 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-03-01 | Implemented backward-comp governance plan: froze official metric semantics (`seq8192 + phase-pure + repeat-x5`), added advanced-diagnostics opt-in guard in DeepSeek/Qwen scripts, and updated task_memory plan/notes/issues with scope-lock decisions |
+| 2026-03-01 | Completed attention-core SDPA deep-segment formal repeat-x5 (`dist + scaling_on + scaling_off`) with robust aggregation and added fmha variability bucketing by `rank/state/iter` (iter1-dominant residual pattern) |
+| 2026-03-01 | Completed seq8192 attention-core SDPA subsegment formal repeat-x5 (`dist + scaling_on + scaling_off`) and generated robust `top-k + median/IQR` summary: `fmha_cutlassB` remains top1 in 5/5 runs with stable pre-fmha `FillFunctor<unsigned char>` adjacency asymmetry |
+| 2026-03-01 | Added `attn_core_sdpa_bwd` immediate same-stream neighbor diagnostics (analyzer + unit tests), reran x1 re-analysis with `small-kernel-threshold-us=60/80`, and confirmed pre-fmha count asymmetry is threshold-sensitive while backward gap remains unchanged |
+| 2026-03-01 | Added MLA attention-core micro-segment x1 localization run: subsegment hooks + adjacency top-k diagnostics show residual is concentrated in `attn_core_sdpa_bwd`, while `attn_core_precast_bwd`/`attn_core_postcast_bwd` remain near-zero |
+| 2026-03-01 | Implemented debug-only attention backward segment NVTX (including MLA path), completed seq8192 clean-x1 + formal repeat-x5 capture/analyze/compare, and confirmed `attn_core_bwd`/`fmha_cutlassB` as stable dominant backward residual source |
+| 2026-03-01 | Completed patched seq8192 clean-x1 attention-family deep diagnosis: hardened `analyze_nsys_attention_family_delta.py` + unit tests, produced dist-vs-scaling on/off stage1 backward reports, and confirmed `fmha_cutlassB` remains dominant with launch-config parity |
+| 2026-03-01 | Completed patched seq8192 phase-pure x1 (dist/scaling on/off) with new NVTX structural-health gate (`open_forward/open_backward/fwd-bwd overlap`): gate passed cleanly on all branches, but backward remains >5% and attention-family (`fmha_cutlassB`) is still top residual, so priority is shifted to attention diagnostics before repeat-x5 freeze |
+| 2026-03-01 | Completed NVTX attribution-artifact root-cause validation on seq8192 phase-repeat traces: confirmed systematic forward/backward CMD overlap from unbalanced `row_g_fwd` NVTX push/pop, landed minimal `try/finally` fix, and verified RED→GREEN with targeted + regression unit suites |
+| 2026-03-01 | Completed seq8192 phase-pure formal repeat-x5 (distributed + scaling DDP on/off): contamination stayed 0%, DDP-off only partially improved backward, and kernel-family robust stats confirmed `fmha_cutlassB` sustained dominance (5/5 runs) |
+| 2026-03-01 | Completed seq8192 phase-pure DDP probe A/B (distributed x1 + scaling DDP on/off x1): contamination stayed 0%, DDP-off improved but backward still >5%, and attention-family (`fmha_cutlassB`) remained dominant residual component |
+| 2026-03-01 | Completed scaling DDP-hook hypothesis validation (debug switch + x1 NSYS A/B): hook path contributes moderate overhead but does not explain dominant backward residual; disabling scaling hook path did not improve dist-vs-scale backward gap |
+| 2026-03-01 | Completed cross-run (`round68 seq8192 run1..5`) backward residual source validation: non-comm (`fmha_cutlassB`) remains dominant across runs; `_AllToAll` micro-repro autograd-node parity verified; regression unit suite remains green |
+| 2026-03-01 | Completed backward residual deep-dive attribution and scaling comm-adjacent emulation feasibility validation (`--scaling-comm-adjacent-copy-iters`): end-to-end works but does not materially reduce backward residual in x1 phase-pure compare |
+| 2026-03-01 | Validated postfix all_to_all comm-adjacent attribution fix (materialization + contiguous-in-wrapper) with unit tests and phase-aware NSYS x1 compare; contamination stayed zero but backward residual remained high |
+| 2026-03-01 | Completed phase-label NSYS sanity x1 distributed/scaling rerun (capture/export/analyze/compare), verified phase-window coverage + zero contamination, and archived diagnostics report |
+| 2026-03-01 | Implemented phase-level kernel ground-truth instrumentation and pure compute-only compare path (new trace args, CMD phase NVTX, NSYS analyzer pure metrics + contamination gate), updated scripts/tests, and validated with unit + integration replays |
+| 2026-02-28 | Completed Round6-8 seq8192 NSYS repeat-x5 semantics-freeze validation (distributed/scaling capture + sqlite breakdown + compute-only compare), and archived subtract/no-subtract/NSYS tri-view evidence for backward gate assessment |
+| 2026-02-28 | Completed Round6-8 backward measurement-semantics validation on fixed seq8192 batch (baseline/op-map/stage-aware/no-subtract views, repeat x5), confirming backward over-subtraction bias and preserving code-freeze decision |
+| 2026-02-28 | Completed Round6-8 measurement-regime change execution (OOM sweep + seq8192 repeat x5 with rank7 cap), confirmed full-profile memory ceiling, and archived noise-floor verdict report |
+| 2026-02-28 | Implemented round6-8 O1 pre-CMD optimizer-drain switch (symmetric distributed/scaling, default-off), executed A/B repeated pairing x5 with fixed rank7 cap, and completed noise-floor-aware verdict (O1 rejected) |
+| 2026-02-28 | Quantified round6-8 pure noise floor via 5-run repeated pairing (no code changes), corrected pairing cap to rank7 end-of-run timestamps, and archived noise-baseline report |
+| 2026-02-28 | Backported B1 strict-grad-replay guard to mainline as default-off integrity control and completed unit/static validation |
+| 2026-02-28 | Completed round6-8-baseline B1 strict-grad-replay implementation and validation (single-pass fail-fast probe + two-pass strict 3-run repeated pairing), and archived comparison evidence vs O2 baseline |
+| 2026-02-28 | Completed round6-8-baseline O2 microphase A/B reruns (`TRACE_OPTIMIZER_MICROPHASES=0/1`, 3-run repeated pairing) and archived median-of-runs conclusion |
+| 2026-02-28 | Completed stage-2 current-latest 3-run rerun under Round12 protocol, produced cross-round comparison vs Round4/Round6-8, selected overall best round, and archived retrospective + forward plan report |
 | 2026-02-28 | Added stage-2 round12 post-optimizer replay-write repeated-fidelity execution records (run1/2/3, median-of-runs), and archived new compare/repeat artifacts |
 | 2026-02-27 | Added stage-2 round11 semantic-alignment experiment progress (replay write-phase + scheduler increment switch), with new compare evidence |
 | 2026-02-27 | Completed stage-2 optimizer microphase protocolfix8 fidelity reruns (single + repeat aggregation), and archived phase-aware compare evidence |
@@ -33,9 +59,685 @@
 
 # Progress
 
+## 2026-03-01
+
+### Completed
+
+- Implemented governance-level follow-up for backward comp-gap convergence decisions:
+  - froze official reporting semantics to `seq8192 + phase-pure + repeat-x5` in task docs;
+  - downgraded subtract/stage-aware/op-map views to diagnostics-only;
+  - locked next code-level scope to `attn_core_sdpa_bwd` iter-bucket diagnosis.
+
+- Added explicit advanced-diagnostics opt-in guard in example scripts to reduce baseline pollution risk:
+  - `examples/pretrain_deepseek_v3_moe.sh`: new `ADVANCED_DIAGNOSTICS=0|1` gate checks for non-baseline toggles (`TRACE_OPTIMIZER_MICROPHASES`, strict replay, replay-write post mode, scheduler-align, comm-adjacent copy iters, DDP-wrap disable, attention segment tracing).
+  - `examples/pretrain_qwen3_30b_a3b_moe.sh`: same `ADVANCED_DIAGNOSTICS=0|1` gate for qwen-side advanced toggles (`TRACE_ATTENTION_BACKWARD_SEGMENTS`, comm-adjacent copy iters, DDP-wrap disable).
+  - behavior: fail-fast when advanced flags are set without explicit acknowledgement.
+
+- Completed attention-core SDPA deep-segment formal repeat-x5 (`seq8192`, `dist + scaling_on + scaling_off`) with no training-semantic change:
+  - artifact base:
+    - `logs/nsys_phase_attn_core_deepseg_repeat5_v1/`
+  - gate status:
+    - NVTX structure gate (run1..5 × all branches) all PASS:
+      - `open_forward=0`, `open_backward=0`, `overlap=0`;
+    - contamination all PASS with max `0.00%`.
+  - op-level robust results (from `pure_primary_union` compare logs):
+    - scaling_on backward rank-median runs:
+      - all-ranks: `[19.51, 11.68, 10.28, 12.36, 18.90]`, median/IQR `12.36 / 7.22`;
+      - stage1 `rank4..7`: `[20.57, 15.915, 10.275, 10.530, 18.905]`, median/IQR `15.915 / 8.375`.
+    - scaling_off backward rank-median runs:
+      - all-ranks: `[19.27, 16.20, 19.03, 10.33, 16.68]`, median/IQR `16.68 / 2.83`;
+      - stage1 `rank4..7`: `[19.995, 17.50, 19.495, 10.335, 14.05]`, median/IQR `17.50 / 5.445`.
+  - deep-segment localization (`stage1/backward/steady/rank4..7`):
+    - `attn_core_sdpa_fmha_bwd` remains dominant:
+      - on: `gap median/IQR = 41.935 / 16.329 ms`, `fmha_share median/IQR = 97.62% / 0.33%`;
+      - off: `gap median/IQR = 43.605 / 8.525 ms`, `fmha_share median/IQR = 97.87% / 0.79%`.
+    - top1 kernel is stable `5/5` in both branches:
+      - `fmha_cutlassB_bf16_aligned_128x128_k128_seqaligned_sm80(...)`.
+    - pre-fmha adjacency remains asymmetric:
+      - distributed median `~1.901ms` vs scaling median `~1.150ms` (on), `~1.017ms` (off).
+  - variability bucketing (`rank/state/iter`, fmha-vs-adjacency coupling):
+    - iter1 is the high-gap bucket in both branches:
+      - on: `fmha_gap median ~1.766ms`
+      - off: `fmha_gap median ~1.777ms`
+    - iter0/2 remain near-zero buckets;
+    - iter1 simultaneously shows `small_pre_count_gap_median = -1.0` and `small_pre_gap_ms_median ~ -0.05ms`.
+  - outputs:
+    - `logs/nsys_phase_attn_core_deepseg_repeat5_v1/deepseek_phase_sl8192_attncore_deepseg_repeat5_summary.md`
+    - `logs/nsys_phase_attn_core_deepseg_repeat5_v1/deepseek_phase_sl8192_attncore_deepseg_repeat5_summary.json`
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_seq8192_attention_core_deepsegment_repeat5.md`
+
+- Completed seq8192 attention-core SDPA subsegment formal repeat-x5 (`dist + scaling_on + scaling_off`) with unchanged phase-pure protocol:
+  - artifact base:
+    - `logs/nsys_phase_attn_core_microseg_repeat5_v1/`
+  - gate status:
+    - NVTX structure gate passed on all runs/branches;
+    - contamination max is `0.00%` on all runs/branches.
+  - robust statistics (`stage1 backward steady rank4..7`, segment=`attn_core_sdpa_bwd`):
+    - scaling_on:
+      - `gap_ms median/IQR = 22.515 / 7.021`
+      - `fmha_gap_ms median/IQR = 22.012 / 6.898`
+      - `fmha_gap_share_pct median/IQR = 98.022 / 0.283`
+    - scaling_off:
+      - `gap_ms median/IQR = 23.725 / 20.024`
+      - `fmha_gap_ms median/IQR = 23.263 / 19.963`
+      - `fmha_gap_share_pct median/IQR = 98.041 / 0.703`
+  - kernel-family/top-k stability:
+    - top1 kernel is `fmha_cutlassB...` in `5/5` runs for both scaling_on/scaling_off;
+    - pre-fmha top adjacent small-kernel name is stable on both branches:
+      - `vectorized_elementwise_kernel<... FillFunctor<unsigned char> ...>`;
+    - distributed pre-fmha adjacent load remains higher (`count/ms` median: `35/1.751` vs scale `21/~1.05`).
+  - op-level run statistics (op-rank median from compare logs):
+    - scaling_on backward run-list: `[12.10, 4.27, 11.25, 14.83, 13.77]`, median/IQR `12.10 / 2.52`;
+    - scaling_off backward run-list: `[4.05, 11.08, 18.17, 8.30, 14.84]`, median/IQR `11.08 / 6.54`.
+  - outputs:
+    - `logs/nsys_phase_attn_core_microseg_repeat5_v1/deepseek_phase_sl8192_attncore_repeat5_summary.md`
+    - `logs/nsys_phase_attn_core_microseg_repeat5_v1/deepseek_phase_sl8192_attncore_repeat5_summary.json`
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_seq8192_attention_core_subsegment_repeat5.md`
+
+- Completed `attn_core_sdpa_bwd` immediate-neighbor targeted diagnosis on existing seq8192 x1 sqlite (no recapture):
+  - analyzer enhancement:
+    - `tests/performance/analyze_nsys_attention_family_delta.py` now emits immediate same-stream neighbor metrics around fmha:
+      - `small_kernel_immediate_pre/post_count`
+      - `small_kernel_immediate_pre/post_ms`
+      - immediate pre/post top names (`name/ms/count`) in report + JSON payload.
+  - unit validation:
+    - `tests/unit_tests/performance/test_analyze_nsys_attention_family_delta.py` extended with immediate-neighbor assertions and synthetic positive-case coverage (`7 passed`).
+  - x1 re-analysis results (`stage1 backward steady rank4..7`, segment=`attn_core_sdpa_bwd`):
+    - default threshold (`60us`):
+      - scaling_on immediate pre count/ms: dist `35/1.751ms` vs scale `27/1.393ms`;
+      - scaling_off immediate pre count/ms: dist `35/1.751ms` vs scale `18/0.900ms`.
+    - threshold sweep (`80us`):
+      - scaling_on immediate pre count/ms: dist `44/2.311ms` vs scale `44/2.451ms`;
+      - scaling_off immediate pre count/ms: dist `44/2.311ms` vs scale `44/2.518ms`.
+    - in all cases, immediate pre top1 name is stable on both sides:
+      - `vectorized_elementwise_kernel<... FillFunctor<unsigned char> ...>`.
+    - `gap_ms` remains unchanged across threshold sweep (`23.115ms` on, `33.740ms` off).
+  - interpretation:
+    - pre-fmha neighbor family is present on both branches and same stream;
+    - observed count asymmetry at `60us` is threshold-sensitive classification effect;
+    - dominant residual remains in fmha runtime context within `attn_core_sdpa_bwd`, not explained by missing immediate-neighbor kernel path.
+  - artifacts:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_attention_sdpa_immediate_neighbor_diagnosis_x1.md`
+    - `logs/nsys_phase_attn_core_microseg_x1_v1/deepseek_phase_sl8192_attncore_x1_{on,off}_attn_core_sdpa_bwd_diag_immediate.{md,json}`
+    - `logs/nsys_phase_attn_core_microseg_x1_v1/deepseek_phase_sl8192_attncore_x1_{on,off}_attn_core_sdpa_bwd_diag_immediate_th80.{md,json}`
+
+- Completed attention-core fine-grained micro-segment implementation + clean x1 localization (`seq8192`, dist/scaling on/off):
+  - instrumentation:
+    - `MLA` core now exposes three debug-only backward subsegments:
+      - `attn_core_precast_bwd`
+      - `attn_core_sdpa_bwd`
+      - `attn_core_postcast_bwd`
+    - coarse `attn_core_bwd` is preserved for compatibility.
+  - analyzer upgrade:
+    - `tests/performance/analyze_nsys_attention_family_delta.py` now emits pre/post-fmha adjacent small-kernel top names (`name/ms/count`) in both report and JSON payload.
+  - unit/static validation:
+    - `py_compile` PASS;
+    - `test_analyze_nsys_attention_family_delta.py` `6 passed`;
+    - `test_multi_latent_attention.py` `4 passed`;
+    - `test_attention.py -k attention_backward_segment_hooks` `2 passed`.
+  - x1 localization evidence:
+    - NVTX structure gate PASS on dist/scaling_on/scaling_off (`open_fwd=0`, `open_bwd=0`, overlap=0);
+    - segment label counts are symmetric across all branches (`attn_core_*_bwd=96`);
+    - `stage1 backward steady rank4..7`:
+      - scaling_on: `attn_core_sdpa_bwd gap=23.115 ms`, `fmha_share=98.02%`;
+      - scaling_off: `attn_core_sdpa_bwd gap=33.740 ms`, `fmha_share=98.11%`;
+      - `attn_core_precast_bwd` and `attn_core_postcast_bwd` both `gap=0.000 ms`.
+    - new pre-fmha adjacency top-k evidence:
+      - dominant name is `FillFunctor<unsigned char>` vectorized kernel;
+      - dist vs scale counts/ms:
+        - on: `35 / 1.751ms` vs `27 / 1.393ms`
+        - off: `35 / 1.751ms` vs `18 / 0.900ms`.
+  - artifacts:
+    - `logs/nsys_phase_attn_core_microseg_x1_v1/`
+    - `logs/nsys_phase_attn_core_microseg_x1_v1/deepseek_phase_sl8192_attncore_x1_summary.md`
+    - `logs/nsys_phase_attn_core_microseg_x1_v1/deepseek_phase_sl8192_attncore_x1_summary.json`
+    - report: `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_seq8192_attention_core_subsegment_x1.md`
+
+- Implemented debug-only attention backward segment NVTX and completed seq8192 clean-x1 + repeat-x5 diagnostics:
+  - instrumentation:
+    - new trace arg: `--trace-attention-backward-segments`;
+    - CMD phase labels now support extra tags (used for `attn_bwd_segment=*`);
+    - hook-based segmentation added to:
+      - `SelfAttention` path (`attn_qkv_bwd`, `attn_qk_layernorm_bwd`, `attn_core_bwd`, `attn_proj_bwd`);
+      - `MLASelfAttention` path (DeepSeek workload) with explicit `_MLASDPACoreAttention` submodule to expose SDPA backward segment hooks.
+  - script passthrough:
+    - DeepSeek/Qwen example scripts now accept `TRACE_ATTENTION_BACKWARD_SEGMENTS=0|1`.
+  - x1 (v2) evidence:
+    - segment labels are present in sqlite (`attn_bwd_segment=*`);
+    - NVTX gate remains clean (`open_forward=0`, `open_backward=0`, overlap=`0`);
+    - segment diagnosis shows material gap only in `attn_core_bwd`, with `fmha_gap_share ~98%`.
+  - formal repeat-x5 (`seq8192`, dist/scaling on/off):
+    - all run gates PASS for NVTX structure;
+    - op-rank median (median-of-runs):
+      - scaling_on: `forward=15.61%`, `backward=11.20%`, `optimizer=2.29%`;
+      - scaling_off: `forward=15.74%`, `backward=8.99%`, `optimizer=2.76%`;
+    - `attn_core_bwd` remains dominant:
+      - scaling_on core gap/fmha-share median: `22.814ms` / `98.01%`;
+      - scaling_off core gap/fmha-share median: `20.199ms` / `97.96%`;
+      - top1 delta is `fmha_cutlassB` in 5/5 runs (on/off).
+    - stream diagnostics:
+      - no primary/fmha stream mismatch across runs;
+      - distributed has consistently higher pre-fmha small-kernel adjacency (core segment).
+  - reports/artifacts:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_seq8192_attention_segment_debug_and_repeat5.md`
+    - `logs/nsys_phase_attn_seg_x1_v2/`
+    - `logs/nsys_phase_attn_seg_repeat5/deepseek_phase_sl8192_attnseg_repeat5_summary.md`
+    - `logs/nsys_phase_attn_seg_repeat5/deepseek_phase_sl8192_attnseg_repeat5_summary.json`
+
+- Completed patched clean-x1 attention-family deep diagnosis (`stage1 backward steady rank4..7`):
+  - script hardening:
+    - `tests/performance/analyze_nsys_attention_family_delta.py`
+      - batch pairing now uses numeric-safe ordering;
+      - fmha duration stats use strict overlap duration within phase window;
+      - added per-rank fmha IQR output and JSON payload.
+  - new dedicated unit test:
+    - `tests/unit_tests/performance/test_analyze_nsys_attention_family_delta.py` (`5 passed`)
+  - regression/static validation:
+    - analyzer regression set `26 passed`, `py_compile` PASS.
+  - output artifacts:
+    - `logs/nsys_phase_patched_x1/deepseek_phase_sl8192_patched_x1_attention_diag_scaling_on.md/.json`
+    - `logs/nsys_phase_patched_x1/deepseek_phase_sl8192_patched_x1_attention_diag_scaling_off.md/.json`
+  - key conclusion:
+    - `fmha_cutlassB` remains top1 absolute delta in both comparisons:
+      - scaling_on: gap `42.122 ms`, fmha share `60.40%`;
+      - scaling_off: gap `28.344 ms`, fmha share `72.86%`;
+    - launch config parity is exact (`cfg_sets_equal=True`), so mismatch is not launch-shape induced.
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_seq8192_phase_patched_x1_attention_family_diagnosis.md`
+
+- Completed patched seq8192 phase-pure x1 validation with newly-added NVTX structural gate:
+  - capture scope:
+    - distributed / scaling DDP-on / scaling DDP-off
+    - `SEQ_LEN=8192`, `TRAIN_ITERS=3`, `TRACE_KERNEL_GROUND_TRUTH_PHASE=1`, boundary sync=`event`
+  - new gate (added in this round):
+    - script: `tests/performance/check_nsys_nvtx_structural_health.py`
+    - checks: `open_forward_step`, `open_backward_step`, `forward_backward_overlap_count`
+    - strict thresholds used: `0/0/0`.
+  - gate results (all PASS):
+    - dist: `open_forward=0`, `open_backward=0`, `overlap_count=0`
+    - scaling_on: `open_forward=0`, `open_backward=0`, `overlap_count=0`
+    - scaling_off: `open_forward=0`, `open_backward=0`, `overlap_count=0`
+  - phase-pure analyzer sanity:
+    - all branches: `phase_window_parents=48`, `event_rows=72`, contamination `0.00%`.
+  - compare results (`pure_primary_union`, shared primary-stream):
+    - DDP-on op-rank-median: `forward=15.63%`, `backward=17.42%`, `optimizer=3.51%` (FAIL)
+    - DDP-off op-rank-median: `forward=15.74%`, `backward=10.52%`, `optimizer=2.35%` (FAIL)
+  - decision by user rule:
+    - clean x1 backward remains significantly >5%, so next priority shifts to attention-family diagnosis before repeat-x5 freeze.
+  - supporting artifact:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_seq8192_phase_patched_x1_nvtx_gate_and_compare.md`
+    - stage1 backward kernel-family summary (`rank4..7`, steady):
+      - `logs/nsys_phase_patched_x1/deepseek_phase_sl8192_patched_x1_stage1_backward_kernel_delta_summary.md`
+      - top delta remains `fmha_cutlassB` (`+25.442ms` on, `+20.650ms` off).
+
+- Completed NVTX attribution-artifact validation + root-cause fix for corrupted CMD op ownership:
+  - data evidence (existing repeat-x5 sqlite, no recapture) shows systematic corruption:
+    - all `run1..5` + (`dist`/`scaling_on`/`scaling_off`) have `open_forward=24`, `open_backward=0`, and `forward/backward overlap_cnt=48` (see `logs/nvtx_overlap_diagnosis_20260301.log`);
+    - unclosed-label fingerprint is stable: `row_g_fwd_open` consistently non-zero, plus `cmd_forward_open=24` (see `logs/nvtx_open_label_diagnosis_20260301.log`);
+    - concrete sample (`run1 dist`, rank4 stage1 steady) confirms backward windows are nested in long-lived forward windows (see `logs/nvtx_rank4_stage1_nested_example_run1.log`).
+  - code root cause:
+    - `megatron/core/tensor_parallel/mappings.py` `_ReduceFromModelParallelRegion.forward` had early return on `world_size==1` without `nvtx.range_pop()`, leaking NVTX stack entries.
+  - fix:
+    - wrapped `row_g_fwd` NVTX section with `try/finally` to guarantee pop on all paths.
+  - RED→GREEN verification:
+    - pre-fix test failure observed (missing pop): `tests/unit_tests/tensor_parallel/test_mappings_moe_api.py`;
+    - added dedicated tests for `world_size==1` and `world_size>1` NVTX balance;
+    - post-fix results:
+      - `python -m pytest tests/unit_tests/tensor_parallel/test_mappings_moe_api.py -q` → `9 passed`;
+      - `python -m pytest tests/unit_tests/profiler/test_cmd_kernel_ground_truth_nvtx.py tests/unit_tests/performance/test_analyze_nsys_cmd_kernel_breakdown.py tests/unit_tests/performance/test_compare_qwen_nsys_compute_only.py -q` → `22 passed`;
+      - `python -m py_compile megatron/core/tensor_parallel/mappings.py tests/unit_tests/tensor_parallel/test_mappings_moe_api.py` → PASS.
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_nvtx_attribution_artifact_validation_and_fix.md`
+
+- Landed backward comp-only semantics convergence implementation (no calibration):
+  - trace API:
+    - `--trace-kernel-ground-truth-phase` (default off)
+    - `--trace-kernel-boundary-sync-mode` (`none|event|global`, default `none`)
+  - runtime instrumentation:
+    - `CMD` now supports nested phase NVTX (`phase=compute|comm`) and optional boundary sync for phase windows.
+    - comm sub-op decorators automatically emit `phase=comm` windows under current CMD.
+    - pipeline/scaling `backward_step` compute body is wrapped by `phase=compute` in:
+      - `megatron/core/pipeline_parallel/schedules.py`
+      - `megatron/training/training.py`
+  - analysis/compare:
+    - `analyze_nsys_cmd_kernel_breakdown.py` now parses phase labels and outputs:
+      - `compute_pure_ms`
+      - `compute_pure_union_ms`
+      - `compute_pure_primary_union_ms`
+      - `contamination_ms` (+ `contamination_pct`)
+    - `compare_qwen_nsys_compute_only.py` now supports:
+      - `--compute-metric pure_primary_union` (default switched to this)
+      - `--require-low-contamination-pct`
+      - pure-kernel shared-name filtering (`compute_pure_*_kernel_name_overlap_ms`)
+  - script wiring:
+    - `examples/pretrain_deepseek_v3_moe.sh` now forwards kernel-ground-truth args + phase args.
+    - `examples/pretrain_qwen3_30b_a3b_moe.sh` now supports phase args + boundary sync arg.
+
+- Completed RED→GREEN validation:
+  - new/extended unit tests for parser/phase labels/contamination gating all PASS.
+  - syntax/static checks PASS (`py_compile`, `bash -n`).
+  - replay integration check on round68 run5 sqlite PASS with new analyzer/compare path.
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_phase_comp_only_semantics_impl.md`
+
+- Completed phase-label NSYS sanity x1 distributed/scaling rerun (new capture validation, no calibration):
+  - capture protocol:
+    - distributed: `MODE=distributed`, `SEQ_LEN=1024`, `TRAIN_ITERS=3`, `TRACE_KERNEL_GROUND_TRUTH=1`, `TRACE_KERNEL_GROUND_TRUTH_PHASE=1`, `TRACE_KERNEL_BOUNDARY_SYNC_MODE=event`
+    - scaling: same trace settings with `MODE=scaling` and `SCALING_PROFILE_ITERS=3`
+  - analyzer verification:
+    - distributed/scaling both report `phase_window_parents=48`, `event_rows=72`, `aggregate_rows=24`
+    - both sides show `contamination_pct=0.00` (event + aggregate)
+  - compare verification:
+    - `compute_metric=pure_primary_union` + `--require-low-contamination-pct 1` ran successfully and enforced contamination fields
+    - contamination gate PASS (all rows `dist_contam_pct=0.00`, `scale_contam_pct=0.00`)
+    - x1 fidelity gate still FAIL (`forward=10.25%`, `backward=17.97%`, `optimizer=5.75%`)
+  - interpretation:
+    - phase-pure semantics path is active and clean; current residual is not caused by comm contamination
+    - official freeze still needs fixed-protocol repeat x5 on seq8192 (rank7-cap discipline)
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_phase_comp_only_sanity_x1_capture.md`
+
+- Completed postfix validation for all_to_all comm-adjacent attribution hypothesis (no calibration):
+  - code-level postfix (already landed in this branch):
+    - moved `input_.contiguous()` into `_profiled_all_to_all_single` so it is attributed under comm phase.
+    - removed scaling fast-return alias paths in all_to_all bypass; scaling now materializes output copy for `output_split_sizes=None` and equal-row split cases.
+  - unit/static verification:
+    - `python -m pytest tests/unit_tests/tensor_parallel/test_mappings_moe_api.py -q` → `5 passed`
+    - `python -m py_compile megatron/core/tensor_parallel/mappings.py tests/unit_tests/tensor_parallel/test_mappings_moe_api.py` → PASS
+    - local autograd micro-repro confirms `_AllToAll.apply` graph-node parity between distributed/scaling branch (`node_count=3` in both cases, includes `_AllToAllBackward`).
+  - postfix NSYS x1 analysis:
+    - distributed/scaling analyzers both report `phase_window_parents=48`, `event_rows=72`, contamination `0.00%`.
+    - compare (`pure_primary_union + contamination gate`) still FAIL:
+      - op-rank median: `forward=12.25%`, `backward=19.72%`, `optimizer=5.32%`.
+    - pre/post trend in same x1 protocol:
+      - backward median moved `17.97% -> 19.72%` (no improvement),
+      - stage1 backward (`rank4..7, steady`) pair-median moved `21.62% -> 21.73%` (no material change).
+  - interpretation:
+    - postfix behavior is correct and contamination-safe, but it is not the dominant root-cause fix for current residual gap.
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_phase_comp_only_postfix_alltoall_validation.md`
+
+- Completed backward residual source deep-dive and scaling comm-adjacent emulation feasibility test:
+  - source attribution on historical high-gap set (`round68 run5`, `seq8192`, stage1 backward ranks 4-7):
+    - dist-scale gap (`primary_union`) = `238.288 ms`;
+    - comm-adjacent/data-movement classified contribution = `70.559 ms` (`27.31%`);
+    - dominant contributor remains non-comm-adjacent kernel family (`fmha_cutlassB` delta `149.201 ms`).
+  - implemented debug knob (default-off):
+    - new arg `--scaling-comm-adjacent-copy-iters` (threaded into all_to_all backward path),
+    - deepseek/qwen scripts support `SCALING_COMM_ADJACENT_COPY_ITERS`.
+  - validation:
+    - unit tests + static checks PASS.
+    - x1 scaling NSYS captures with `copy_iters=2` and `copy_iters=8` both completed.
+    - compare (`pure_primary_union + contamination gate`) summary:
+      - copy0: `forward=12.25%`, `backward=19.72%`, `optimizer=5.32%`
+      - copy2: `forward=12.27%`, `backward=19.56%`, `optimizer=4.86%`
+      - copy8: `forward=12.26%`, `backward=19.67%`, `optimizer=3.95%`
+    - interpretation: knob is feasible but backward improvement is not material in x1.
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_backward_residual_source_and_scaling_comm_adjacent_emulation.md`
+
+- Completed cross-run backward source validation + `_AllToAll` graph-parity check:
+  - cross-run scope:
+    - reused historical `round68 seq8192 run1..5` NSYS kernel-breakdown JSONs;
+    - filtered to `stage1 backward steady` on ranks `4..7`.
+  - stable evidence:
+    - per-run backward gap (`dist-scale`) remains consistently around `~226..241 ms`;
+    - top contributor in every run is `fmha_cutlassB...`, with contribution `146.581..153.787 ms`;
+    - median kernel delta ranking keeps `fmha_cutlassB` first by a wide margin.
+  - `_AllToAll` micro-repro:
+    - distributed/scaling both produce identical autograd node set and count:
+      - `['MulBackward0', 'SumBackward0', '_AllToAllBackward']` (3 nodes).
+  - regression:
+    - targeted unit/perf/profiler suite PASS (`31 passed`).
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_backward_residual_cross_run_noncomm_dominance.md`
+
+- Completed scaling DDP-hook hypothesis validation (`--scaling-disable-ddp-wrap` debug path):
+  - implementation:
+    - added debug arg + script passthrough (`SCALING_DISABLE_DDP_WRAP`);
+    - kept DDP wrapper interfaces intact, and disabled DDP param-hook accumulation path in scaling debug mode;
+    - hardened optimizer buffer collection guard for non-DDP-compatible wrappers.
+  - validation:
+    - unit/static suites PASS (`31 passed`).
+    - scaling NSYS x1 capture with debug flag completed successfully.
+  - A/B evidence (stage1 backward steady, ranks 4..7):
+    - `compute_pure_primary_union_ms`: `78.899 -> 71.230` (`-9.72%`);
+    - `kernel_count`: `7576 -> 6988` (`-7.76%`).
+    - dominant removed kernel family is `CUDAFunctor_add<float>` (`-7.597 ms`);
+    - `fmha_cutlassB` change is negligible in this x1 A/B (`-0.007 ms`).
+  - dist-vs-scaling compare impact:
+    - backward rank-median diff did not improve (`19.72% -> 20.08%` in this protocol).
+  - conclusion:
+    - DDP hook overhead is present but not dominant; it does not explain the current major backward residual by itself.
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_scaling_ddp_hook_hypothesis_validation.md`
+
+- Completed seq8192 phase-pure DDP probe A/B validation (distributed x1 + scaling DDP on/off x1):
+  - captures:
+    - distributed: `deepseek_phase_sl8192_dist_ddp_probe.nsys-rep`
+    - scaling-on: `deepseek_phase_sl8192_scaling_ddp_on.nsys-rep`
+    - scaling-off: `deepseek_phase_sl8192_scaling_ddp_off.nsys-rep`
+  - analyzer sanity:
+    - all three runs report `phase_window_parents=48`, `event_rows=72`, `aggregate_rows=24`
+    - contamination remains `0.00%` in all rows (gate-clean).
+  - compare (`pure_primary_union`, `shared(primary_stream)`, contamination gate):
+    - DDP-on rank-median: `forward=7.20%`, `backward=16.88%`, `optimizer=5.45%`
+    - DDP-off rank-median: `forward=4.91%`, `backward=9.00%`, `optimizer=1.96%`
+  - stage1 backward steady (`rank4..7`) focused effect:
+    - median diff improved `8.83% -> 6.04%` (on -> off), but still above `<=5%`.
+  - kernel-family evidence:
+    - top dist-vs-scale delta remains attention family `fmha_cutlassB`
+      (`+40.965 ms` with DDP-on, `+32.653 ms` with DDP-off in this probe set).
+  - interpretation:
+    - DDP hook accumulation is a secondary contributor (off improves metrics),
+      but not sufficient to close backward gate alone;
+    - this x1 probe shows direction drift (`scale > dist`) versus historical round68 high-gap repeats, so single-run sign should not be used as freeze evidence;
+    - current seq8192 probe still requires repeat-x5 freeze protocol before official semantic closure.
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_seq8192_phase_ddp_probe_ab_validation.md`
+
+- Completed seq8192 phase-pure **formal repeat-x5** semantics-freeze round (distributed + scaling DDP on/off):
+  - protocol:
+    - unchanged phase-pure config (`TRACE_KERNEL_GROUND_TRUTH_PHASE=1`, `TRACE_KERNEL_BOUNDARY_SYNC_MODE=event`, `SEQ_LEN=8192`, `TRAIN_ITERS=3`)
+    - repeated 5 runs for each branch:
+      - distributed
+      - scaling DDP-on (`SCALING_DISABLE_DDP_WRAP=0`)
+      - scaling DDP-off (`SCALING_DISABLE_DDP_WRAP=1`)
+  - contamination status:
+    - all runs/branches stay `contamination_pct=0.00%` (phase semantics remains clean).
+  - repeat-x5 compare summary (`pure_primary_union`, shared primary-stream):
+    - DDP-on median: `forward=6.28%`, `backward=13.02%`, `optimizer=2.14%`
+    - DDP-off median: `forward=5.77%`, `backward=12.27%`, `optimizer=3.71%`
+    - backward DDP-off improvement is partial (`13.02% -> 12.27%`) and still >5%.
+  - robustness:
+    - backward IQR remains high (`4.23` on, `5.26` off), no stability convergence to freeze target.
+    - metric-mode sweep (`pure_union` vs `pure_primary_union`) is identical in all 5 runs (0.00pp drift).
+  - kernel-family robust stats (`stage1 backward steady`, rank4..7):
+    - `fmha_cutlassB` is top1 by absolute delta in **5/5 runs** for both DDP-on and DDP-off.
+    - DDP-on fmha delta median/IQR: `38.447 / 13.370 ms`
+    - DDP-off fmha delta median/IQR: `30.666 / 7.770 ms`
+  - decision:
+    - freeze conditions not met in this formal round;
+    - next priority shifts to attention-family debug-only diagnostics (segment/tag), not further comm-adjacent emulation expansion.
+  - artifacts:
+    - report:
+      - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-03-01_seq8192_phase_repeat5_semantics_freeze_ddp_onoff.md`
+    - summaries:
+      - `logs/nsys_phase_repeat5/deepseek_phase_sl8192_repeat5_ddp_onoff_summary.json`
+      - `logs/nsys_phase_repeat5/deepseek_phase_sl8192_repeat5_ddp_onoff_summary.md`
+
 ## 2026-02-28
 
 ### Completed
+
+- Completed Round6-8 seq8192 **NSYS repeat-x5 backward semantics-freeze validation** (measurement semantics only):
+  - experiment baseline:
+    - worktree: `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM_round68_regime`
+    - code base: detached `3a50265d`
+    - no model/training code edits; only experiment-script passthrough update to forward `--trace-kernel-ground-truth` in `examples/pretrain_deepseek_v3_moe.sh`.
+  - executed repeat x5 pipeline for each run:
+    1. distributed NSYS capture
+    2. scaling NSYS capture (fixed rank order `0,4,1,5,2,6,3,7`)
+    3. trace compare with rank7 cap pairing (`subtract` + `no-subtract`)
+    4. NSYS export sqlite + kernel breakdown + compute-only compare
+  - key median-of-runs tri-view results:
+    - trace subtract: `forward=2.84%`, `backward=35.21%`, `optimizer=11.20%`
+    - trace no-subtract: `forward=6.79%`, `backward=10.40%`, `optimizer=11.20%`
+    - NSYS compute-only: `forward=0.33%`, `backward=38.30%`, `optimizer=0.81%`
+  - backward spread:
+    - subtract: `range=12.59%`, `IQR=7.08%`
+    - no-subtract: `range=1.09%`, `IQR=0.63%`
+    - NSYS compute-only: `range=3.26%`, `IQR=0.43%`
+  - decision update:
+    - backward gate semantics still not frozen;
+    - stage-aware remains diagnostic-only (not promotable to official gate);
+    - current NSYS compute-only mode is stable but shows persistent high backward residual (`~38%`), so it cannot be adopted as single official gate in current regime.
+  - artifacts:
+    - report:
+      - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-28_stage2_round68_nsys_repeat5_backward_semantics_freeze.md`
+    - tri-view summary:
+      - `logs/deepseek_v3_stage2_round68_nsys_semantics_summary.json`
+      - `logs/deepseek_v3_stage2_round68_nsys_semantics_summary.md`
+    - raw NSYS artifacts:
+      - `logs/nsys_round68_semantics/deepseek_round68_sl8192_run{1..5}_{dist,scaling}.nsys-rep`
+      - `logs/nsys_round68_semantics/deepseek_round68_sl8192_run{1..5}_{dist,scaling}_sqlite`
+      - `logs/nsys_round68_semantics/deepseek_round68_sl8192_run{1..5}_{dist,scaling}_kernel_breakdown.{json,md}`
+
+- Executed user-approved **measurement-regime-only** validation on Round6-8 baseline (no code edits):
+  - created clean detached worktree at `3a50265d`:
+    - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM_round68_regime`
+  - kept fixed protocol constraints:
+    - rank7 end-of-run cap pairing
+    - repeat x5
+    - `--distributed-subtract-comm` + `op_rank_median_aux_summary`.
+
+- Completed user-approved **measurement semantics validation** on the same seq8192 batch (no code edits):
+  - produced parallel views for each of 5 fixed rank7-cap pairs:
+    1. baseline subtract (`alpha=1.0`)
+    2. op-level compute-only auxiliary (`forward=0.787`, `backward=0.176`)
+    3. stage-aware compute-only auxiliary (`forward@stage1=0.787`, `backward@stage1=0.107`)
+    4. no-subtract total-time control
+  - median-of-runs comparison:
+    - baseline_subtract: `forward=2.00%`, `backward=62.73%`, `optimizer=6.72%`, `mean_3ops=24.67%`
+    - opmap_subtract: `forward=1.74%`, `backward=5.85%`, `optimizer=6.72%`, `mean_3ops=4.97%`
+    - stageaware_subtract: `forward=1.74%`, `backward=3.86%`, `optimizer=6.72%`, `mean_3ops=4.43%`
+    - nosubtract_total: `forward=9.32%`, `backward=7.74%`, `optimizer=6.72%`, `mean_3ops=8.06%`
+  - backward spread comparison:
+    - baseline range/IQR: `34.41% / 6.84%`
+    - opmap range/IQR: `0.75% / 0.47%`
+    - stageaware range/IQR: `1.81% / 0.64%`
+  - key evidence at stage1 backward (run1, rank4~7):
+    - baseline subtract yields `dist_comp~22ms` vs `scale_comp~54~63ms` (diff `146%~177%`);
+    - stage-aware subtract yields `dist_comp~61ms` vs `scale_comp~54~63ms` (diff mostly `~3%~11%`).
+  - core conclusion:
+    - backward explosion is measurement-semantics bias (comm over-subtraction under overlap-heavy stage1), not direct code-path regression signal;
+    - optimizer residual (`6.72%`) remains unresolved true target before reopening code A/B.
+  - artifacts:
+    - summary:
+      - `logs/deepseek_v3_stage2_round68_regime_sl8192_semantics_views_summary.json`
+      - `logs/deepseek_v3_stage2_round68_regime_sl8192_semantics_views_summary.md`
+      - `logs/deepseek_v3_stage2_round68_regime_sl8192_comm_scale_suggest_summary.json`
+    - report:
+      - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-28_stage2_round68_backward_measurement_semantics_validation.md`
+
+- Completed Step-1 OOM sweep for larger workload regime:
+  - distributed sweep PASS for smoke profile `SEQ_LEN=256..8192`;
+  - full profile (`NUM_LAYERS=61`, `HIDDEN_SIZE=7168`) OOM even at `SEQ_LEN=96/128/192/256`;
+  - scaling confirmation at smoke `SEQ_LEN=8192` PASS.
+  - summary artifacts:
+    - `logs/deepseek_v3_stage2_round68_regime_oom_sweep_dist_summary.tsv`
+    - `logs/deepseek_v3_stage2_round68_regime_oom_sweep_scaling_summary.tsv`
+    - full-profile OOM logs:
+      - `logs/deepseek_v3_stage2_round68_regime_oom_dist_full_sl256.log`
+      - `logs/deepseek_v3_stage2_round68_regime_oom_dist_full_sl192.log`
+      - `logs/deepseek_v3_stage2_round68_regime_oom_dist_full_sl128.log`
+      - `logs/deepseek_v3_stage2_round68_regime_oom_dist_full_sl96.log`.
+
+- Completed Step-2 noise-floor quantification on max-feasible config (smoke `SEQ_LEN=8192`) with repeat x5:
+  - pair timestamps (rank7 cap):
+    - `20260228152645`, `20260228152924`, `20260228153204`, `20260228153444`, `20260228153723`
+  - single-run op-rank-median:
+    - run1: `4.46% / 87.68% / 8.56%`
+    - run2: `1.97% / 59.21% / 4.58%`
+    - run3: `3.51% / 62.73% / 8.93%`
+    - run4: `1.23% / 66.05% / 6.72%`
+    - run5: `2.00% / 53.27% / 6.17%`
+  - median-of-runs:
+    - `forward=2.00%`, `backward=62.73%`, `optimizer=6.72%`
+    - `mean_3ops=24.67%`, `max_3ops=62.73%`
+  - spread:
+    - range: `forward=3.23%`, `backward=34.41%`, `optimizer=4.35%`
+    - IQR: `forward=1.54%`, `backward=6.84%`, `optimizer=2.39%`
+  - core verdict:
+    - forward noise/median improved under larger workload,
+    - optimizer remains >5%,
+    - backward shows severe systematic inflation under current subtraction semantics.
+  - artifacts:
+    - repeat aggregate:
+      - `logs/deepseek_v3_stage2_repeat_round68_regime_sl8192_subtract.jsonl`
+    - compare logs:
+      - `logs/deepseek_v3_stage2_compare_round68_regime_sl8192_run1.log`
+      - `logs/deepseek_v3_stage2_compare_round68_regime_sl8192_run2.log`
+      - `logs/deepseek_v3_stage2_compare_round68_regime_sl8192_run3.log`
+      - `logs/deepseek_v3_stage2_compare_round68_regime_sl8192_run4.log`
+      - `logs/deepseek_v3_stage2_compare_round68_regime_sl8192_run5.log`
+    - derived summary:
+      - `logs/deepseek_v3_stage2_round68_regime_sl8192_metrics_summary.json`
+      - `logs/deepseek_v3_stage2_round68_regime_sl8192_metrics_summary.md`
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-28_stage2_round68_measurement_regime_change_noise_floor.md`
+
+- Adopted user’s three review reservations as active execution constraints:
+  - O1 must be mechanism-precise before implementation;
+  - run pure noise-floor quantification (`>=5` repeated runs) before trusting O1 A/B deltas;
+  - B1 backport decision is independent from O1 outcome.
+
+- Implemented O1 switch on Round6-8 baseline worktree (`Megatron-LM_round68_noise`) using frozen single-variable design:
+  - code updates:
+    - `megatron/training/arguments.py`: added `--trace-optimizer-pre-cmd-drain` (default-off).
+    - `megatron/training/training.py`: added `_maybe_optimizer_pre_cmd_drain(args)` and symmetric pre-CMD call sites in distributed/scaling optimizer paths.
+    - `examples/pretrain_deepseek_v3_moe.sh`: added `TRACE_OPTIMIZER_PRE_CMD_DRAIN` (`0/1`) and trace-arg passthrough.
+    - `tests/unit_tests/test_training_optimizer_microphase.py`: parser/helper coverage for O1 flag.
+  - validation:
+    - unit/static checks PASS (`9 passed` + py_compile + bash -n):
+      - `logs/stage2_o1_round68_test_training_pre_cmd_drain.log`
+
+- Completed O1 A/B repeated evaluation (`drain0` vs `drain1`, fixed rank7 cap, repeat x5):
+  - pairing caps (rank7 end-of-run):
+    - drain0: `20260228141333/20260228141607/20260228141843/20260228142117/20260228142352`
+    - drain1: `20260228142648/20260228142923/20260228143302/20260228143537/20260228143812`
+  - median-of-runs:
+    - drain0: `forward=12.84%`, `backward=10.06%`, `optimizer=8.23%`, `mean_3ops=8.80%`, `max_3ops=12.84%`
+    - drain1: `forward=11.55%`, `backward=14.63%`, `optimizer=10.00%`, `mean_3ops=12.10%`, `max_3ops=14.63%`
+  - delta (drain1 - drain0):
+    - `forward=-1.29%`, `backward=+4.57%`, `optimizer=+1.77%`, `mean_3ops=+3.30%`, `max_3ops=+1.79%`
+  - noise-floor-aware spread check:
+    - range and IQR did not show synchronous reduction (notably backward/max spread increased).
+  - conclusion:
+    - O1 is rejected as gate-improving fix under current protocol; keep it default-off diagnostic only.
+  - runtime note:
+    - first `drain1` batch encountered one intermittent distributed abort (`double free or corruption`) at run3;
+    - reran run3~run5 with new port segment and completed successfully (results preserved in current report).
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-28_stage2_round68_o1_precmd_drain_ab_repeat5.md`
+
+- Completed round6-8 baseline pure-noise quantification (`TRACE_OPTIMIZER_MICROPHASES=1`, no code change, repeated pairing x5):
+  - execution workspace:
+    - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM_round68_noise`
+  - fixed protocol:
+    - `TRACE_START=4`, `TRAIN_ITERS=6`
+    - `TRACE_SUBOP_SYNC_MODE=global`, `TRACE_CMD_SYNC_MODE=global`
+    - rank-order `0,4,1,5,2,6,3,7`, `SCALING_MIN_WARMUP_ITERS=0`, `SCALING_PROFILE_ITERS=3`
+  - strict pairing correction:
+    - compare cap switched to **rank7 end-of-run timestamps** (`20260228134044/34319/34554/34829/35103`) to avoid sequential-scaling mispairing.
+  - single-run op-rank-median:
+    - run1: `5.64% / 14.66% / 9.09%`
+    - run2: `10.36% / 10.54% / 8.28%`
+    - run3: `7.16% / 11.67% / 11.13%`
+    - run4: `8.37% / 15.85% / 4.89%`
+    - run5: `4.57% / 10.55% / 6.12%`
+  - median-of-runs + spread:
+    - median: `forward=7.16%`, `backward=11.67%`, `optimizer=8.28%`, `mean_3ops=9.73%`, `max_3ops=11.67%`
+    - range: `forward=5.79%`, `backward=5.31%`, `optimizer=6.24%`
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-28_stage2_round68_noise_floor_repeat5.md`
+
+- Backported B1 strict-grad-replay guard to mainline (default-off), independent of O1:
+  - code paths:
+    - `megatron/training/arguments.py`
+    - `megatron/training/training.py`
+    - `examples/pretrain_deepseek_v3_moe.sh`
+    - `tests/unit_tests/test_training_optimizer_microphase.py`
+  - validation:
+    - `pytest -q tests/unit_tests/test_training_optimizer_microphase.py` -> `15 passed`
+    - `python -m py_compile ...` PASS, `bash -n examples/pretrain_deepseek_v3_moe.sh` PASS
+  - evidence:
+    - `logs/stage2_b1_mainline_test_training_strict_grad_replay.log`
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-28_stage2_b1_mainline_cherrypick.md`
+
+- Completed round6-8-baseline O2 A/B fidelity reruns (`TRACE_OPTIMIZER_MICROPHASES=0` vs `1`, fixed 3-run repeated pairing):
+  - execution workspace:
+    - `/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM_round68_o2`
+  - baseline/code state:
+    - worktree from `a3158883` + cherry-pick `3a50265d` (microphase trace path only)
+  - protocol:
+    - `TRACE_START=4`, `TRAIN_ITERS=6`
+    - `TRACE_SUBOP_SYNC_MODE=global`, `TRACE_CMD_SYNC_MODE=global`
+    - rank-order `0,4,1,5,2,6,3,7`
+    - `SCALING_MIN_WARMUP_ITERS=0`, `SCALING_PROFILE_ITERS=3`
+  - median-of-runs:
+    - micro0: `forward=8.37%`, `backward=10.47%`, `optimizer=8.61%`, `mean_3ops=9.15%`, `max_3ops=10.47%`
+    - micro1: `forward=5.71%`, `backward=9.34%`, `optimizer=8.36%`, `mean_3ops=7.80%`, `max_3ops=9.34%`
+  - conclusion:
+    - O2 (“microphase instrumentation worsens fidelity”) **not supported** on Round6-8 baseline.
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-28_stage2_round68_o2_microphase_ab.md`
+
+- Completed round6-8-baseline B1 strict-grad-replay implementation + validation:
+  - code updates (worktree branch `round68_o2_exp`):
+    - `megatron/training/arguments.py`: `--scaling-strict-grad-replay` (default-off)
+    - `megatron/training/training.py`: strict fail-fast on missing replay grad in profiled backward window
+    - `examples/pretrain_deepseek_v3_moe.sh`: `SCALING_STRICT_GRAD_REPLAY` env wiring + validation
+    - `tests/unit_tests/test_training_optimizer_microphase.py`: parser/helper tests for strict mode
+  - unit/static validation:
+    - `9 passed`, py_compile PASS, script syntax PASS
+    - log: `logs/stage2_b1_round68_test_training_strict_grad_replay.log`
+  - strict fail-fast probe (single-pass):
+    - expected failure on rank0 profiled backward due missing `grad_to_rank0_iter3.pt`
+    - log: `logs/deepseek_v3_stage2_scaling_round68_b1_strict_probe_singlepass.log`
+  - strict two-pass repeated pairing (3 runs):
+    - run1 (`pair=20260228081605`): `forward=5.11%`, `backward=10.02%`, `optimizer=7.93%`
+    - run2 (`pair=20260228082131`): `forward=5.84%`, `backward=9.51%`, `optimizer=9.85%`
+    - run3 (`pair=20260228082618`): `forward=10.25%`, `backward=9.20%`, `optimizer=9.29%`
+    - median-of-runs: `forward=5.84%`, `backward=9.51%`, `optimizer=9.29%`, `mean_3ops=8.21%`, `max_3ops=9.51%`
+  - vs O2-best baseline (`5.71/9.34/8.36`):
+    - `forward +0.13%`, `backward +0.17%`, `optimizer +0.93%`, `mean +0.41%`, `max +0.17%`
+  - conclusion:
+    - strict replay is useful as integrity/diagnostic control, but does not improve current gate fidelity on this baseline.
+  - report:
+    - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-28_stage2_round68_b1_strict_grad_replay.md`
+
+- Completed stage-2 **current latest code** rerun with fixed Round12 protocol (3 paired runs):
+  - shared protocol:
+    - `TRACE_START=4`, `TRAIN_ITERS=6`
+    - `TRACE_SUBOP_SYNC_MODE=global`, `TRACE_CMD_SYNC_MODE=global`
+    - `TRACE_OPTIMIZER_MICROPHASES=1`
+  - scaling protocol:
+    - `SCALING_REPLAY_WRITE_PHASE=post_optimizer`
+    - `SCALING_ALIGN_SCHEDULER_INCREMENT=0`
+    - `SCALING_FAKE_RANK_ORDER=0,4,1,5,2,6,3,7`
+  - pair timestamps:
+    - run1: `20260228072907`
+    - run2: `20260228073218`
+    - run3: `20260228073523`
+- Archived current-rerun logs and compare artifacts:
+  - distributed:
+    - `logs/deepseek_v3_stage2_dist_microphase_trace4_iter6_current_run1.log`
+    - `logs/deepseek_v3_stage2_dist_microphase_trace4_iter6_current_run2.log`
+    - `logs/deepseek_v3_stage2_dist_microphase_trace4_iter6_current_run3.log`
+  - scaling:
+    - `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_current_run1.log`
+    - `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_current_run2.log`
+    - `logs/deepseek_v3_stage2_scaling_microphase_trace4_iter6_current_run3.log`
+  - compare:
+    - `logs/deepseek_v3_stage2_compare_trace4_iter6_current_run1.log`
+    - `logs/deepseek_v3_stage2_compare_trace4_iter6_current_run2.log`
+    - `logs/deepseek_v3_stage2_compare_trace4_iter6_current_run3.log`
+  - repeat aggregate:
+    - `logs/deepseek_v3_stage2_repeat_current_subtract.jsonl`
+- Current rerun key metrics:
+  - run1: `forward=5.21%`, `backward=12.03%`, `optimizer_step=11.61%`
+  - run2: `forward=9.35%`, `backward=17.87%`, `optimizer_step=9.43%`
+  - run3: `forward=6.14%`, `backward=15.11%`, `optimizer_step=7.84%`
+  - median-of-runs: `forward=6.14%`, `backward=15.11%`, `optimizer_step=9.43%`
+- Completed cross-round decision (rule: `mean_3ops` first, `max_3ops` tie-break):
+  - current median-of-runs: `mean_3ops=10.23%`, `max_3ops=15.11%`
+  - Round4: `mean_3ops=5.60%`, `max_3ops=7.68%`
+  - Round6-8 (best single): `mean_3ops=5.51%`, `max_3ops=7.51%`
+  - overall best round: **Round6-8**
+- Added integrated rerun + retrospective report:
+  - `task_memory/task_2026-02-24_qwen3_deepseek_scaling_port/test_report_2026-02-28_stage2_current_rerun_and_retrospective.md`
 
 - Completed stage-2 round12 repeated validation for semantic-touching experiment A (`SCALING_REPLAY_WRITE_PHASE=post_optimizer`, default-off path):
   - distributed/scaling protocol fixed at:
@@ -72,6 +774,17 @@
 
 - Continue stage-2 fidelity convergence:
   - `backward_step` and `optimizer_step` still exceed `<=5%` gate under fixed protocol.
+- Measurement-regime decision gate remains blocked:
+  - despite larger workload (`SEQ_LEN=8192`), `backward_step` remains dominated by systematic subtraction bias (median `62.73%`);
+  - do not launch new code-level A/B hypotheses until backward measurement semantics are re-validated under the same rank7-cap + repeat-x5 discipline.
+- Forward-plan checkpoint update:
+  - O2 hypothesis is not supported (microphase `=1` outperforms `=0` on Round6-8 baseline).
+  - B1 strict replay is implemented and backported to mainline as default-off integrity control, but does not improve aggregate fidelity.
+  - pure noise floor (repeat x5, no code change) is high: median `7.16% / 11.67% / 8.28%`, per-op range about `5%~6%`.
+- O1 (`pre-CMD optimizer drain`) has been implemented and evaluated under fixed rank7-cap repeat x5; result is negative (median/composite regressions, no synchronous spread reduction), so O1 should not be promoted.
+- Next step should move to a new single-variable hypothesis (non-O1), while preserving:
+  - rank7 end-of-run pairing policy;
+  - repeat x5 (or higher) for acceptance-level comparisons.
 - Before any further semantic-touching runtime changes, keep all new switches default-off and provide explicit proposal/evidence for user confirmation.
 
 ## 2026-02-27
