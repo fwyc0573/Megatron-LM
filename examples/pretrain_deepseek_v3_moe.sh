@@ -35,11 +35,20 @@ TRAIN_ITERS=${TRAIN_ITERS:-3}
 TRACE_SUBOP_SYNC_MODE=${TRACE_SUBOP_SYNC_MODE:-global}
 TRACE_CMD_SYNC_MODE=${TRACE_CMD_SYNC_MODE:-global}
 TRACE_OPTIMIZER_MICROPHASES=${TRACE_OPTIMIZER_MICROPHASES:-0}
+TRACE_KERNEL_GROUND_TRUTH=${TRACE_KERNEL_GROUND_TRUTH:-0}
+TRACE_KERNEL_GROUND_TRUTH_PREFIX=${TRACE_KERNEL_GROUND_TRUTH_PREFIX:-cmd_trace}
+TRACE_KERNEL_GROUND_TRUTH_PHASE=${TRACE_KERNEL_GROUND_TRUTH_PHASE:-0}
+TRACE_KERNEL_BOUNDARY_SYNC_MODE=${TRACE_KERNEL_BOUNDARY_SYNC_MODE:-event}
+TRACE_ATTENTION_BACKWARD_SEGMENTS=${TRACE_ATTENTION_BACKWARD_SEGMENTS:-0}
 DO_TRACE=${DO_TRACE:-True}
+ADVANCED_DIAGNOSTICS=${ADVANCED_DIAGNOSTICS:-0}
 SCALING_MIN_WARMUP_ITERS=${SCALING_MIN_WARMUP_ITERS:-0}
 SCALING_PROFILE_ITERS=${SCALING_PROFILE_ITERS:-3}
+SCALING_STRICT_GRAD_REPLAY=${SCALING_STRICT_GRAD_REPLAY:-0}
 SCALING_REPLAY_WRITE_PHASE=${SCALING_REPLAY_WRITE_PHASE:-pre_optimizer}
 SCALING_ALIGN_SCHEDULER_INCREMENT=${SCALING_ALIGN_SCHEDULER_INCREMENT:-0}
+SCALING_COMM_ADJACENT_COPY_ITERS=${SCALING_COMM_ADJACENT_COPY_ITERS:-0}
+SCALING_DISABLE_DDP_WRAP=${SCALING_DISABLE_DDP_WRAP:-0}
 SCALING_REPLAY_CACHE_TAG=${SCALING_REPLAY_CACHE_TAG:-}
 if [[ -z "${SCALING_REPLAY_CACHE_TAG}" ]]; then
   SCALING_REPLAY_CACHE_TAG=$(date +%Y%m%d%H%M%S)
@@ -128,12 +137,55 @@ if (( FAKE_DP * FAKE_PP * FAKE_TP != FAKE_WORLD_SIZE )); then
   echo "[ERROR] Invalid fake parallel setup: fake_dp * fake_pp * fake_tp != fake_world_size"
   exit 1
 fi
+if [[ "${ADVANCED_DIAGNOSTICS}" != "0" && "${ADVANCED_DIAGNOSTICS}" != "1" ]]; then
+  echo "[ERROR] ADVANCED_DIAGNOSTICS must be 0 or 1, got ${ADVANCED_DIAGNOSTICS}."
+  exit 1
+fi
 if [[ "${SCALING_REPLAY_WRITE_PHASE}" != "pre_optimizer" && "${SCALING_REPLAY_WRITE_PHASE}" != "post_optimizer" ]]; then
   echo "[ERROR] SCALING_REPLAY_WRITE_PHASE must be pre_optimizer or post_optimizer, got ${SCALING_REPLAY_WRITE_PHASE}."
   exit 1
 fi
 if [[ "${SCALING_ALIGN_SCHEDULER_INCREMENT}" != "0" && "${SCALING_ALIGN_SCHEDULER_INCREMENT}" != "1" ]]; then
   echo "[ERROR] SCALING_ALIGN_SCHEDULER_INCREMENT must be 0 or 1, got ${SCALING_ALIGN_SCHEDULER_INCREMENT}."
+  exit 1
+fi
+if ! [[ "${SCALING_COMM_ADJACENT_COPY_ITERS}" =~ ^[0-9]+$ ]]; then
+  echo "[ERROR] SCALING_COMM_ADJACENT_COPY_ITERS must be a non-negative integer, got ${SCALING_COMM_ADJACENT_COPY_ITERS}."
+  exit 1
+fi
+if [[ "${SCALING_DISABLE_DDP_WRAP}" != "0" && "${SCALING_DISABLE_DDP_WRAP}" != "1" ]]; then
+  echo "[ERROR] SCALING_DISABLE_DDP_WRAP must be 0 or 1, got ${SCALING_DISABLE_DDP_WRAP}."
+  exit 1
+fi
+
+# Keep advanced diagnostics explicit to avoid accidental drift from the baseline profile.
+ADVANCED_FLAGS=()
+if [[ "${TRACE_OPTIMIZER_MICROPHASES}" == "1" ]]; then
+  ADVANCED_FLAGS+=("TRACE_OPTIMIZER_MICROPHASES=1")
+fi
+if [[ "${TRACE_ATTENTION_BACKWARD_SEGMENTS}" == "1" ]]; then
+  ADVANCED_FLAGS+=("TRACE_ATTENTION_BACKWARD_SEGMENTS=1")
+fi
+if [[ "${SCALING_STRICT_GRAD_REPLAY}" == "1" ]]; then
+  ADVANCED_FLAGS+=("SCALING_STRICT_GRAD_REPLAY=1")
+fi
+if [[ "${SCALING_REPLAY_WRITE_PHASE}" != "pre_optimizer" ]]; then
+  ADVANCED_FLAGS+=("SCALING_REPLAY_WRITE_PHASE=${SCALING_REPLAY_WRITE_PHASE}")
+fi
+if [[ "${SCALING_ALIGN_SCHEDULER_INCREMENT}" == "1" ]]; then
+  ADVANCED_FLAGS+=("SCALING_ALIGN_SCHEDULER_INCREMENT=1")
+fi
+if [[ "${SCALING_COMM_ADJACENT_COPY_ITERS}" != "0" ]]; then
+  ADVANCED_FLAGS+=("SCALING_COMM_ADJACENT_COPY_ITERS=${SCALING_COMM_ADJACENT_COPY_ITERS}")
+fi
+if [[ "${SCALING_DISABLE_DDP_WRAP}" == "1" ]]; then
+  ADVANCED_FLAGS+=("SCALING_DISABLE_DDP_WRAP=1")
+fi
+
+if (( ${#ADVANCED_FLAGS[@]} > 0 )) && [[ "${ADVANCED_DIAGNOSTICS}" != "1" ]]; then
+  echo "[ERROR] Advanced diagnostics flags are set but ADVANCED_DIAGNOSTICS=0."
+  echo "[ERROR] Set ADVANCED_DIAGNOSTICS=1 to acknowledge non-baseline run semantics."
+  printf '[ERROR] Active advanced flags: %s\n' "${ADVANCED_FLAGS[*]}"
   exit 1
 fi
 
@@ -149,8 +201,43 @@ if [[ "${TRACE_OPTIMIZER_MICROPHASES}" != "0" && "${TRACE_OPTIMIZER_MICROPHASES}
   echo "[ERROR] TRACE_OPTIMIZER_MICROPHASES must be 0 or 1, got ${TRACE_OPTIMIZER_MICROPHASES}."
   exit 1
 fi
+if [[ "${TRACE_KERNEL_GROUND_TRUTH}" != "0" && "${TRACE_KERNEL_GROUND_TRUTH}" != "1" ]]; then
+  echo "[ERROR] TRACE_KERNEL_GROUND_TRUTH must be 0 or 1, got ${TRACE_KERNEL_GROUND_TRUTH}."
+  exit 1
+fi
+if [[ "${TRACE_KERNEL_GROUND_TRUTH_PHASE}" != "0" && "${TRACE_KERNEL_GROUND_TRUTH_PHASE}" != "1" ]]; then
+  echo "[ERROR] TRACE_KERNEL_GROUND_TRUTH_PHASE must be 0 or 1, got ${TRACE_KERNEL_GROUND_TRUTH_PHASE}."
+  exit 1
+fi
+if [[ "${TRACE_KERNEL_GROUND_TRUTH_PHASE}" == "1" && "${TRACE_KERNEL_GROUND_TRUTH}" != "1" ]]; then
+  echo "[ERROR] TRACE_KERNEL_GROUND_TRUTH_PHASE=1 requires TRACE_KERNEL_GROUND_TRUTH=1."
+  exit 1
+fi
+if [[ "${TRACE_KERNEL_BOUNDARY_SYNC_MODE}" != "none" && "${TRACE_KERNEL_BOUNDARY_SYNC_MODE}" != "event" && "${TRACE_KERNEL_BOUNDARY_SYNC_MODE}" != "global" ]]; then
+  echo "[ERROR] TRACE_KERNEL_BOUNDARY_SYNC_MODE must be none, event or global, got ${TRACE_KERNEL_BOUNDARY_SYNC_MODE}."
+  exit 1
+fi
+if [[ "${TRACE_ATTENTION_BACKWARD_SEGMENTS}" != "0" && "${TRACE_ATTENTION_BACKWARD_SEGMENTS}" != "1" ]]; then
+  echo "[ERROR] TRACE_ATTENTION_BACKWARD_SEGMENTS must be 0 or 1, got ${TRACE_ATTENTION_BACKWARD_SEGMENTS}."
+  exit 1
+fi
 if [[ "${TRACE_OPTIMIZER_MICROPHASES}" == "1" ]]; then
   TRACE_ARGS+=(--trace-optimizer-microphases)
+fi
+if [[ "${TRACE_KERNEL_GROUND_TRUTH}" == "1" ]]; then
+  TRACE_ARGS+=(--trace-kernel-ground-truth)
+  TRACE_ARGS+=(--trace-kernel-ground-truth-prefix "${TRACE_KERNEL_GROUND_TRUTH_PREFIX}")
+fi
+if [[ "${TRACE_KERNEL_GROUND_TRUTH_PHASE}" == "1" ]]; then
+  TRACE_ARGS+=(--trace-kernel-ground-truth-phase)
+  TRACE_ARGS+=(--trace-kernel-boundary-sync-mode "${TRACE_KERNEL_BOUNDARY_SYNC_MODE}")
+fi
+if [[ "${TRACE_ATTENTION_BACKWARD_SEGMENTS}" == "1" ]]; then
+  TRACE_ARGS+=(--trace-attention-backward-segments)
+fi
+if [[ "${SCALING_STRICT_GRAD_REPLAY}" != "0" && "${SCALING_STRICT_GRAD_REPLAY}" != "1" ]]; then
+  echo "[ERROR] SCALING_STRICT_GRAD_REPLAY must be 0 or 1, got ${SCALING_STRICT_GRAD_REPLAY}."
+  exit 1
 fi
 
 COMMON_ARGS=(
@@ -228,6 +315,7 @@ COMMON_ARGS=(
   --eval-interval 10000
   --bf16
   --scaling-replay-write-phase "${SCALING_REPLAY_WRITE_PHASE}"
+  --scaling-comm-adjacent-copy-iters "${SCALING_COMM_ADJACENT_COPY_ITERS}"
 )
 
 if (( USE_BF16 == 0 )); then
@@ -295,6 +383,15 @@ elif [[ "${MODE}" == "scaling" ]]; then
     exit 1
   fi
 
+  SCALING_STRICT_ARGS=()
+  if [[ "${SCALING_STRICT_GRAD_REPLAY}" == "1" ]]; then
+    SCALING_STRICT_ARGS+=(--scaling-strict-grad-replay)
+  fi
+  SCALING_DDP_WRAP_ARGS=()
+  if [[ "${SCALING_DISABLE_DDP_WRAP}" == "1" ]]; then
+    SCALING_DDP_WRAP_ARGS+=(--scaling-disable-ddp-wrap)
+  fi
+
   SCALING_OVERRIDE_ARGS=(
     --tensor-model-parallel-size 1
     --pipeline-model-parallel-size 1
@@ -335,7 +432,9 @@ elif [[ "${MODE}" == "scaling" ]]; then
       --fake-current-rank-id "${FAKE_CURRENT_RANK_ID}" \
       --scaling-min-warmup-iters "${SCALING_MIN_WARMUP_ITERS}" \
       --scaling-profile-iters "${SCALING_PROFILE_ITERS}" \
-      --scaling-replay-cache-tag "${SCALING_REPLAY_CACHE_TAG}"
+      --scaling-replay-cache-tag "${SCALING_REPLAY_CACHE_TAG}" \
+      "${SCALING_DDP_WRAP_ARGS[@]}" \
+      "${SCALING_STRICT_ARGS[@]}"
   done
 else
   echo "[ERROR] Unsupported MODE=${MODE}. Use distributed or scaling."

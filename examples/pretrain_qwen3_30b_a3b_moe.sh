@@ -45,10 +45,16 @@ TRAIN_ITERS=${TRAIN_ITERS:-10}
 TRACE_SUBOP_SYNC_MODE=${TRACE_SUBOP_SYNC_MODE:-event}
 TRACE_KERNEL_GROUND_TRUTH=${TRACE_KERNEL_GROUND_TRUTH:-0}
 TRACE_KERNEL_GROUND_TRUTH_PREFIX=${TRACE_KERNEL_GROUND_TRUTH_PREFIX:-cmd_trace}
+TRACE_KERNEL_GROUND_TRUTH_PHASE=${TRACE_KERNEL_GROUND_TRUTH_PHASE:-0}
+TRACE_KERNEL_BOUNDARY_SYNC_MODE=${TRACE_KERNEL_BOUNDARY_SYNC_MODE:-event}
+TRACE_ATTENTION_BACKWARD_SEGMENTS=${TRACE_ATTENTION_BACKWARD_SEGMENTS:-0}
 DO_TRACE=${DO_TRACE:-True}
+ADVANCED_DIAGNOSTICS=${ADVANCED_DIAGNOSTICS:-0}
 LR=${LR:-1.2e-4}
 MIN_LR=${MIN_LR:-1.2e-5}
 MOE_TOKEN_DISPATCHER_TYPE=${MOE_TOKEN_DISPATCHER_TYPE:-alltoall}
+SCALING_COMM_ADJACENT_COPY_ITERS=${SCALING_COMM_ADJACENT_COPY_ITERS:-0}
+SCALING_DISABLE_DDP_WRAP=${SCALING_DISABLE_DDP_WRAP:-0}
 
 NNODES=${NNODES:-1}
 GPUS_PER_NODE=${GPUS_PER_NODE:-8}
@@ -98,6 +104,37 @@ if (( FAKE_DP * FAKE_PP * FAKE_TP != FAKE_WORLD_SIZE )); then
   echo "[ERROR] Invalid fake parallel setup: fake_dp * fake_pp * fake_tp != fake_world_size"
   exit 1
 fi
+if [[ "${ADVANCED_DIAGNOSTICS}" != "0" && "${ADVANCED_DIAGNOSTICS}" != "1" ]]; then
+  echo "[ERROR] ADVANCED_DIAGNOSTICS must be 0 or 1, got ${ADVANCED_DIAGNOSTICS}."
+  exit 1
+fi
+if ! [[ "${SCALING_COMM_ADJACENT_COPY_ITERS}" =~ ^[0-9]+$ ]]; then
+  echo "[ERROR] SCALING_COMM_ADJACENT_COPY_ITERS must be a non-negative integer, got ${SCALING_COMM_ADJACENT_COPY_ITERS}."
+  exit 1
+fi
+if [[ "${SCALING_DISABLE_DDP_WRAP}" != "0" && "${SCALING_DISABLE_DDP_WRAP}" != "1" ]]; then
+  echo "[ERROR] SCALING_DISABLE_DDP_WRAP must be 0 or 1, got ${SCALING_DISABLE_DDP_WRAP}."
+  exit 1
+fi
+
+# Keep advanced diagnostics explicit to avoid accidental deviation from baseline profile.
+ADVANCED_FLAGS=()
+if [[ "${TRACE_ATTENTION_BACKWARD_SEGMENTS}" == "1" ]]; then
+  ADVANCED_FLAGS+=("TRACE_ATTENTION_BACKWARD_SEGMENTS=1")
+fi
+if [[ "${SCALING_COMM_ADJACENT_COPY_ITERS}" != "0" ]]; then
+  ADVANCED_FLAGS+=("SCALING_COMM_ADJACENT_COPY_ITERS=${SCALING_COMM_ADJACENT_COPY_ITERS}")
+fi
+if [[ "${SCALING_DISABLE_DDP_WRAP}" == "1" ]]; then
+  ADVANCED_FLAGS+=("SCALING_DISABLE_DDP_WRAP=1")
+fi
+
+if (( ${#ADVANCED_FLAGS[@]} > 0 )) && [[ "${ADVANCED_DIAGNOSTICS}" != "1" ]]; then
+  echo "[ERROR] Advanced diagnostics flags are set but ADVANCED_DIAGNOSTICS=0."
+  echo "[ERROR] Set ADVANCED_DIAGNOSTICS=1 to acknowledge non-baseline run semantics."
+  printf '[ERROR] Active advanced flags: %s\n' "${ADVANCED_FLAGS[*]}"
+  exit 1
+fi
 
 GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-$((MICRO_BATCH_SIZE * (GPUS_PER_NODE / TP / PP)))}
 
@@ -106,9 +143,36 @@ TRACE_ARGS=(
   --trace-start "${TRACE_START}"
   --trace-subop-sync-mode "${TRACE_SUBOP_SYNC_MODE}"
 )
+if [[ "${TRACE_KERNEL_GROUND_TRUTH}" != "0" && "${TRACE_KERNEL_GROUND_TRUTH}" != "1" ]]; then
+  echo "[ERROR] TRACE_KERNEL_GROUND_TRUTH must be 0 or 1, got ${TRACE_KERNEL_GROUND_TRUTH}."
+  exit 1
+fi
+if [[ "${TRACE_KERNEL_GROUND_TRUTH_PHASE}" != "0" && "${TRACE_KERNEL_GROUND_TRUTH_PHASE}" != "1" ]]; then
+  echo "[ERROR] TRACE_KERNEL_GROUND_TRUTH_PHASE must be 0 or 1, got ${TRACE_KERNEL_GROUND_TRUTH_PHASE}."
+  exit 1
+fi
+if [[ "${TRACE_KERNEL_GROUND_TRUTH_PHASE}" == "1" && "${TRACE_KERNEL_GROUND_TRUTH}" != "1" ]]; then
+  echo "[ERROR] TRACE_KERNEL_GROUND_TRUTH_PHASE=1 requires TRACE_KERNEL_GROUND_TRUTH=1."
+  exit 1
+fi
+if [[ "${TRACE_KERNEL_BOUNDARY_SYNC_MODE}" != "none" && "${TRACE_KERNEL_BOUNDARY_SYNC_MODE}" != "event" && "${TRACE_KERNEL_BOUNDARY_SYNC_MODE}" != "global" ]]; then
+  echo "[ERROR] TRACE_KERNEL_BOUNDARY_SYNC_MODE must be none, event or global, got ${TRACE_KERNEL_BOUNDARY_SYNC_MODE}."
+  exit 1
+fi
+if [[ "${TRACE_ATTENTION_BACKWARD_SEGMENTS}" != "0" && "${TRACE_ATTENTION_BACKWARD_SEGMENTS}" != "1" ]]; then
+  echo "[ERROR] TRACE_ATTENTION_BACKWARD_SEGMENTS must be 0 or 1, got ${TRACE_ATTENTION_BACKWARD_SEGMENTS}."
+  exit 1
+fi
 if [[ "${TRACE_KERNEL_GROUND_TRUTH}" == "1" ]]; then
   TRACE_ARGS+=(--trace-kernel-ground-truth)
   TRACE_ARGS+=(--trace-kernel-ground-truth-prefix "${TRACE_KERNEL_GROUND_TRUTH_PREFIX}")
+fi
+if [[ "${TRACE_KERNEL_GROUND_TRUTH_PHASE}" == "1" ]]; then
+  TRACE_ARGS+=(--trace-kernel-ground-truth-phase)
+  TRACE_ARGS+=(--trace-kernel-boundary-sync-mode "${TRACE_KERNEL_BOUNDARY_SYNC_MODE}")
+fi
+if [[ "${TRACE_ATTENTION_BACKWARD_SEGMENTS}" == "1" ]]; then
+  TRACE_ARGS+=(--trace-attention-backward-segments)
 fi
 
 COMMON_ARGS=(
@@ -203,6 +267,10 @@ elif [[ "${MODE}" == "scaling" ]]; then
       exit 1
     fi
     echo "[Scaling Mode] fake_current_rank_id=${FAKE_CURRENT_RANK_ID}/${FAKE_WORLD_SIZE}"
+    SCALING_DDP_WRAP_ARGS=()
+    if [[ "${SCALING_DISABLE_DDP_WRAP}" == "1" ]]; then
+      SCALING_DDP_WRAP_ARGS+=(--scaling-disable-ddp-wrap)
+    fi
     CUDA_VISIBLE_DEVICES="${SCALE_GPU}" torchrun \
       --nproc_per_node=1 \
       --nnodes=1 \
@@ -223,7 +291,9 @@ elif [[ "${MODE}" == "scaling" ]]; then
       --fake-tp "${FAKE_TP}" \
       --fake-exp "${FAKE_EXP}" \
       --fake-num-experts "${NUM_EXPERTS}" \
-      --fake-current-rank-id "${FAKE_CURRENT_RANK_ID}"
+      --fake-current-rank-id "${FAKE_CURRENT_RANK_ID}" \
+      --scaling-comm-adjacent-copy-iters "${SCALING_COMM_ADJACENT_COPY_ITERS}" \
+      "${SCALING_DDP_WRAP_ARGS[@]}"
   done
 else
   echo "[ERROR] Unsupported MODE=${MODE}. Use distributed or scaling."
