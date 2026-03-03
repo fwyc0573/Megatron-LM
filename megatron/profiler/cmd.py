@@ -47,6 +47,7 @@ import torch.cuda.nvtx as nvtx
 import os
 import uuid
 import threading
+from contextlib import contextmanager, nullcontext
 from typing import Optional, Dict, List
 from threading import Lock
 import inspect
@@ -104,6 +105,7 @@ class CMD:
         self.sub_operations = []
         self._nvtx_range_pushed = False
         self._nvtx_label = None
+        self._phase_nvtx_stack = []
         
         # Track if this CMD is the current global command
         self._is_current_cmd = False
@@ -129,6 +131,37 @@ class CMD:
             and getattr(self.args, "trace_kernel_ground_truth", False)
         )
 
+    def _is_kernel_ground_truth_phase_enabled(self):
+        """Whether nested phase-level NVTX ranges should be emitted."""
+        return bool(
+            self._is_kernel_ground_truth_enabled()
+            and self.args is not None
+            and getattr(self.args, "trace_kernel_ground_truth_phase", False)
+        )
+
+    def _get_kernel_boundary_sync_mode(self):
+        """Return synchronization mode used at phase boundaries."""
+        mode = "none"
+        if self.args is not None:
+            mode = getattr(self.args, "trace_kernel_boundary_sync_mode", "none")
+        if mode not in ("none", "event", "global"):
+            raise ValueError(f"Unsupported trace_kernel_boundary_sync_mode: {mode}")
+        return mode
+
+    def _sync_for_kernel_boundary(self):
+        """Synchronize around phase boundaries to reduce cross-phase carry-in/out."""
+        if not self.use_cuda:
+            return
+        mode = self._get_kernel_boundary_sync_mode()
+        if mode == "none":
+            return
+        if mode == "event":
+            boundary_event = torch.cuda.Event(enable_timing=False)
+            boundary_event.record()
+            boundary_event.synchronize()
+            return
+        torch.cuda.synchronize()
+
     def _get_cmd_sync_mode(self):
         """Return synchronization mode for top-level CMD timing."""
         mode = "global"
@@ -152,7 +185,9 @@ class CMD:
             return
         torch.cuda.synchronize()
 
-    def _build_kernel_ground_truth_nvtx_label(self):
+    def _build_kernel_ground_truth_nvtx_label(
+        self, phase: Optional[str] = None, extra_tags: Optional[Dict[str, object]] = None
+    ):
         """Build stable NVTX label for kernel-level ground-truth analysis."""
         if self.args is None:
             return None
@@ -164,10 +199,19 @@ class CMD:
         batch_id = getattr(self, "batch_id", "None")
         current_iter = getattr(self, "current_iter", "None")
         mg_state = getattr(self, "mg_state", "None")
-        return (
+        label = (
             f"{label_prefix}|rank={rank}|op={self.name_cmd}|state={mg_state}|"
             f"stage={stage_id}|batch={batch_id}|iter={current_iter}"
         )
+        if phase is not None:
+            label += f"|phase={phase}"
+        if extra_tags:
+            for key in sorted(extra_tags):
+                value = extra_tags[key]
+                if value is None:
+                    continue
+                label += f"|{key}={value}"
+        return label
 
     def _push_kernel_ground_truth_nvtx(self):
         """Push CMD-level NVTX range when kernel ground-truth mode is enabled."""
@@ -176,6 +220,45 @@ class CMD:
         self._nvtx_label = self._build_kernel_ground_truth_nvtx_label()
         nvtx.range_push(self._nvtx_label)
         self._nvtx_range_pushed = True
+
+    def _push_kernel_phase_nvtx(
+        self, phase: str, extra_tags: Optional[Dict[str, object]] = None
+    ):
+        """Push nested phase NVTX range (phase=compute|comm) under current CMD."""
+        if not self._is_kernel_ground_truth_phase_enabled():
+            return False
+        if phase not in ("compute", "comm"):
+            raise ValueError(f"Unsupported kernel ground-truth phase: {phase}")
+        self._sync_for_kernel_boundary()
+        phase_label = self._build_kernel_ground_truth_nvtx_label(
+            phase=phase, extra_tags=extra_tags
+        )
+        nvtx.range_push(phase_label)
+        self._phase_nvtx_stack.append(phase_label)
+        return True
+
+    def _pop_kernel_phase_nvtx(self):
+        """Pop latest nested phase NVTX range."""
+        if not self._phase_nvtx_stack:
+            return
+        self._sync_for_kernel_boundary()
+        nvtx.range_pop()
+        self._phase_nvtx_stack.pop()
+
+    def _pop_all_kernel_phase_nvtx(self):
+        """Pop all remaining nested phase NVTX ranges."""
+        while self._phase_nvtx_stack:
+            self._pop_kernel_phase_nvtx()
+
+    @contextmanager
+    def phase_range(self, phase: str, extra_tags: Optional[Dict[str, object]] = None):
+        """Context manager for phase-level NVTX ranges inside a CMD window."""
+        pushed = self._push_kernel_phase_nvtx(phase, extra_tags=extra_tags)
+        try:
+            yield
+        finally:
+            if pushed:
+                self._pop_kernel_phase_nvtx()
 
     def _pop_kernel_ground_truth_nvtx(self):
         """Pop CMD-level NVTX range if pushed."""
@@ -214,6 +297,8 @@ class CMD:
                 self.stop_event = torch.cuda.Event(enable_timing=True)
                 self.start_event.record()
                 self._push_kernel_ground_truth_nvtx()
+                if self.group_kind is not None:
+                    self._push_kernel_phase_nvtx("comm")
             else:
                 self.start_time = time.perf_counter()
         except Exception as e:
@@ -227,6 +312,7 @@ class CMD:
             return
 
         try:
+            self._pop_all_kernel_phase_nvtx()
             self._pop_kernel_ground_truth_nvtx()
             if self.use_cuda:
                 if self.stop_event is not None:
@@ -257,6 +343,7 @@ class CMD:
         except Exception as e:
             print(f"Warning: Failed to stop timing for {self.name_cmd}: {e}")
         finally:
+            self._pop_all_kernel_phase_nvtx()
             # Exception path may skip normal pop flow.
             self._pop_kernel_ground_truth_nvtx()
             # Ensure cleanup always happens
@@ -379,6 +466,15 @@ class CMD:
                 current_cmd = CMD.get_current_cmd()
                 if current_cmd is not None:
                     try:
+                        def _run_func():
+                            phase_ctx = (
+                                current_cmd.phase_range("comm")
+                                if comm_func is not None
+                                else nullcontext()
+                            )
+                            with phase_ctx:
+                                return func(*args, **kwargs)
+
                         metadata_only_comm = CMD._is_scaling_metadata_only_comm(
                             current_cmd=current_cmd, comm_func=comm_func
                         )
@@ -387,7 +483,7 @@ class CMD:
                         if current_cmd.use_cuda:
                             if metadata_only_comm:
                                 # Scaling mode comm sub-op: keep trigger + metadata only.
-                                result = func(*args, **kwargs)
+                                result = _run_func()
                                 duration = 0.0
                             else:
                                 if sync_mode == "global":
@@ -395,7 +491,7 @@ class CMD:
                                     # sub-op duration. Otherwise, hidden wait time leaks into
                                     # enclosing CMD (e.g., forward_step) and inflates comp.
                                     start_time = time.perf_counter()
-                                    result = func(*args, **kwargs)
+                                    result = _run_func()
                                     torch.cuda.synchronize()
                                     end_time = time.perf_counter()
                                     duration = (end_time - start_time) * 1000
@@ -403,7 +499,7 @@ class CMD:
                                     start_event = torch.cuda.Event(enable_timing=True)
                                     stop_event = torch.cuda.Event(enable_timing=True)
                                     start_event.record()
-                                    result = func(*args, **kwargs)
+                                    result = _run_func()
                                     stop_event.record()
                                     CMD._sync_for_subop_timing(
                                         stop_event=stop_event, current_cmd=current_cmd
@@ -411,11 +507,11 @@ class CMD:
                                     duration = start_event.elapsed_time(stop_event)
                         else:
                             if metadata_only_comm:
-                                result = func(*args, **kwargs)
+                                result = _run_func()
                                 duration = 0.0
                             else:
                                 start_time = time.perf_counter()
-                                result = func(*args, **kwargs)
+                                result = _run_func()
                                 torch.cuda.synchronize()
                                 end_time = time.perf_counter()
                                 duration = (end_time - start_time) * 1000  # convert to ms

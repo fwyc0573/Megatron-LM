@@ -237,13 +237,13 @@ class _ReduceFromModelParallelRegion(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input_, func='embedding_fwd'):
         nvtx.range_push("row_g_fwd")
-        if get_tensor_model_parallel_world_size() == 1:
-            return input_
-        else:
+        try:
+            if get_tensor_model_parallel_world_size() == 1:
+                return input_
             # "embedding_fwd"
-            reduce_result = _reduce(input_, func=func)
-        nvtx.range_pop()
-        return reduce_result
+            return _reduce(input_, func=func)
+        finally:
+            nvtx.range_pop()
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -471,14 +471,18 @@ def _profiled_all_to_all_single(input_, output_split_sizes, input_split_sizes, g
     The decorator handles timing and attribute extraction.
     In scaling mode, it creates an empty tensor to simulate the communication buffer.
     """
+    # Keep pre-comm tensor materialization inside the profiled comm wrapper so
+    # these kernels are attributed to comm phase in kernel-ground-truth mode.
+    input_ = input_.contiguous()
+
     # In scaling mode we must not execute real communication work. Keep this path
     # metadata-only and avoid data movement that would pollute compute timing.
     if is_scaling_mode:
         if output_split_sizes is None:
-            return input_
+            output = torch.empty_like(input_)
+            output.copy_(input_)
+            return output
         output_rows = int(sum(output_split_sizes))
-        if output_rows == int(input_.size(0)):
-            return input_
         # Keep scaling comm outputs finite and deterministic so downstream compute
         # timing is not polluted by uninitialized payloads.
         output = input_.new_zeros(
@@ -509,14 +513,36 @@ def _profiled_all_to_all_single(input_, output_split_sizes, input_split_sizes, g
     return output
 
 
+def _emulate_comm_adjacent_copies(tensor: torch.Tensor, copy_iters: int) -> torch.Tensor:
+    """Materialize deterministic copy kernels to emulate comm-adjacent data movement."""
+    if copy_iters < 0:
+        raise ValueError(f"copy_iters must be >= 0, got {copy_iters}")
+    out = tensor
+    for _ in range(copy_iters):
+        tmp = torch.empty_like(out)
+        tmp.copy_(out)
+        out = tmp
+    return out
+
+
 class _AllToAll(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, group, input, output_split_sizes, input_split_sizes, group_type_for_profiling, is_scaling_mode):
+    def forward(
+        ctx,
+        group,
+        input,
+        output_split_sizes,
+        input_split_sizes,
+        group_type_for_profiling,
+        is_scaling_mode,
+        scaling_comm_adjacent_copy_iters,
+    ):
         ctx.group = group
         ctx.output_split_sizes = output_split_sizes
         ctx.input_split_sizes = input_split_sizes
         ctx.group_type_for_profiling = group_type_for_profiling
         ctx.is_scaling_mode = is_scaling_mode
+        ctx.scaling_comm_adjacent_copy_iters = scaling_comm_adjacent_copy_iters
 
         # ctx.current_cmd_for_backward = current_cmd
 
@@ -528,8 +554,6 @@ class _AllToAll(torch.autograd.Function):
         # Bypass the function if we are using only 1 GPU.
         # if world_size == 1:
         #     return input
-
-        input = input.contiguous()
 
         output = _profiled_all_to_all_single(
             input,
@@ -545,13 +569,27 @@ class _AllToAll(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, *grad_output):
+        grad_input = grad_output[0]
+        if ctx.is_scaling_mode and ctx.scaling_comm_adjacent_copy_iters > 0:
+            grad_input = _emulate_comm_adjacent_copies(
+                grad_input, ctx.scaling_comm_adjacent_copy_iters
+            )
         return (
             None,
-            _AllToAll.apply(ctx.group, *grad_output, ctx.input_split_sizes, ctx.output_split_sizes, ctx.group_type_for_profiling, ctx.is_scaling_mode),
+            _AllToAll.apply(
+                ctx.group,
+                grad_input,
+                ctx.input_split_sizes,
+                ctx.output_split_sizes,
+                ctx.group_type_for_profiling,
+                ctx.is_scaling_mode,
+                ctx.scaling_comm_adjacent_copy_iters,
+            ),
             None,
             None,
             None,
             None, # for is_scaling_mode
+            None, # for scaling_comm_adjacent_copy_iters
         )
 
     # @staticmethod
@@ -646,11 +684,11 @@ def reduce_scatter_last_dim_to_tensor_parallel_region(input_, func=None):
 
 @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='exp', comm_func='alltoall')
 def _all_to_all_exp_wrapper(group, input_, output_split_sizes_=None, input_split_sizes_=None, func=None):
-    return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_)
+    return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_, "exp", False, 0)
 
 @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='alltoall')
 def _all_to_all_tp_wrapper(group, input_, output_split_sizes_=None, input_split_sizes_=None, func=None):
-    return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_)
+    return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_, "tp", False, 0)
 
 # # No need to use this function, use _all_to_all_exp_wrapper and _all_to_all_tp_wrapper 
 # # instead (we do this because we find that comm. op calls are different in this func)
@@ -673,8 +711,24 @@ def all_to_all(group, input_, output_split_sizes_=None, input_split_sizes_=None,
     from megatron.training import get_args
     args = get_args()
     is_scaling_mode = getattr(args, 'is_scaling_mode', False)
+    scaling_comm_adjacent_copy_iters = int(
+        getattr(args, 'scaling_comm_adjacent_copy_iters', 0)
+    )
+    if scaling_comm_adjacent_copy_iters < 0:
+        raise ValueError(
+            "--scaling-comm-adjacent-copy-iters must be >= 0, got "
+            f"{scaling_comm_adjacent_copy_iters}"
+        )
     # current_cmd = CMD.get_current_cmd()
-    return _AllToAll.apply(group, input_, output_split_sizes_, input_split_sizes_, group_type, is_scaling_mode)
+    return _AllToAll.apply(
+        group,
+        input_,
+        output_split_sizes_,
+        input_split_sizes_,
+        group_type,
+        is_scaling_mode,
+        scaling_comm_adjacent_copy_iters,
+    )
 
 
 

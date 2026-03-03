@@ -447,14 +447,15 @@ def forward_backward_no_pipelining(
             )
             CMD.set_current_cmd(cmd)
             with cmd:
-                backward_step(
-                    input_tensor,
-                    output_tensor,
-                    output_tensor_grad,
-                    model_type,
-                    config,
-                    runtime_args,
-                )
+                with cmd.phase_range("compute"):
+                    backward_step(
+                        input_tensor,
+                        output_tensor,
+                        output_tensor_grad,
+                        model_type,
+                        config,
+                        runtime_args,
+                    )
             return
 
         backward_step(
@@ -1659,11 +1660,12 @@ def forward_backward_pipelining_without_interleaving(
             CMD.set_current_cmd(cmd)
             nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["backward_step"])
             with cmd:
-                nvtx.range_push(f"{args.simu_rank}_sd_backward_step_{nvtx_add_label_micro_batch_id}")
-                input_tensor_grad = backward_step(
-                    input_tensor, output_tensor, output_tensor_grad, model_type, config, args
-                )
-                nvtx.range_pop()
+                with cmd.phase_range("compute"):
+                    nvtx.range_push(f"{args.simu_rank}_sd_backward_step_{nvtx_add_label_micro_batch_id}")
+                    input_tensor_grad = backward_step(
+                        input_tensor, output_tensor, output_tensor_grad, model_type, config, args
+                    )
+                    nvtx.range_pop()
             # current_cmd_var.reset(token)
             # print(f"rank:{args.simu_rank}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
             assert input_tensor_grad is not None, "input_tensor_grad of backward_step is None"
@@ -1830,11 +1832,12 @@ def forward_backward_pipelining_without_interleaving(
             # token = current_cmd_var.set(cmd)
             nvtx_add_label_micro_batch_id = str(args.simu_micro_batch_ids["backward_step"])
             with cmd:
-                nvtx.range_push(f"{args.simu_rank}_co_backward_step_{nvtx_add_label_micro_batch_id}")
-                input_tensor_grad = backward_step(
-                    input_tensor, output_tensor, output_tensor_grad, model_type, config, args
-                )
-                nvtx.range_pop()
+                with cmd.phase_range("compute"):
+                    nvtx.range_push(f"{args.simu_rank}_co_backward_step_{nvtx_add_label_micro_batch_id}")
+                    input_tensor_grad = backward_step(
+                        input_tensor, output_tensor, output_tensor_grad, model_type, config, args
+                    )
+                    nvtx.range_pop()
             # print(f"rank:{args.simu_rank}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
 
             assert input_tensor_grad is not None, "input_tensor_grad of backward_step is None"

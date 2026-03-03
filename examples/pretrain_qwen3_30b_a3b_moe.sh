@@ -38,7 +38,7 @@ pick_idle_gpu() {
 }
 
 MODE=${MODE:-distributed} # distributed | scaling
-MODEL_PROFILE=${MODEL_PROFILE:-smoke} # smoke | full
+MODEL_PROFILE=${MODEL_PROFILE:-full} # smoke | full
 TRANSFORMER_IMPL=${TRANSFORMER_IMPL:-transformer_engine}
 TRACE_START=${TRACE_START:-1}
 TRAIN_ITERS=${TRAIN_ITERS:-10}
@@ -55,6 +55,8 @@ MIN_LR=${MIN_LR:-1.2e-5}
 MOE_TOKEN_DISPATCHER_TYPE=${MOE_TOKEN_DISPATCHER_TYPE:-alltoall}
 SCALING_COMM_ADJACENT_COPY_ITERS=${SCALING_COMM_ADJACENT_COPY_ITERS:-0}
 SCALING_DISABLE_DDP_WRAP=${SCALING_DISABLE_DDP_WRAP:-0}
+TRACE_MEMORY=${TRACE_MEMORY:-0}
+TRACE_MEMORY_INTERVAL=${TRACE_MEMORY_INTERVAL:-0.1}
 
 NNODES=${NNODES:-1}
 GPUS_PER_NODE=${GPUS_PER_NODE:-8}
@@ -136,7 +138,8 @@ if (( ${#ADVANCED_FLAGS[@]} > 0 )) && [[ "${ADVANCED_DIAGNOSTICS}" != "1" ]]; th
   exit 1
 fi
 
-GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-$((MICRO_BATCH_SIZE * (GPUS_PER_NODE / TP / PP)))}
+NUM_MICBATCH=${NUM_MICBATCH:-$((4 * PP))}
+GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-$((NUM_MICBATCH * MICRO_BATCH_SIZE * (GPUS_PER_NODE / TP / PP)))}
 
 TRACE_ARGS=(
   --do-trace "${DO_TRACE}"
@@ -174,8 +177,18 @@ fi
 if [[ "${TRACE_ATTENTION_BACKWARD_SEGMENTS}" == "1" ]]; then
   TRACE_ARGS+=(--trace-attention-backward-segments)
 fi
+if [[ "${TRACE_MEMORY}" != "0" && "${TRACE_MEMORY}" != "1" ]]; then
+  echo "[ERROR] TRACE_MEMORY must be 0 or 1, got ${TRACE_MEMORY}."
+  exit 1
+fi
+if [[ "${TRACE_MEMORY}" == "1" ]]; then
+  TRACE_ARGS+=(--trace-memory)
+  TRACE_ARGS+=(--trace-memory-interval "${TRACE_MEMORY_INTERVAL}")
+fi
 
 COMMON_ARGS=(
+  --kv-channels 128
+  --qk-layernorm
   --use-mcore-models
   --transformer-impl "${TRANSFORMER_IMPL}"
   --mock-data
@@ -250,7 +263,7 @@ elif [[ "${MODE}" == "scaling" ]]; then
     --tensor-model-parallel-size 1
     --pipeline-model-parallel-size 1
     --expert-model-parallel-size 1
-    --global-batch-size "$((MICRO_BATCH_SIZE * FAKE_DP))"
+    --global-batch-size "$((NUM_MICBATCH * MICRO_BATCH_SIZE * FAKE_DP))"
   )
   RANK_IDS=()
   if [[ -n "${FAKE_RANK_ORDER}" ]]; then

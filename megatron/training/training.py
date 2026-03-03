@@ -242,6 +242,24 @@ def _should_defer_scaling_grad_replay_write(args):
     return replay_write_phase == "post_optimizer"
 
 
+def _is_scaling_profile_window(args):
+    if not getattr(args, "simu_start", False):
+        return False
+    current_iter = getattr(args, "current_iter", None)
+    trace_start = getattr(args, "trace_start", None)
+    if current_iter is None or trace_start is None:
+        return False
+    return current_iter >= (trace_start - 1)
+
+
+def _should_fail_on_missing_scaling_grad_replay(args):
+    return bool(
+        getattr(args, "is_scaling_mode", False)
+        and getattr(args, "scaling_strict_grad_replay", False)
+        and _is_scaling_profile_window(args)
+    )
+
+
 def _get_scaling_scheduler_increment_dp_size(args):
     """Select dp-size factor for scaling scheduler increment."""
     if getattr(args, "scaling_align_scheduler_increment", False):
@@ -406,6 +424,12 @@ def pretrain(train_valid_test_dataset_provider,
                     f"expected {list(output_tensor.shape)}, got {list(replay_grad.shape)}"
                 )
             return [replay_grad]
+        if _should_fail_on_missing_scaling_grad_replay(args):
+            raise FileNotFoundError(
+                "Missing scaling replay grad cache in strict mode for profiled backward_step: "
+                f"rank={args.fake_current_rank_id}, current_iter={getattr(args, 'current_iter', None)}, "
+                f"expected_one_of={grad_cache_paths}"
+            )
         seed = (
             args.seed
             + args.fake_current_rank_id * 100003
@@ -648,17 +672,18 @@ def pretrain(train_valid_test_dataset_provider,
             )
             CMD.set_current_cmd(cmd)
             with cmd:
-                nvtx.range_push(f"rank:{rank_id}, model_bwd_step")
-                # start_event = torch.cuda.Event(enable_timing=True)
-                # stop_event = torch.cuda.Event(enable_timing=True)
-                # start_event.record()
-                input_tensor_grad = sim_backward_step(
-                    rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config
-                )
-                # stop_event.record()
-                # torch.cuda.synchronize()
-                # duration = start_event.elapsed_time(stop_event)
-                nvtx.range_pop()
+                with cmd.phase_range("compute"):
+                    nvtx.range_push(f"rank:{rank_id}, model_bwd_step")
+                    # start_event = torch.cuda.Event(enable_timing=True)
+                    # stop_event = torch.cuda.Event(enable_timing=True)
+                    # start_event.record()
+                    input_tensor_grad = sim_backward_step(
+                        rank_id, input_tensor, [output_tensor], output_tensor_grad, model_type, config
+                    )
+                    # stop_event.record()
+                    # torch.cuda.synchronize()
+                    # duration = start_event.elapsed_time(stop_event)
+                    nvtx.range_pop()
                 if args.simu_start == True:
                 #     print(f"rank:{rank_id},bwd time: {duration}")
                 #     print(f"rank:{rank_id}, bwd_subop num: {len(cmd.sub_operations)}, bwd_subop: {cmd.sub_operations}")
@@ -797,8 +822,9 @@ def pretrain(train_valid_test_dataset_provider,
         if memory_tracker is not None:
             theoretical_total_memory = report_theoretical_memory(args, num_microbatches=args.num_micro_batches, verbose=True)
             peak_memory_mb = torch.cuda.max_memory_allocated() / (1024 ** 2)
-            memory_tracker.log_peak_memory(0, peak_memory_mb)
-            memory_tracker.log_theoretical_memory(0, theoretical_total_memory)
+            # Log to the last profiled iteration (global_iter retains value from the loop).
+            memory_tracker.log_peak_memory(global_iter, peak_memory_mb)
+            memory_tracker.log_theoretical_memory(global_iter, theoretical_total_memory)
             memory_tracker.stop_tracking()
             print_rank_0(f"Memory tracking stopped for fake rank {rank_id}, peak memory: {peak_memory_mb:.2f} MB, theoretical memory: {theoretical_total_memory:.2f} MB")
 

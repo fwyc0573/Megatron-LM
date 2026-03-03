@@ -1868,6 +1868,35 @@ def _add_trace_args(parser):
         help='NVTX label prefix used when --trace-kernel-ground-truth is enabled.',
     )
     group.add_argument(
+        '--trace-kernel-ground-truth-phase',
+        action='store_true',
+        help=(
+            'Emit nested phase-level NVTX ranges under CMD windows '
+            '(phase=compute|comm) for pure compute-only analysis.'
+        ),
+    )
+    group.add_argument(
+        '--trace-kernel-boundary-sync-mode',
+        type=str,
+        default='none',
+        choices=['none', 'event', 'global'],
+        help=(
+            'Synchronization mode used at phase boundary when '
+            '--trace-kernel-ground-truth-phase is enabled. '
+            '"none" keeps runtime untouched; "event" synchronizes current stream; '
+            '"global" uses torch.cuda.synchronize().'
+        ),
+    )
+    group.add_argument(
+        '--trace-attention-backward-segments',
+        action='store_true',
+        help=(
+            'Emit debug-only attention backward segment NVTX ranges '
+            '(attn_qkv_bwd/attn_qk_layernorm_bwd/attn_core_bwd/attn_proj_bwd) '
+            'nested under phase=compute windows.'
+        ),
+    )
+    group.add_argument(
         '--trace-optimizer-microphases',
         action='store_true',
         help=(
@@ -1927,6 +1956,14 @@ def _add_fake_args(parser):
         ),
     )
     group.add_argument(
+        '--scaling-strict-grad-replay',
+        action='store_true',
+        help=(
+            'Fail fast in scaling mode when profiled backward_step cannot load replay gradient '
+            'from cache for the current fake rank. Disabled by default for backward compatibility.'
+        ),
+    )
+    group.add_argument(
         '--scaling-replay-cache-tag',
         type=str,
         default='',
@@ -1951,6 +1988,25 @@ def _add_fake_args(parser):
         help=(
             'In scaling mode, use real data_parallel_size (instead of fake_dp) when computing '
             'optimizer scheduler increment. Disabled by default for backward compatibility.'
+        ),
+    )
+    group.add_argument(
+        '--scaling-comm-adjacent-copy-iters',
+        type=int,
+        default=0,
+        help=(
+            'Debug-only knob for scaling mode: add extra tensor copy iterations around '
+            'all_to_all backward path to emulate comm-adjacent data movement cost. '
+            '0 disables the emulation.'
+        ),
+    )
+    group.add_argument(
+        '--scaling-disable-ddp-wrap',
+        action='store_true',
+        help=(
+            'Debug-only knob for scaling mode: disable DDP param-hook accumulation path '
+            'while keeping Megatron DDP wrapper interfaces intact. Use this only for '
+            'hypothesis validation (e.g., isolating DDP hook overhead).'
         ),
     )
     group.add_argument('--trace-memory', action='store_true',

@@ -331,6 +331,7 @@ class TransformerConfig(ModelParallelConfig):
     fake_dp: int = 0
     fake_tp: int = 0
     is_scaling_mode: bool = False
+    trace_attention_backward_segments: bool = False
     
 
     def __post_init__(self):

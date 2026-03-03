@@ -309,7 +309,7 @@ def get_megatron_optimizer(
     per_model_buffers = {}
     per_model_ep_buffers = {}
     for model_idx, model_chunk in enumerate(model_chunks):
-        if hasattr(model_chunk, 'buffers'):
+        if hasattr(model_chunk, 'buffers') and hasattr(model_chunk, 'expert_parallel_buffers'):
             per_model_buffers[model_idx] = model_chunk.buffers
             per_model_ep_buffers[model_idx] = model_chunk.expert_parallel_buffers
 

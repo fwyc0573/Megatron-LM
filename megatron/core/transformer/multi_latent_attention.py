@@ -2,11 +2,12 @@
 
 import math
 from dataclasses import dataclass
-from typing import Union
+from typing import List, Union
 
 import torch
 import torch.nn.functional as F
 
+from megatron.profiler.cmd import CMD
 from megatron.core import parallel_state
 from megatron.core.models.common.embeddings import YarnRotaryEmbedding, _yarn_get_mscale
 from megatron.core.models.common.embeddings.rotary_pos_embedding import (
@@ -25,6 +26,158 @@ class MLASelfAttentionSubmodules:
     linear_q_up_proj: Union[ModuleSpec, type] = ColumnParallelLinear
     linear_kv_up_proj: Union[ModuleSpec, type] = ColumnParallelLinear
     linear_proj: Union[ModuleSpec, type] = RowParallelLinear
+
+
+class _MLASDPAMaskBuilder(torch.nn.Module):
+    def forward(self, attention_mask: torch.Tensor):
+        if attention_mask is None:
+            return None
+        # Megatron mask uses True=masked, SDPA bool mask uses True=allowed.
+        if attention_mask.dtype == torch.bool:
+            return ~attention_mask
+        return attention_mask
+
+
+class _MLASDPAPreCast(torch.nn.Module):
+    def __init__(self, config: TransformerConfig):
+        super().__init__()
+        self.config = config
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        if self.config.attention_softmax_in_fp32 and query.dtype != torch.float32:
+            # Keep softmax numerics in fp32 for bf16/fp16 training stability.
+            return query.float(), key.float(), value.float()
+        return query, key, value
+
+
+class _MLASDPABackend(torch.nn.Module):
+    class _PreFMHARuntimeContext(torch.nn.Module):
+        def forward(
+            self,
+            sdpa_query: torch.Tensor,
+            sdpa_key: torch.Tensor,
+            sdpa_value: torch.Tensor,
+            sdpa_mask: torch.Tensor,
+            dropout_p: float,
+        ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, float]:
+            return sdpa_query, sdpa_key, sdpa_value, sdpa_mask, dropout_p
+
+    class _FMHACall(torch.nn.Module):
+        def __init__(self, softmax_scale: float):
+            super().__init__()
+            self.softmax_scale = softmax_scale
+
+        def forward(
+            self,
+            sdpa_query: torch.Tensor,
+            sdpa_key: torch.Tensor,
+            sdpa_value: torch.Tensor,
+            sdpa_mask: torch.Tensor,
+            dropout_p: float,
+        ) -> torch.Tensor:
+            return F.scaled_dot_product_attention(
+                sdpa_query,
+                sdpa_key,
+                sdpa_value,
+                attn_mask=sdpa_mask,
+                dropout_p=dropout_p,
+                is_causal=False,
+                scale=self.softmax_scale,
+            )
+
+    class _PostFMHARuntimeContext(torch.nn.Module):
+        def forward(self, context: torch.Tensor) -> torch.Tensor:
+            return context
+
+    def __init__(self, softmax_scale: float, trace_attention_backward_segments: bool):
+        super().__init__()
+        self.softmax_scale = softmax_scale
+        # Keep fine-grained SDPA runtime-context segmentation debug-only.
+        self.trace_attention_backward_segments = trace_attention_backward_segments
+        self.pre_fmha_context = self._PreFMHARuntimeContext()
+        self.fmha_call = self._FMHACall(softmax_scale=softmax_scale)
+        self.post_fmha_context = self._PostFMHARuntimeContext()
+
+    def forward(
+        self,
+        sdpa_query: torch.Tensor,
+        sdpa_key: torch.Tensor,
+        sdpa_value: torch.Tensor,
+        sdpa_mask: torch.Tensor,
+        dropout_p: float,
+    ) -> torch.Tensor:
+        if not self.trace_attention_backward_segments:
+            return F.scaled_dot_product_attention(
+                sdpa_query,
+                sdpa_key,
+                sdpa_value,
+                attn_mask=sdpa_mask,
+                dropout_p=dropout_p,
+                is_causal=False,
+                scale=self.softmax_scale,
+            )
+        sdpa_query, sdpa_key, sdpa_value, sdpa_mask, dropout_p = self.pre_fmha_context(
+            sdpa_query,
+            sdpa_key,
+            sdpa_value,
+            sdpa_mask,
+            dropout_p,
+        )
+        context = self.fmha_call(
+            sdpa_query,
+            sdpa_key,
+            sdpa_value,
+            sdpa_mask,
+            dropout_p,
+        )
+        return self.post_fmha_context(context)
+
+
+class _MLASDPAPostCast(torch.nn.Module):
+    def forward(self, context: torch.Tensor, output_dtype: torch.dtype) -> torch.Tensor:
+        if context.dtype != output_dtype:
+            return context.to(dtype=output_dtype)
+        return context
+
+
+class _MLASDPACoreAttention(torch.nn.Module):
+    def __init__(self, config: TransformerConfig, softmax_scale: float):
+        super().__init__()
+        self.config = config
+        self.mask_builder = _MLASDPAMaskBuilder()
+        self.pre_cast = _MLASDPAPreCast(config=config)
+        self.sdpa_backend = _MLASDPABackend(
+            softmax_scale=softmax_scale,
+            trace_attention_backward_segments=getattr(
+                config, "trace_attention_backward_segments", False
+            ),
+        )
+        self.post_cast = _MLASDPAPostCast()
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        sdpa_mask = self.mask_builder(attention_mask)
+        original_attn_dtype = query.dtype
+        sdpa_query, sdpa_key, sdpa_value = self.pre_cast(query, key, value)
+        attn_dropout = self.config.attention_dropout if self.training else 0.0
+        context = self.sdpa_backend(
+            sdpa_query,
+            sdpa_key,
+            sdpa_value,
+            sdpa_mask,
+            attn_dropout,
+        )
+        return self.post_cast(context, original_attn_dtype)
 
 
 class MLASelfAttention(MegatronModule):
@@ -63,6 +216,10 @@ class MLASelfAttention(MegatronModule):
             self.softmax_scale = (mscale * mscale) / math.sqrt(self.q_head_dim)
         else:
             self.softmax_scale = 1.0 / math.sqrt(self.q_head_dim)
+        self.core_attention = _MLASDPACoreAttention(
+            config=self.config,
+            softmax_scale=self.softmax_scale,
+        )
 
         # Dense low-rank compression paths.
         self.linear_q_down_proj = torch.nn.Linear(
@@ -134,6 +291,37 @@ class MLASelfAttention(MegatronModule):
             is_expert=False,
             tp_comm_buffer_name='mla_proj',
         )
+        self._attention_backward_segment_hook_handles: List[torch.utils.hooks.RemovableHandle] = []
+        self._attention_backward_segment_hook_names: List[str] = []
+        self._register_attention_backward_segment_hook(self.linear_q_down_proj, "attn_qkv_bwd")
+        self._register_attention_backward_segment_hook(self.linear_kv_down_proj, "attn_qkv_bwd")
+        self._register_attention_backward_segment_hook(self.q_layernorm, "attn_qk_layernorm_bwd")
+        self._register_attention_backward_segment_hook(self.kv_layernorm, "attn_qk_layernorm_bwd")
+        self._register_attention_backward_segment_hook(self.linear_q_up_proj, "attn_qkv_bwd")
+        self._register_attention_backward_segment_hook(self.linear_kv_up_proj, "attn_qkv_bwd")
+        self._register_attention_backward_segment_hook(self.core_attention, "attn_core_bwd")
+        self._register_attention_backward_segment_hook(
+            self.core_attention.pre_cast, "attn_core_precast_bwd"
+        )
+        self._register_attention_backward_segment_hook(
+            self.core_attention.sdpa_backend, "attn_core_sdpa_bwd"
+        )
+        self._register_attention_backward_segment_hook(
+            self.core_attention.sdpa_backend.pre_fmha_context,
+            "attn_core_sdpa_prefmha_bwd",
+        )
+        self._register_attention_backward_segment_hook(
+            self.core_attention.sdpa_backend.fmha_call,
+            "attn_core_sdpa_fmha_bwd",
+        )
+        self._register_attention_backward_segment_hook(
+            self.core_attention.sdpa_backend.post_fmha_context,
+            "attn_core_sdpa_postfmha_bwd",
+        )
+        self._register_attention_backward_segment_hook(
+            self.core_attention.post_cast, "attn_core_postcast_bwd"
+        )
+        self._register_attention_backward_segment_hook(self.linear_proj, "attn_proj_bwd")
 
         if config.rope_type == "yarn":
             self.rotary_pos_emb = YarnRotaryEmbedding(
@@ -158,13 +346,44 @@ class MLASelfAttention(MegatronModule):
         else:
             raise ValueError(f'Unsupported rope_type for MLA: {config.rope_type}')
 
-    def _build_sdpa_mask(self, attention_mask: torch.Tensor):
-        if attention_mask is None:
-            return None
-        # Megatron mask uses True=masked, SDPA bool mask uses True=allowed.
-        if attention_mask.dtype == torch.bool:
-            return ~attention_mask
-        return attention_mask
+    def _register_attention_backward_segment_hook(self, module: torch.nn.Module, segment_name: str):
+        if not getattr(self.config, "trace_attention_backward_segments", False):
+            return
+        if module is None:
+            return
+
+        stack_attr = "_cmd_attn_segment_cmd_stack"
+
+        def _pre_hook(hook_module, grad_output):
+            current_cmd = CMD.get_current_cmd()
+            if current_cmd is None:
+                return
+            pushed = current_cmd._push_kernel_phase_nvtx(
+                "compute",
+                extra_tags={"attn_bwd_segment": segment_name},
+            )
+            if not pushed:
+                return
+            cmd_stack = getattr(hook_module, stack_attr, None)
+            if cmd_stack is None:
+                cmd_stack = []
+                setattr(hook_module, stack_attr, cmd_stack)
+            cmd_stack.append(current_cmd)
+
+        def _post_hook(hook_module, grad_input, grad_output):
+            cmd_stack = getattr(hook_module, stack_attr, None)
+            if not cmd_stack:
+                return
+            cmd = cmd_stack.pop()
+            cmd._pop_kernel_phase_nvtx()
+
+        self._attention_backward_segment_hook_handles.append(
+            module.register_full_backward_pre_hook(_pre_hook)
+        )
+        self._attention_backward_segment_hook_handles.append(
+            module.register_full_backward_hook(_post_hook)
+        )
+        self._attention_backward_segment_hook_names.append(segment_name)
 
     def forward(
         self,
@@ -228,29 +447,12 @@ class MLASelfAttention(MegatronModule):
         key = torch.cat((k_nope, k_pe), dim=-1).permute(1, 2, 0, 3)
         value = value.permute(1, 2, 0, 3)
 
-        sdpa_mask = self._build_sdpa_mask(attention_mask)
-        sdpa_query = query
-        sdpa_key = key
-        sdpa_value = value
-        original_attn_dtype = query.dtype
-        if self.config.attention_softmax_in_fp32 and query.dtype != torch.float32:
-            # Keep softmax numerics in fp32 for bf16/fp16 training stability.
-            sdpa_query = query.float()
-            sdpa_key = key.float()
-            sdpa_value = value.float()
-
-        attn_dropout = self.config.attention_dropout if self.training else 0.0
-        context = F.scaled_dot_product_attention(
-            sdpa_query,
-            sdpa_key,
-            sdpa_value,
-            attn_mask=sdpa_mask,
-            dropout_p=attn_dropout,
-            is_causal=False,
-            scale=self.softmax_scale,
+        context = self.core_attention(
+            query,
+            key,
+            value,
+            attention_mask,
         )
-        if context.dtype != original_attn_dtype:
-            context = context.to(dtype=original_attn_dtype)
 
         context = context.permute(2, 0, 1, 3).contiguous()
         context = context.view(seq_len, batch_size, -1)

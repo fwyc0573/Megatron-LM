@@ -60,10 +60,26 @@ class DistributedDataParallel(MegatronModule):
             ddp_config.bucket_size = None
 
         self.ddp_config = ddp_config
+        self.disable_param_hook_accumulation = False
+        try:
+            from megatron.training import get_args
+
+            args = get_args()
+            self.disable_param_hook_accumulation = bool(
+                getattr(args, 'is_scaling_mode', False)
+                and getattr(args, 'scaling_disable_ddp_wrap', False)
+            )
+        except Exception:
+            self.disable_param_hook_accumulation = False
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             logger.info(
                 f'Setting up DistributedDataParallel with {type(self.ddp_config).__name__}: {self.ddp_config}'
             )
+            if self.disable_param_hook_accumulation:
+                logger.info(
+                    '[Scaling Debug] DDP param-hook accumulation is disabled by '
+                    '--scaling-disable-ddp-wrap.'
+                )
 
         # Turn off bucketing if we are on a pipeline stage that is not the first (since
         # data-parallel communication on these stages is not on the critical path), or if
@@ -198,6 +214,9 @@ class DistributedDataParallel(MegatronModule):
 
         def param_hook(*unused):
             if param.requires_grad:
+                if self.disable_param_hook_accumulation:
+                    param.grad = None
+                    return
                 if self.ddp_config.overlap_grad_reduce:
                     assert (
                         param.grad is not None

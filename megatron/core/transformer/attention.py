@@ -2,11 +2,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from importlib.metadata import version
-from typing import Union
+from typing import List, Union
 
 import torch
 from pkg_resources import packaging
 
+from megatron.profiler.cmd import CMD
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.models.common.embeddings.rotary_pos_embedding import apply_rotary_pos_emb
 from megatron.core.parallel_state import (
@@ -107,6 +108,49 @@ class Attention(MegatronModule, ABC):
             is_expert=False,
             tp_comm_buffer_name='proj',
         )
+        self._attention_backward_segment_hook_handles: List[torch.utils.hooks.RemovableHandle] = []
+        self._attention_backward_segment_hook_names: List[str] = []
+        self._register_attention_backward_segment_hook(self.core_attention, "attn_core_bwd")
+        self._register_attention_backward_segment_hook(self.linear_proj, "attn_proj_bwd")
+
+    def _register_attention_backward_segment_hook(self, module: torch.nn.Module, segment_name: str):
+        if not getattr(self.config, "trace_attention_backward_segments", False):
+            return
+        if module is None:
+            return
+
+        stack_attr = "_cmd_attn_segment_cmd_stack"
+
+        def _pre_hook(hook_module, grad_output):
+            current_cmd = CMD.get_current_cmd()
+            if current_cmd is None:
+                return
+            pushed = current_cmd._push_kernel_phase_nvtx(
+                "compute",
+                extra_tags={"attn_bwd_segment": segment_name},
+            )
+            if not pushed:
+                return
+            cmd_stack = getattr(hook_module, stack_attr, None)
+            if cmd_stack is None:
+                cmd_stack = []
+                setattr(hook_module, stack_attr, cmd_stack)
+            cmd_stack.append(current_cmd)
+
+        def _post_hook(hook_module, grad_input, grad_output):
+            cmd_stack = getattr(hook_module, stack_attr, None)
+            if not cmd_stack:
+                return
+            cmd = cmd_stack.pop()
+            cmd._pop_kernel_phase_nvtx()
+
+        self._attention_backward_segment_hook_handles.append(
+            module.register_full_backward_pre_hook(_pre_hook)
+        )
+        self._attention_backward_segment_hook_handles.append(
+            module.register_full_backward_hook(_post_hook)
+        )
+        self._attention_backward_segment_hook_names.append(segment_name)
 
     def _checkpointed_attention_forward(
         self,
@@ -395,6 +439,10 @@ class SelfAttention(Attention):
         else:
             self.k_layernorm = None
 
+        self._register_attention_backward_segment_hook(self.linear_qkv, "attn_qkv_bwd")
+        self._register_attention_backward_segment_hook(self.q_layernorm, "attn_qk_layernorm_bwd")
+        self._register_attention_backward_segment_hook(self.k_layernorm, "attn_qk_layernorm_bwd")
+
     def run_realtime_tests(self):
         """Performs a consistency check.
 
@@ -568,6 +616,8 @@ class CrossAttention(Attention):
             skip_bias_add=False,
             is_expert=False,
         )
+        self._register_attention_backward_segment_hook(self.linear_q, "attn_qkv_bwd")
+        self._register_attention_backward_segment_hook(self.linear_kv, "attn_qkv_bwd")
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states):
         """
