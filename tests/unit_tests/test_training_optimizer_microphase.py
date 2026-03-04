@@ -201,3 +201,53 @@ def test_get_scaling_scheduler_increment_dp_size_switch():
 
     args.scaling_align_scheduler_increment = True
     assert training_module._get_scaling_scheduler_increment_dp_size(args) == 1
+
+
+def test_scaling_strict_grad_replay_default_disabled():
+    test_argv = [
+        "test_training_optimizer_microphase.py",
+        "--num-layers",
+        "2",
+        "--hidden-size",
+        "128",
+        "--num-attention-heads",
+        "8",
+    ]
+    with mock.patch.object(sys, "argv", test_argv):
+        args = parse_args(ignore_unknown_args=True)
+    assert args.scaling_strict_grad_replay is False
+
+
+def test_scaling_strict_grad_replay_enabled():
+    test_argv = [
+        "test_training_optimizer_microphase.py",
+        "--num-layers",
+        "2",
+        "--hidden-size",
+        "128",
+        "--num-attention-heads",
+        "8",
+        "--scaling-strict-grad-replay",
+    ]
+    with mock.patch.object(sys, "argv", test_argv):
+        args = parse_args(ignore_unknown_args=True)
+    assert args.scaling_strict_grad_replay is True
+
+
+def test_should_fail_on_missing_scaling_grad_replay_requires_profile_window():
+    args = SimpleNamespace(
+        is_scaling_mode=True,
+        scaling_strict_grad_replay=True,
+        simu_start=False,
+        current_iter=4,
+        trace_start=4,
+    )
+    assert training_module._should_fail_on_missing_scaling_grad_replay(args) is False
+
+    args.simu_start = True
+    args.current_iter = 2
+    args.trace_start = 4
+    assert training_module._should_fail_on_missing_scaling_grad_replay(args) is False
+
+    args.current_iter = 3
+    assert training_module._should_fail_on_missing_scaling_grad_replay(args) is True

@@ -11,6 +11,81 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from tests.unit_tests.test_utilities import Utils
 
 
+def test_multi_latent_attention_backward_segment_hooks_default_disabled():
+    Utils.initialize_model_parallel(1, 1)
+    try:
+        config = TransformerConfig(
+            num_layers=2,
+            hidden_size=128,
+            num_attention_heads=8,
+            multi_latent_attention=True,
+            q_lora_rank=16,
+            kv_lora_rank=8,
+            qk_head_dim=32,
+            qk_pos_emb_head_dim=16,
+            v_head_dim=32,
+            rope_type="rope",
+            is_scaling_mode=True,
+            fake_tp=1,
+            use_cpu_initialization=True,
+            params_dtype=torch.float32,
+            attention_dropout=0.0,
+        )
+        module = MLASelfAttention(
+            config=config,
+            submodules=MLASelfAttentionSubmodules(),
+            layer_number=1,
+            attn_mask_type=AttnMaskType.causal,
+        )
+        assert len(module._attention_backward_segment_hook_handles) == 0
+        assert len(module._attention_backward_segment_hook_names) == 0
+    finally:
+        Utils.destroy_model_parallel()
+
+
+def test_multi_latent_attention_backward_segment_hooks_enabled():
+    Utils.initialize_model_parallel(1, 1)
+    try:
+        config = TransformerConfig(
+            num_layers=2,
+            hidden_size=128,
+            num_attention_heads=8,
+            multi_latent_attention=True,
+            q_lora_rank=16,
+            kv_lora_rank=8,
+            qk_head_dim=32,
+            qk_pos_emb_head_dim=16,
+            v_head_dim=32,
+            rope_type="rope",
+            is_scaling_mode=True,
+            fake_tp=1,
+            use_cpu_initialization=True,
+            params_dtype=torch.float32,
+            attention_dropout=0.0,
+            trace_attention_backward_segments=True,
+        )
+        module = MLASelfAttention(
+            config=config,
+            submodules=MLASelfAttentionSubmodules(),
+            layer_number=1,
+            attn_mask_type=AttnMaskType.causal,
+        )
+        assert len(module._attention_backward_segment_hook_handles) == 28
+        assert len(module._attention_backward_segment_hook_names) == 14
+        assert module._attention_backward_segment_hook_names.count("attn_qkv_bwd") == 4
+        assert module._attention_backward_segment_hook_names.count("attn_qk_layernorm_bwd") == 2
+        assert "attn_core_bwd" in module._attention_backward_segment_hook_names
+        assert "attn_core_precast_bwd" in module._attention_backward_segment_hook_names
+        assert "attn_core_sdpa_bwd" in module._attention_backward_segment_hook_names
+        assert "attn_core_sdpa_prefmha_bwd" in module._attention_backward_segment_hook_names
+        assert "attn_core_sdpa_fmha_bwd" in module._attention_backward_segment_hook_names
+        assert "attn_core_sdpa_postfmha_bwd" in module._attention_backward_segment_hook_names
+        assert "attn_core_postcast_bwd" in module._attention_backward_segment_hook_names
+        assert "attn_proj_bwd" in module._attention_backward_segment_hook_names
+    finally:
+        Utils.destroy_model_parallel()
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_multi_latent_attention_forward_shape():
     Utils.initialize_model_parallel(1, 1)

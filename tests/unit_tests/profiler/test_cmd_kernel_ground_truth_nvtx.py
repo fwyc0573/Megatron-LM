@@ -34,13 +34,20 @@ class _DummyEvent:
         return 0.42
 
 
-def _build_cmd(enable_nvtx: bool):
+def _build_cmd(
+    enable_nvtx: bool,
+    enable_phase: bool = False,
+    boundary_mode: str = "none",
+    group_kind=None,
+):
     micro_batch_ids = {"forward_step": 0}
     stage_operations_trace = {}
     args = SimpleNamespace(
         trace_subop_sync_mode="global",
         trace_kernel_ground_truth=enable_nvtx,
         trace_kernel_ground_truth_prefix="cmd_gt",
+        trace_kernel_ground_truth_phase=enable_phase,
+        trace_kernel_boundary_sync_mode=boundary_mode,
         is_scaling_mode=False,
     )
     return CMD(
@@ -51,6 +58,7 @@ def _build_cmd(enable_nvtx: bool):
         stage_operations_trace_dict=stage_operations_trace,
         micro_batch_ids_dict=micro_batch_ids,
         stage_id=1,
+        group_kind=group_kind,
         simu_start=True,
         trace_start=1,
         current_iter=1,
@@ -85,3 +93,67 @@ def test_cmd_kernel_ground_truth_nvtx_disabled_does_not_emit_range():
             pass
     assert range_push.call_count == 0
     assert range_pop.call_count == 0
+
+
+def test_cmd_kernel_ground_truth_phase_context_emits_phase_range():
+    cmd = _build_cmd(enable_nvtx=True, enable_phase=True, boundary_mode="event")
+    with mock.patch.object(cmd_module.torch.cuda, "Event", _DummyEvent), mock.patch.object(
+        cmd_module.torch.cuda, "synchronize"
+    ), mock.patch.object(cmd_module.nvtx, "range_push") as range_push, mock.patch.object(
+        cmd_module.nvtx, "range_pop"
+    ) as range_pop:
+        with cmd:
+            with cmd.phase_range("compute"):
+                pass
+    assert range_push.call_count == 2
+    assert "|phase=compute" in range_push.call_args_list[1][0][0]
+    assert range_pop.call_count == 2
+
+
+def test_cmd_kernel_ground_truth_phase_disabled_skips_phase_range():
+    cmd = _build_cmd(enable_nvtx=True, enable_phase=False)
+    with mock.patch.object(cmd_module.torch.cuda, "Event", _DummyEvent), mock.patch.object(
+        cmd_module.torch.cuda, "synchronize"
+    ), mock.patch.object(cmd_module.nvtx, "range_push") as range_push, mock.patch.object(
+        cmd_module.nvtx, "range_pop"
+    ) as range_pop:
+        with cmd:
+            with cmd.phase_range("compute"):
+                pass
+    assert range_push.call_count == 1
+    assert range_pop.call_count == 1
+
+
+def test_cmd_kernel_ground_truth_comm_group_auto_phase_range():
+    cmd = _build_cmd(
+        enable_nvtx=True, enable_phase=True, boundary_mode="event", group_kind="pp"
+    )
+    with mock.patch.object(cmd_module.torch.cuda, "Event", _DummyEvent), mock.patch.object(
+        cmd_module.torch.cuda, "synchronize"
+    ), mock.patch.object(cmd_module.nvtx, "range_push") as range_push, mock.patch.object(
+        cmd_module.nvtx, "range_pop"
+    ) as range_pop:
+        with cmd:
+            pass
+    assert range_push.call_count == 2
+    assert "|phase=comm" in range_push.call_args_list[1][0][0]
+    assert range_pop.call_count == 2
+
+
+def test_cmd_kernel_ground_truth_phase_context_supports_extra_tags():
+    cmd = _build_cmd(enable_nvtx=True, enable_phase=True, boundary_mode="event")
+    with mock.patch.object(cmd_module.torch.cuda, "Event", _DummyEvent), mock.patch.object(
+        cmd_module.torch.cuda, "synchronize"
+    ), mock.patch.object(cmd_module.nvtx, "range_push") as range_push, mock.patch.object(
+        cmd_module.nvtx, "range_pop"
+    ) as range_pop:
+        with cmd:
+            with cmd.phase_range(
+                "compute", extra_tags={"attn_bwd_segment": "attn_core_bwd"}
+            ):
+                pass
+    assert range_push.call_count == 2
+    pushed_label = range_push.call_args_list[1][0][0]
+    assert "|phase=compute" in pushed_label
+    assert "|attn_bwd_segment=attn_core_bwd" in pushed_label
+    assert range_pop.call_count == 2

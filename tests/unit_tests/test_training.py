@@ -179,6 +179,52 @@ class TestTraining:
             args = parse_args(ignore_unknown_args=True)
         assert args.scaling_profile_iters == 3
 
+    def test_scaling_comm_adjacent_copy_iters_default(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.scaling_comm_adjacent_copy_iters == 0
+
+    def test_scaling_comm_adjacent_copy_iters_custom(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--scaling-comm-adjacent-copy-iters", "2",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.scaling_comm_adjacent_copy_iters == 2
+
+    def test_scaling_disable_ddp_wrap_default(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.scaling_disable_ddp_wrap is False
+
+    def test_scaling_disable_ddp_wrap_enabled(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--scaling-disable-ddp-wrap",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.scaling_disable_ddp_wrap is True
+
     def test_scaling_replay_cache_tag_default(self):
         test_argv = [
             "test_training.py",
@@ -228,6 +274,47 @@ class TestTraining:
         assert args.trace_kernel_ground_truth is True
         assert args.trace_kernel_ground_truth_prefix == "cmd_gt"
 
+    def test_trace_kernel_ground_truth_phase_defaults(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.trace_kernel_ground_truth_phase is False
+        assert args.trace_kernel_boundary_sync_mode == "none"
+        assert args.trace_attention_backward_segments is False
+
+    def test_trace_kernel_ground_truth_phase_args(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--trace-kernel-ground-truth-phase",
+            "--trace-kernel-boundary-sync-mode", "event",
+            "--trace-attention-backward-segments",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            args = parse_args(ignore_unknown_args=True)
+        assert args.trace_kernel_ground_truth_phase is True
+        assert args.trace_kernel_boundary_sync_mode == "event"
+        assert args.trace_attention_backward_segments is True
+
+    def test_trace_kernel_boundary_sync_mode_invalid_value(self):
+        test_argv = [
+            "test_training.py",
+            "--num-layers", "2",
+            "--hidden-size", "128",
+            "--num-attention-heads", "8",
+            "--trace-kernel-boundary-sync-mode", "bad-value",
+        ]
+        with mock.patch.object(sys, "argv", test_argv):
+            with pytest.raises(SystemExit):
+                parse_args(ignore_unknown_args=False)
+
     def test_core_transformer_config_injects_new_fields(self):
         args = SimpleNamespace(
             # Dataclass fields used in this test.
@@ -263,11 +350,13 @@ class TestTraining:
             squared_relu=False,
             init_method_xavier_uniform=False,
             group_query_attention=False,
+            trace_attention_backward_segments=True,
         )
         config = core_transformer_config_from_args(args)
         assert config.moe_layer_freq == [0, 1, 0, 1]
         assert config.moe_ffn_hidden_size == 192
         assert config.rotary_base == 1000000
+        assert config.trace_attention_backward_segments is True
 
     def teardown_method(self, method):
         Utils.destroy_model_parallel()

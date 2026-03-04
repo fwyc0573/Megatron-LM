@@ -8,7 +8,10 @@ from megatron.core.transformer.attention import SelfAttention
 from tests.unit_tests.test_utilities import Utils
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.models.gpt.gpt_layer_specs import get_gpt_layer_with_transformer_engine_spec
+from megatron.core.models.gpt.gpt_layer_specs import (
+    get_gpt_layer_local_spec,
+    get_gpt_layer_with_transformer_engine_spec,
+)
 
 class TestParallelAttention:
 
@@ -109,3 +112,36 @@ class TestParallelAttention:
         assert output.shape[1] == micro_batch_size
         assert output.shape[2] == config.hidden_size
         assert bias.shape[0] == config.hidden_size
+
+    def test_attention_backward_segment_hooks_disabled_by_default(self):
+        assert (
+            len(self.parallel_attention._attention_backward_segment_hook_handles) == 0
+        )
+        assert len(self.parallel_attention._attention_backward_segment_hook_names) == 0
+
+    def test_attention_backward_segment_hooks_enabled(self):
+        config = TransformerConfig(
+            num_layers=2,
+            hidden_size=12,
+            num_attention_heads=4,
+            use_cpu_initialization=True,
+            trace_attention_backward_segments=True,
+        )
+        local_submodules = (
+            get_gpt_layer_local_spec()
+            .submodules.self_attention.submodules
+        )
+        attention = SelfAttention(
+            config,
+            local_submodules,
+            layer_number=1,
+        )
+        assert len(attention._attention_backward_segment_hook_handles) == 10
+        assert len(attention._attention_backward_segment_hook_names) == 5
+        assert "attn_qkv_bwd" in attention._attention_backward_segment_hook_names
+        assert "attn_core_bwd" in attention._attention_backward_segment_hook_names
+        assert "attn_proj_bwd" in attention._attention_backward_segment_hook_names
+        assert (
+            attention._attention_backward_segment_hook_names.count("attn_qk_layernorm_bwd")
+            == 2
+        )
