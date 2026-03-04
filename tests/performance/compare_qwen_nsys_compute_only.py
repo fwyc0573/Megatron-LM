@@ -65,11 +65,21 @@ def reduce_values(values: List[float], method: str, trim_ratio: float) -> float:
     raise ValueError(f"Unsupported reducer: {method}")
 
 
-def _get_overlap_name_map(row: dict, shared_kernel_source: str) -> Dict[str, float]:
+def _get_overlap_name_map(
+    row: dict, shared_kernel_source: str, pure_phase: bool = False
+) -> Dict[str, float]:
     if shared_kernel_source == "primary_stream":
-        key = "primary_stream_compute_kernel_name_overlap_ms"
+        key = (
+            "primary_stream_compute_pure_kernel_name_overlap_ms"
+            if pure_phase
+            else "primary_stream_compute_kernel_name_overlap_ms"
+        )
     else:
-        key = "compute_kernel_name_overlap_ms"
+        key = (
+            "compute_pure_kernel_name_overlap_ms"
+            if pure_phase
+            else "compute_kernel_name_overlap_ms"
+        )
     mapping = row.get(key, {})
     if not isinstance(mapping, dict):
         return {}
@@ -96,28 +106,70 @@ def _metric_from_row(row: dict, compute_metric: str) -> float:
         if "compute_primary_stream_union_ms" in row:
             return float(row.get("compute_primary_stream_union_ms", 0.0))
         return float(row.get("compute_kernel_ms", 0.0))
+    if compute_metric == "pure_union":
+        if "compute_pure_union_ms" in row:
+            return float(row.get("compute_pure_union_ms", 0.0))
+        if "compute_kernel_union_ms" in row:
+            return float(row.get("compute_kernel_union_ms", 0.0))
+        return float(row.get("compute_kernel_ms", 0.0))
+    if compute_metric == "pure_primary_union":
+        if "compute_pure_primary_union_ms" in row:
+            return float(row.get("compute_pure_primary_union_ms", 0.0))
+        if "compute_primary_stream_union_ms" in row:
+            return float(row.get("compute_primary_stream_union_ms", 0.0))
+        return float(row.get("compute_kernel_ms", 0.0))
     raise ValueError(f"Unsupported compute metric: {compute_metric}")
 
 
 def _shared_kernel_names(
-    dist_samples: List[dict], scale_samples: List[dict], shared_kernel_source: str
+    dist_samples: List[dict],
+    scale_samples: List[dict],
+    shared_kernel_source: str,
+    pure_phase: bool = False,
 ) -> Set[str]:
     dist_names: Set[str] = set()
     scale_names: Set[str] = set()
     for sample in dist_samples:
-        dist_names.update(_get_overlap_name_map(sample, shared_kernel_source).keys())
+        dist_names.update(
+            _get_overlap_name_map(sample, shared_kernel_source, pure_phase=pure_phase).keys()
+        )
     for sample in scale_samples:
-        scale_names.update(_get_overlap_name_map(sample, shared_kernel_source).keys())
+        scale_names.update(
+            _get_overlap_name_map(sample, shared_kernel_source, pure_phase=pure_phase).keys()
+        )
     return dist_names & scale_names
 
 
 def _shared_overlap_metric(
-    row: dict, shared_names: Set[str], shared_kernel_source: str
+    row: dict, shared_names: Set[str], shared_kernel_source: str, pure_phase: bool = False
 ) -> float:
-    mapping = _get_overlap_name_map(row, shared_kernel_source)
+    mapping = _get_overlap_name_map(
+        row, shared_kernel_source, pure_phase=pure_phase
+    )
     if not mapping or not shared_names:
         return 0.0
     return sum(mapping.get(name, 0.0) for name in shared_names)
+
+
+def _contamination_pct_from_row(row: dict) -> Optional[float]:
+    if "contamination_pct" in row:
+        try:
+            return float(row.get("contamination_pct"))
+        except (TypeError, ValueError):
+            return None
+    if "contamination_ms" not in row:
+        return None
+    try:
+        contamination_ms = float(row.get("contamination_ms", 0.0))
+    except (TypeError, ValueError):
+        return None
+    try:
+        parent_compute_ms = float(row.get("compute_kernel_ms", 0.0))
+    except (TypeError, ValueError):
+        return None
+    if parent_compute_ms <= 0:
+        return 0.0
+    return contamination_ms / parent_compute_ms * 100.0
 
 
 def load_json_rows(path: Path) -> List[dict]:
@@ -290,12 +342,19 @@ def main() -> int:
     parser.add_argument(
         "--compute-metric",
         type=str,
-        default="primary_stream_union",
-        choices=["overlap_sum", "union", "primary_stream_union"],
+        default="pure_primary_union",
+        choices=[
+            "overlap_sum",
+            "union",
+            "primary_stream_union",
+            "pure_union",
+            "pure_primary_union",
+        ],
         help=(
             "Compute metric used before reducer. "
             "'union' avoids multi-stream overlap double counting; "
-            "'primary_stream_union' focuses on dominant compute stream."
+            "'primary_stream_union' focuses on dominant compute stream; "
+            "'pure_*' uses phase-level compute windows when available."
         ),
     )
     parser.add_argument(
@@ -325,6 +384,15 @@ def main() -> int:
         default=0.2,
         help="Trim ratio for trimmed_mean reducer.",
     )
+    parser.add_argument(
+        "--require-low-contamination-pct",
+        type=float,
+        default=None,
+        help=(
+            "Optional contamination threshold. "
+            "When set, rows with dist/scale contamination pct above threshold are marked FAIL."
+        ),
+    )
     parser.add_argument("--repeat-report", type=Path, default=None)
     parser.add_argument("--report-path", type=Path, default=None)
     args = parser.parse_args()
@@ -348,6 +416,13 @@ def main() -> int:
     if args.trim_ratio < 0.0 or args.trim_ratio >= 0.5:
         print(f"[ERROR] Invalid --trim-ratio {args.trim_ratio}, expected 0 <= r < 0.5")
         return 2
+    if args.require_low_contamination_pct is not None and args.require_low_contamination_pct < 0.0:
+        print(
+            "[ERROR] Invalid --require-low-contamination-pct "
+            f"{args.require_low_contamination_pct}, expected >= 0."
+        )
+        return 2
+    use_pure_phase_metrics = args.compute_metric in ("pure_union", "pure_primary_union")
 
     distributed_rows = load_json_rows(args.distributed_json)
     scaling_rows = load_json_rows(args.scaling_json)
@@ -378,9 +453,12 @@ def main() -> int:
     failed = 0
     rows.append(
         "| rank | op | mg_state | dist_samples | dist_compute_ms | dist_comm_ms | "
-        "scale_samples | scale_compute_ms | scale_comm_ms | shared_kernels | diff_pct | status |"
+        "dist_contam_pct | scale_samples | scale_compute_ms | scale_comm_ms | "
+        "scale_contam_pct | shared_kernels | diff_pct | status |"
     )
-    rows.append("|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|")
+    rows.append(
+        "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"
+    )
 
     for rank in ranks:
         for op in ops:
@@ -400,14 +478,19 @@ def main() -> int:
                 if not dist_samples or not scale_samples:
                     rows.append(
                         f"| {rank} | {op} | {state} | "
-                        f"{len(dist_samples)} | N/A | N/A | {len(scale_samples)} | N/A | N/A | N/A | N/A | FAIL (missing) |"
+                        f"{len(dist_samples)} | N/A | N/A | N/A | "
+                        f"{len(scale_samples)} | N/A | N/A | N/A | N/A | N/A | FAIL (missing) |"
                     )
                     failed += 1
                     continue
                 shared_names: Set[str] = set()
                 if args.kernel_scope == "shared":
                     if not any(
-                        _get_overlap_name_map(sample, args.shared_kernel_source)
+                        _get_overlap_name_map(
+                            sample,
+                            args.shared_kernel_source,
+                            pure_phase=use_pure_phase_metrics,
+                        )
                         for sample in (dist_samples + scale_samples)
                     ):
                         print(
@@ -417,13 +500,17 @@ def main() -> int:
                         )
                         return 2
                     shared_names = _shared_kernel_names(
-                        dist_samples, scale_samples, args.shared_kernel_source
+                        dist_samples,
+                        scale_samples,
+                        args.shared_kernel_source,
+                        pure_phase=use_pure_phase_metrics,
                     )
                     dist_compute_values = [
                         _shared_overlap_metric(
                             row=sample,
                             shared_names=shared_names,
                             shared_kernel_source=args.shared_kernel_source,
+                            pure_phase=use_pure_phase_metrics,
                         )
                         for sample in dist_samples
                     ]
@@ -432,6 +519,7 @@ def main() -> int:
                             row=sample,
                             shared_names=shared_names,
                             shared_kernel_source=args.shared_kernel_source,
+                            pure_phase=use_pure_phase_metrics,
                         )
                         for sample in scale_samples
                     ]
@@ -473,17 +561,68 @@ def main() -> int:
                 scale_comm = reduce_values(
                     scale_comm_values, method=args.scale_reducer, trim_ratio=args.trim_ratio
                 )
+                dist_contam_values = [
+                    value
+                    for value in (
+                        _contamination_pct_from_row(sample) for sample in dist_samples
+                    )
+                    if value is not None
+                ]
+                scale_contam_values = [
+                    value
+                    for value in (
+                        _contamination_pct_from_row(sample) for sample in scale_samples
+                    )
+                    if value is not None
+                ]
+                dist_contam_pct = (
+                    reduce_values(
+                        dist_contam_values,
+                        method=args.dist_reducer,
+                        trim_ratio=args.trim_ratio,
+                    )
+                    if dist_contam_values
+                    else None
+                )
+                scale_contam_pct = (
+                    reduce_values(
+                        scale_contam_values,
+                        method=args.scale_reducer,
+                        trim_ratio=args.trim_ratio,
+                    )
+                    if scale_contam_values
+                    else None
+                )
                 if dist_compute == 0:
                     diff_pct = 0.0 if scale_compute == 0 else 100.0
                 else:
                     diff_pct = abs(scale_compute - dist_compute) / dist_compute * 100.0
                 status = "PASS" if diff_pct <= args.threshold_pct else "FAIL"
-                if status == "FAIL":
+                if args.require_low_contamination_pct is not None:
+                    if dist_contam_pct is None or scale_contam_pct is None:
+                        print(
+                            "[ERROR] --require-low-contamination-pct requires contamination "
+                            "fields in both distributed and scaling JSON rows."
+                        )
+                        return 2
+                    if (
+                        dist_contam_pct > args.require_low_contamination_pct
+                        or scale_contam_pct > args.require_low_contamination_pct
+                    ):
+                        status = "FAIL (contamination)"
+                if status.startswith("FAIL"):
                     failed += 1
+                dist_contam_text = (
+                    "N/A" if dist_contam_pct is None else f"{dist_contam_pct:.2f}"
+                )
+                scale_contam_text = (
+                    "N/A" if scale_contam_pct is None else f"{scale_contam_pct:.2f}"
+                )
                 rows.append(
                     f"| {rank} | {op} | {state} | {len(dist_samples)} | {dist_compute:.4f} | "
-                    f"{dist_comm:.4f} | {len(scale_samples)} | {scale_compute:.4f} | "
-                    f"{scale_comm:.4f} | {len(shared_names)} | {diff_pct:.2f} | {status} |"
+                    f"{dist_comm:.4f} | {dist_contam_text} | "
+                    f"{len(scale_samples)} | {scale_compute:.4f} | {scale_comm:.4f} | "
+                    f"{scale_contam_text} | {len(shared_names)} | {diff_pct:.2f} | {status} |"
                 )
                 row_records.append(
                     {
@@ -493,9 +632,11 @@ def main() -> int:
                         "dist_samples": len(dist_samples),
                         "dist_compute_ms": dist_compute,
                         "dist_comm_ms": dist_comm,
+                        "dist_contamination_pct": dist_contam_pct,
                         "scale_samples": len(scale_samples),
                         "scale_compute_ms": scale_compute,
                         "scale_comm_ms": scale_comm,
+                        "scale_contamination_pct": scale_contam_pct,
                         "shared_kernel_count": len(shared_names),
                         "diff_pct": diff_pct,
                         "status": status,
@@ -514,6 +655,14 @@ def main() -> int:
     report_lines.append(f"kernel_scope={args.kernel_scope}")
     report_lines.append(f"shared_kernel_source={args.shared_kernel_source}")
     report_lines.append(f"trim_ratio={args.trim_ratio:.4f}")
+    report_lines.append(
+        "require_low_contamination_pct="
+        + (
+            "None"
+            if args.require_low_contamination_pct is None
+            else f"{args.require_low_contamination_pct:.2f}"
+        )
+    )
     report_lines.append(f"threshold_pct={args.threshold_pct:.2f}")
     report_lines.extend(rows)
     report_lines.append("")
@@ -536,7 +685,8 @@ def main() -> int:
             f"ops={','.join(ops)}|dist_reducer={args.dist_reducer}|"
             f"scale_reducer={args.scale_reducer}|metric={args.compute_metric}|"
             f"scope={args.kernel_scope}|shared_source={args.shared_kernel_source}|"
-            f"trim={args.trim_ratio:.6f}"
+            f"trim={args.trim_ratio:.6f}|"
+            f"contam={args.require_low_contamination_pct}"
         )
         run_record = {
             "series_key": series_key,

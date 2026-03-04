@@ -44,6 +44,20 @@ class NvtxCmdRange:
 
 
 @dataclass(frozen=True)
+class NvtxPhaseRange:
+    start_ns: int
+    end_ns: int
+    global_pid: int
+    rank: int
+    op: str
+    mg_state: str
+    stage_id: str
+    batch_id: str
+    iter_id: str
+    phase: str
+
+
+@dataclass(frozen=True)
 class KernelRecord:
     start_ns: int
     end_ns: int
@@ -94,6 +108,33 @@ def parse_cmd_nvtx_label(label: str, prefix: str) -> Optional[Dict[str, str]]:
     if any(key not in mapping for key in required):
         return None
     return mapping
+
+
+def range_identity(nvtx_range: NvtxCmdRange) -> Tuple[int, int, str, str, str, str, str, int, int]:
+    """Build stable identity for one parent CMD NVTX range."""
+    return (
+        nvtx_range.global_pid,
+        nvtx_range.rank,
+        nvtx_range.op,
+        nvtx_range.mg_state,
+        nvtx_range.stage_id,
+        nvtx_range.batch_id,
+        nvtx_range.iter_id,
+        nvtx_range.start_ns,
+        nvtx_range.end_ns,
+    )
+
+
+def _range_meta_key(
+    global_pid: int,
+    rank: int,
+    op: str,
+    mg_state: str,
+    stage_id: str,
+    batch_id: str,
+    iter_id: str,
+) -> Tuple[int, int, str, str, str, str, str]:
+    return (global_pid, rank, op, mg_state, stage_id, batch_id, iter_id)
 
 
 def classify_kernel_name(kernel_name: str) -> bool:
@@ -163,6 +204,9 @@ def load_nvtx_cmd_ranges(
         parsed = parse_cmd_nvtx_label(label, label_prefix)
         if parsed is None:
             continue
+        if parsed.get("phase") in ("compute", "comm"):
+            # Parent CMD range loader only keeps top-level op windows.
+            continue
         op = parsed["op"]
         if op not in op_set:
             continue
@@ -184,6 +228,87 @@ def load_nvtx_cmd_ranges(
             )
         )
     return ranges
+
+
+def load_nvtx_phase_windows_by_identity(
+    conn: sqlite3.Connection,
+    label_prefix: str,
+    allowed_ops: Sequence[str],
+    rank_filter: Optional[Sequence[int]],
+    nvtx_ranges: Sequence[NvtxCmdRange],
+) -> Dict[Tuple[int, int, str, str, str, str, str, int, int], Dict[str, List[Tuple[int, int]]]]:
+    """Load phase NVTX windows and map them to parent CMD windows by identity."""
+    if not nvtx_ranges:
+        return {}
+    op_set = set(allowed_ops)
+    rank_set = set(rank_filter) if rank_filter is not None else None
+
+    parents_by_meta: Dict[Tuple[int, int, str, str, str, str, str], List[NvtxCmdRange]] = defaultdict(list)
+    for parent in nvtx_ranges:
+        key = _range_meta_key(
+            global_pid=parent.global_pid,
+            rank=parent.rank,
+            op=parent.op,
+            mg_state=parent.mg_state,
+            stage_id=parent.stage_id,
+            batch_id=parent.batch_id,
+            iter_id=parent.iter_id,
+        )
+        parents_by_meta[key].append(parent)
+    for key in parents_by_meta:
+        parents_by_meta[key].sort(key=lambda item: item.start_ns)
+
+    rows = conn.execute(
+        """
+        SELECT start, end, text, globalTid
+        FROM NVTX_EVENTS
+        WHERE text LIKE ?
+          AND start IS NOT NULL
+          AND end IS NOT NULL
+          AND end > start
+        ORDER BY start ASC
+        """,
+        (f"{label_prefix}|%",),
+    ).fetchall()
+
+    by_identity: Dict[
+        Tuple[int, int, str, str, str, str, str, int, int], Dict[str, List[Tuple[int, int]]]
+    ] = defaultdict(lambda: {"compute": [], "comm": []})
+    for start_ns, end_ns, label, global_tid in rows:
+        parsed = parse_cmd_nvtx_label(label, label_prefix)
+        if parsed is None:
+            continue
+        phase = parsed.get("phase")
+        if phase not in ("compute", "comm"):
+            continue
+        op = parsed["op"]
+        if op not in op_set:
+            continue
+        rank = int(parsed["rank"])
+        if rank_set is not None and rank not in rank_set:
+            continue
+        global_pid = derive_global_pid(int(global_tid))
+        meta_key = _range_meta_key(
+            global_pid=global_pid,
+            rank=rank,
+            op=op,
+            mg_state=parsed["state"],
+            stage_id=parsed["stage"],
+            batch_id=parsed["batch"],
+            iter_id=parsed["iter"],
+        )
+        parent_candidates = parents_by_meta.get(meta_key, [])
+        if not parent_candidates:
+            continue
+        matched_parent: Optional[NvtxCmdRange] = None
+        for parent in parent_candidates:
+            if parent.start_ns <= int(start_ns) and parent.end_ns >= int(end_ns):
+                matched_parent = parent
+                break
+        if matched_parent is None:
+            continue
+        by_identity[range_identity(matched_parent)][phase].append((int(start_ns), int(end_ns)))
+    return dict(by_identity)
 
 
 def load_kernels_for_ranges(
@@ -244,20 +369,37 @@ def load_kernels_for_ranges(
 
 
 def summarize_nvtx_ranges(
-    nvtx_ranges: Sequence[NvtxCmdRange], kernels_by_pid: Dict[int, List[KernelRecord]]
+    nvtx_ranges: Sequence[NvtxCmdRange],
+    kernels_by_pid: Dict[int, List[KernelRecord]],
+    phase_windows_by_identity: Optional[
+        Dict[Tuple[int, int, str, str, str, str, str, int, int], Dict[str, List[Tuple[int, int]]]]
+    ] = None,
 ) -> List[dict]:
     event_rows: List[dict] = []
     for nvtx_range in nvtx_ranges:
+        identity = range_identity(nvtx_range)
+        raw_phase_windows = (
+            phase_windows_by_identity.get(identity, {})
+            if phase_windows_by_identity is not None
+            else {}
+        )
+        compute_phase_windows = merge_intervals(raw_phase_windows.get("compute", []))
+        comm_phase_windows = merge_intervals(raw_phase_windows.get("comm", []))
         kernels = kernels_by_pid.get(nvtx_range.global_pid, [])
         compute_ns = 0
         comm_ns = 0
+        compute_pure_ns = 0
         kernel_hits = 0
         compute_intervals: List[Tuple[int, int]] = []
         comm_intervals: List[Tuple[int, int]] = []
         total_intervals: List[Tuple[int, int]] = []
         compute_intervals_by_stream: Dict[int, List[Tuple[int, int]]] = defaultdict(list)
+        compute_pure_intervals: List[Tuple[int, int]] = []
+        compute_pure_intervals_by_stream: Dict[int, List[Tuple[int, int]]] = defaultdict(list)
         compute_by_name_ns: Dict[str, int] = defaultdict(int)
+        compute_pure_by_name_ns: Dict[str, int] = defaultdict(int)
         primary_stream_compute_by_name_ns: Dict[str, int] = {}
+        primary_stream_compute_pure_by_name_ns: Dict[str, int] = {}
         for kernel in kernels:
             if kernel.end_ns <= nvtx_range.start_ns:
                 continue
@@ -282,10 +424,33 @@ def summarize_nvtx_ranges(
                     (overlap_start, overlap_end)
                 )
                 compute_by_name_ns[kernel.name] += ov_ns
+                if compute_phase_windows:
+                    for phase_start_ns, phase_end_ns in compute_phase_windows:
+                        phase_overlap_ns = overlap_ns(
+                            phase_start_ns, phase_end_ns, kernel.start_ns, kernel.end_ns
+                        )
+                        if phase_overlap_ns <= 0:
+                            continue
+                        phase_overlap_start = max(phase_start_ns, kernel.start_ns)
+                        phase_overlap_end = min(phase_end_ns, kernel.end_ns)
+                        compute_pure_ns += phase_overlap_ns
+                        compute_pure_intervals.append((phase_overlap_start, phase_overlap_end))
+                        compute_pure_intervals_by_stream[kernel.stream_id].append(
+                            (phase_overlap_start, phase_overlap_end)
+                        )
+                        compute_pure_by_name_ns[kernel.name] += phase_overlap_ns
+        if not compute_phase_windows:
+            compute_pure_ns = compute_ns
+            compute_pure_intervals = list(compute_intervals)
+            for stream_id, intervals in compute_intervals_by_stream.items():
+                compute_pure_intervals_by_stream[stream_id].extend(intervals)
+            for kernel_name, value_ns in compute_by_name_ns.items():
+                compute_pure_by_name_ns[kernel_name] += value_ns
         total_ns = compute_ns + comm_ns
         compute_union_ns = merged_length_ns(compute_intervals)
         comm_union_ns = merged_length_ns(comm_intervals)
         total_union_ns = merged_length_ns(total_intervals)
+        compute_pure_union_ns = merged_length_ns(compute_pure_intervals)
         primary_stream_id: Optional[int] = None
         primary_stream_union_ns = 0
         if compute_intervals_by_stream:
@@ -313,6 +478,44 @@ def summarize_nvtx_ranges(
                 if ov_ns <= 0:
                     continue
                 primary_stream_compute_by_name_ns[kernel.name] += ov_ns
+        compute_pure_primary_stream_id: Optional[int] = None
+        compute_pure_primary_stream_union_ns = 0
+        if compute_pure_intervals_by_stream:
+            compute_pure_primary_stream_id = max(
+                compute_pure_intervals_by_stream.keys(),
+                key=lambda stream_id: merged_length_ns(
+                    compute_pure_intervals_by_stream[stream_id]
+                ),
+            )
+            compute_pure_primary_stream_union_ns = merged_length_ns(
+                compute_pure_intervals_by_stream[compute_pure_primary_stream_id]
+            )
+            primary_stream_compute_pure_by_name_ns = defaultdict(int)
+            for kernel in kernels:
+                if kernel.is_comm:
+                    continue
+                if kernel.stream_id != compute_pure_primary_stream_id:
+                    continue
+                if compute_phase_windows:
+                    for phase_start_ns, phase_end_ns in compute_phase_windows:
+                        ov_ns = overlap_ns(
+                            phase_start_ns, phase_end_ns, kernel.start_ns, kernel.end_ns
+                        )
+                        if ov_ns <= 0:
+                            continue
+                        primary_stream_compute_pure_by_name_ns[kernel.name] += ov_ns
+                else:
+                    ov_ns = overlap_ns(
+                        nvtx_range.start_ns,
+                        nvtx_range.end_ns,
+                        kernel.start_ns,
+                        kernel.end_ns,
+                    )
+                    if ov_ns <= 0:
+                        continue
+                    primary_stream_compute_pure_by_name_ns[kernel.name] += ov_ns
+        contamination_ns = max(0, compute_ns - compute_pure_ns)
+        contamination_pct = (contamination_ns / compute_ns * 100.0) if compute_ns > 0 else 0.0
 
         wall_ns = nvtx_range.end_ns - nvtx_range.start_ns
         event_rows.append(
@@ -336,6 +539,17 @@ def summarize_nvtx_ranges(
                 "primary_compute_stream_id": primary_stream_id,
                 "compute_primary_stream_union_ms": primary_stream_union_ns / 1_000_000.0,
                 "compute_stream_count": len(compute_intervals_by_stream),
+                # Phase-level pure compute metrics.
+                "compute_pure_ms": compute_pure_ns / 1_000_000.0,
+                "compute_pure_union_ms": compute_pure_union_ns / 1_000_000.0,
+                "compute_pure_primary_stream_id": compute_pure_primary_stream_id,
+                "compute_pure_primary_union_ms": (
+                    compute_pure_primary_stream_union_ns / 1_000_000.0
+                ),
+                "phase_compute_window_count": len(compute_phase_windows),
+                "phase_comm_window_count": len(comm_phase_windows),
+                "contamination_ms": contamination_ns / 1_000_000.0,
+                "contamination_pct": contamination_pct,
                 # Per-kernel name attribution for shared-kernel filtering in compare.
                 "compute_kernel_name_overlap_ms": {
                     name: ns / 1_000_000.0
@@ -344,6 +558,14 @@ def summarize_nvtx_ranges(
                 "primary_stream_compute_kernel_name_overlap_ms": {
                     name: ns / 1_000_000.0
                     for name, ns in sorted(primary_stream_compute_by_name_ns.items())
+                },
+                "compute_pure_kernel_name_overlap_ms": {
+                    name: ns / 1_000_000.0
+                    for name, ns in sorted(compute_pure_by_name_ns.items())
+                },
+                "primary_stream_compute_pure_kernel_name_overlap_ms": {
+                    name: ns / 1_000_000.0
+                    for name, ns in sorted(primary_stream_compute_pure_by_name_ns.items())
                 },
                 "kernel_count": kernel_hits,
                 "label": nvtx_range.label,
@@ -384,6 +606,24 @@ def build_aggregate_rows(event_rows: Sequence[dict]) -> List[dict]:
                 "compute_primary_stream_union_ms_median": median(
                     r["compute_primary_stream_union_ms"] for r in rows
                 ),
+                "compute_pure_ms_mean": mean(r["compute_pure_ms"] for r in rows),
+                "compute_pure_ms_median": median(r["compute_pure_ms"] for r in rows),
+                "compute_pure_union_ms_mean": mean(
+                    r["compute_pure_union_ms"] for r in rows
+                ),
+                "compute_pure_union_ms_median": median(
+                    r["compute_pure_union_ms"] for r in rows
+                ),
+                "compute_pure_primary_union_ms_mean": mean(
+                    r["compute_pure_primary_union_ms"] for r in rows
+                ),
+                "compute_pure_primary_union_ms_median": median(
+                    r["compute_pure_primary_union_ms"] for r in rows
+                ),
+                "contamination_ms_mean": mean(r["contamination_ms"] for r in rows),
+                "contamination_ms_median": median(r["contamination_ms"] for r in rows),
+                "contamination_pct_mean": mean(r["contamination_pct"] for r in rows),
+                "contamination_pct_median": median(r["contamination_pct"] for r in rows),
                 "comm_kernel_ms_mean": mean(r["comm_kernel_ms"] for r in rows),
                 "comm_kernel_ms_median": median(r["comm_kernel_ms"] for r in rows),
                 "comm_kernel_union_ms_mean": mean(
@@ -411,10 +651,10 @@ def _format_table(aggregate_rows: Sequence[dict]) -> List[str]:
     lines.append(
         "| rank | op | mg_state | stage_id | samples | "
         "compute_ms_mean(overlap) | compute_ms_mean(union) | "
-        "compute_ms_mean(primary_union) | comm_ms_mean(overlap) | "
-        "comm_ms_mean(union) | wall_ms_mean |"
+        "compute_ms_mean(primary_union) | compute_pure_ms_mean(primary_union) | "
+        "contamination_pct_mean | comm_ms_mean(overlap) | comm_ms_mean(union) | wall_ms_mean |"
     )
-    lines.append("|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+    lines.append("|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for row in aggregate_rows:
         lines.append(
             "| "
@@ -422,6 +662,8 @@ def _format_table(aggregate_rows: Sequence[dict]) -> List[str]:
             f"{row['samples']} | {row['compute_kernel_ms_mean']:.4f} | "
             f"{row['compute_kernel_union_ms_mean']:.4f} | "
             f"{row['compute_primary_stream_union_ms_mean']:.4f} | "
+            f"{row['compute_pure_primary_union_ms_mean']:.4f} | "
+            f"{row['contamination_pct_mean']:.2f}% | "
             f"{row['comm_kernel_ms_mean']:.4f} | {row['comm_kernel_union_ms_mean']:.4f} | "
             f"{row['wall_ms_mean']:.4f} |"
         )
@@ -480,8 +722,19 @@ def main() -> int:
                 "Please verify trace-kernel-ground-truth labels and filters."
             )
             return 1
+        phase_windows_by_identity = load_nvtx_phase_windows_by_identity(
+            conn=conn,
+            label_prefix=args.label_prefix,
+            allowed_ops=ops,
+            rank_filter=rank_filter,
+            nvtx_ranges=nvtx_ranges,
+        )
         kernels_by_pid = load_kernels_for_ranges(conn, nvtx_ranges)
-        event_rows = summarize_nvtx_ranges(nvtx_ranges, kernels_by_pid)
+        event_rows = summarize_nvtx_ranges(
+            nvtx_ranges,
+            kernels_by_pid,
+            phase_windows_by_identity=phase_windows_by_identity,
+        )
         aggregate_rows = build_aggregate_rows(event_rows)
     finally:
         conn.close()
@@ -494,6 +747,7 @@ def main() -> int:
         "ranks="
         + ("ALL" if rank_filter is None else ",".join(str(x) for x in rank_filter))
     )
+    report_lines.append(f"phase_window_parents={len(phase_windows_by_identity)}")
     report_lines.append(f"event_rows={len(event_rows)}")
     report_lines.append(f"aggregate_rows={len(aggregate_rows)}")
     report_lines.extend(_format_table(aggregate_rows))
