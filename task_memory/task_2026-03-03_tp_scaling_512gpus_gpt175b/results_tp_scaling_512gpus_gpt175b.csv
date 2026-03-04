@@ -1,0 +1,5 @@
+config,tp,pp,dp,node_size,stage0_ms,stage1_ms,stage2_ms,stage3_ms,stage4_ms,stage5_ms,stage6_ms,stage7_ms,iteration_ms,tokens_per_sec,samples_per_sec,status,reason
+tp8_pp8_dp16,8,8,16,8,34431.88,33299.28,32592.64,31929.50,31174.36,30409.64,29736.05,34431.88,34431.88,15226.82,7.4350,OK,
+tp16_pp8_dp8,16,8,8,16,60503.28,59633.07,58984.00,58367.40,57677.22,57050.24,56386.89,60503.28,60503.28,8665.45,4.2312,OK,
+tp32_pp8_dp4,32,8,4,32,106201.94,105502.13,104886.02,104252.30,103550.68,102930.89,102207.25,106201.94,106201.94,4936.71,2.4105,OK,
+tp64_pp8_dp2,64,8,2,64,,,,,,,,,,,N/A,"Strict GPT-175B blocked: num_attention_heads=96 is not divisible by TP=64"
