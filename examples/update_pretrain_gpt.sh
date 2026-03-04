@@ -32,14 +32,18 @@ BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/y
 # 批量配置支持
 # 定义配置数组：每行格式为 "WORLD_SIZE PP_SIZE TP_SIZE"
 # 如果BATCH_CONFIGS为空，则使用单一配置模式
+# BATCH_CONFIGS=(
+#     "8192 16 8"   # world_size=8192, pp=16, tp=8
+#     "8192 32 8"   # world_size=8192, pp=32, tp=8
+#     "8192 32 4"   # world_size=8192, pp=32, tp=4
+#     "8192 64 8"
+#     "8192 64 4"
+#     "8192 64 2"
+# )
 BATCH_CONFIGS=(
-    "8192 16 8"   # world_size=8192, pp=16, tp=8
-    "8192 32 8"   # world_size=8192, pp=32, tp=8
-    "8192 32 4"   # world_size=8192, pp=32, tp=4
-    "8192 64 8"
-    "8192 64 4"
-    "8192 64 2"
+    "128 8 8"
 )
+
 
 # 单一配置模式的默认设置（向后兼容）
 DEFAULT_FAKE_PP=2
@@ -47,7 +51,7 @@ DEFAULT_FAKE_TP=2
 DEFAULT_FAKE_WORLD_SIZE=8192
 
 # 模型和批次设置
-MODEL_SIZE=485 # 使用原脚本中的模型大小
+MODEL_SIZE=70 # 使用原脚本中的模型大小 485
 # NUM_MICBATCH=1
 MICRO_BATCH_SIZE=1
 
@@ -78,7 +82,7 @@ validate_config() {
 # MODEL_SIZE="tiny" # "tiny" 6.7
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
-elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
+elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=64; # 
 elif [[ ${MODEL_SIZE} == 175 ]];  then HIDDEN_SIZE=12288;  NUM_HEAD=96; NUM_LAYERS=96;
 elif [[ ${MODEL_SIZE} == "tiny" ]]; then HIDDEN_SIZE=128;  NUM_HEAD=8; NUM_LAYERS=4;
 elif [[ ${MODEL_SIZE} == "2T" ]];  then HIDDEN_SIZE=25600;  NUM_HEAD=160; NUM_LAYERS=256;

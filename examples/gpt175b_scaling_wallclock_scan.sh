@@ -207,15 +207,15 @@ for config_idx in "${!CONFIGS[@]}"; do
 
   config_end_ns=$(date +%s%N)
   single_iter_wallclock_seconds=$(awk "BEGIN {printf \"%.6f\", (${config_end_ns}-${config_start_ns})/1000000000}")
-  estimated_15_iters_seconds=$(awk "BEGIN {printf \"%.6f\", ${single_iter_wallclock_seconds}*15}")
+  estimated_5_iters_seconds=$(awk "BEGIN {printf \"%.6f\", ${single_iter_wallclock_seconds}*5}")
 
-  csv_rows+=("${world_size},${pp_size},${tp_size},${dp_size},${measured_ranks_count},${single_iter_wallclock_seconds},${estimated_15_iters_seconds}")
+  csv_rows+=("${world_size},${pp_size},${tp_size},${dp_size},${measured_ranks_count},${single_iter_wallclock_seconds},${estimated_5_iters_seconds}")
 
-  echo "[INFO] Config ${config_name} done: single_iter_wallclock_seconds=${single_iter_wallclock_seconds}, estimated_15_iters_seconds=${estimated_15_iters_seconds}"
+  echo "[INFO] Config ${config_name} done: single_iter_wallclock_seconds=${single_iter_wallclock_seconds}, estimated_5_iters_seconds=${estimated_5_iters_seconds}"
 done
 
 {
-  echo "world_size,pp_size,tp_size,dp_size,measured_ranks_count,single_iter_wallclock_seconds,estimated_15_iters_seconds"
+  echo "world_size,pp_size,tp_size,dp_size,measured_ranks_count,single_iter_wallclock_seconds,estimated_5_iters_seconds"
   for csv_row in "${csv_rows[@]}"; do
     echo "${csv_row}"
   done

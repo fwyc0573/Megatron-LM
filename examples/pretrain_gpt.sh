@@ -8,7 +8,7 @@ export NCCL_DEBUG=WARN # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-# export CUDA_VISIBLE_DEVICES=4,5,6,7 #0,1,2,3
+# export CUDA_VISIBLE_DEVICES=7 #4,5,6,7 #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -23,20 +23,20 @@ MASTER_ADDR="localhost" #"localhost"
 
 
 # Parallelism variables 
-PP=8
+PP=1
 TP=1
 DP=$((${GPU_NUM}/${TP}/${PP}))
 
 
-NUM_MICBATCH=1
+NUM_MICBATCH=32
 MICRO_BATCH_SIZE=2
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * DP))
 
 # size variables
-MODEL_SIZE=13 # "tiny" 6.7 "1T" 13
+MODEL_SIZE=70 # "tiny" 6.7 "1T" 13 
 
 if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYERS=40;
-elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=80;
+elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=64; # 80
 elif [[ ${MODEL_SIZE} == 175 ]];  then HIDDEN_SIZE=12288;  NUM_HEAD=96; NUM_LAYERS=96;
 elif [[ ${MODEL_SIZE} == "tiny" ]]; then HIDDEN_SIZE=128;  NUM_HEAD=8; NUM_LAYERS=4;
 elif [[ ${MODEL_SIZE} == 30 ]];   then HIDDEN_SIZE=7680;  NUM_HEAD=48; NUM_LAYERS=40;
@@ -77,13 +77,13 @@ TRACE_ARGS=" \
        --nsight-start $NSIGHT_START \
        "
 
-FAKE_WORLD_SIZE=8
+FAKE_WORLD_SIZE=128
 FAKE_WRANK=0
 FAKE_GPUS_PER_NODE=8
 FAKE_LOCAL_RANK=0
 # IS_SCALING_MODE=Falsef
-FAKE_PP=2
-FAKE_TP=4
+FAKE_PP=8
+FAKE_TP=8
 FAKE_DP=$((FAKE_WORLD_SIZE / FAKE_PP / FAKE_TP))
 if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
     echo "Error: FAKE_DP must be an integer."

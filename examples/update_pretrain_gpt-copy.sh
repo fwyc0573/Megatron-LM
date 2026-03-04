@@ -30,9 +30,9 @@ DP=$((${GPU_NUM}/${TP}/${PP}))
 BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
 
 # 模拟的并行度设置
-FAKE_PP=2
-FAKE_TP=2
-FAKE_WORLD_SIZE=4
+FAKE_PP=8
+FAKE_TP=8
+FAKE_WORLD_SIZE=256
 FAKE_DP=$((${FAKE_WORLD_SIZE}/${FAKE_PP}/${FAKE_TP}))
 if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
     echo "Error: FAKE_DP must be an integer."
@@ -40,10 +40,10 @@ if [ "$((FAKE_DP * FAKE_PP * FAKE_TP))" -ne "$FAKE_WORLD_SIZE" ]; then
 fi
 
 # 创建统一的日志目录
-MODEL_SIZE=13 # 使用原脚本中的模型大小
+MODEL_SIZE=175 # 使用原脚本中的模型大小
 
 NUM_MICBATCH=1
-MICRO_BATCH_SIZE=1
+MICRO_BATCH_SIZE=2
 GLOBAL_BATCH_SZIE=$((NUM_MICBATCH * MICRO_BATCH_SIZE * FAKE_DP)) # 使用FAKE_DP计算全局批次大小
 
 
