@@ -471,28 +471,24 @@ def _profiled_all_to_all_single(input_, output_split_sizes, input_split_sizes, g
     The decorator handles timing and attribute extraction.
     In scaling mode, it creates an empty tensor to simulate the communication buffer.
     """
-    # Keep pre-comm tensor materialization inside the profiled comm wrapper so
-    # these kernels are attributed to comm phase in kernel-ground-truth mode.
-    input_ = input_.contiguous()
-
     # In scaling mode we must not execute real communication work. Keep this path
-    # metadata-only and avoid data movement that would pollute compute timing.
+    # metadata-only and avoid comm-adjacent data movement that pollutes compute timing.
     if is_scaling_mode:
         if output_split_sizes is None:
-            output = torch.empty_like(input_)
-            output.copy_(input_)
-            return output
+            # Identity semantics for equal-split all_to_all in scaling mode with no
+            # additional materialization/copy kernels.
+            return input_
         output_rows = int(sum(output_split_sizes))
-        # Keep scaling comm outputs finite and deterministic so downstream compute
-        # timing is not polluted by uninitialized payloads.
-        output = input_.new_zeros(
+        # Keep scaling comm outputs finite/deterministic for downstream compute while
+        # avoiding copy_ work in metadata-only communication path.
+        return input_.new_zeros(
             size=[output_rows] + list(input_.size()[1:]),
             dtype=input_.dtype,
         )
-        rows_to_copy = min(output_rows, int(input_.size(0)))
-        if rows_to_copy > 0:
-            output[:rows_to_copy].copy_(input_[:rows_to_copy])
-        return output
+
+    # Keep pre-comm tensor materialization inside the profiled comm wrapper so
+    # these kernels are attributed to comm phase in kernel-ground-truth mode.
+    input_ = input_.contiguous()
 
     if output_split_sizes is None:
         output = torch.empty_like(input_)
