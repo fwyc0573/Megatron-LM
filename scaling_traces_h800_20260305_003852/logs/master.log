@@ -1,0 +1,81 @@
+============================================================
+ Scaling-Mode Trace Collection — 6 Cases
+ GPU:     0
+ Output:  /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/scaling_traces_h800_20260305_003852
+ Started: Thu Mar  5 00:38:52 UTC 2026
+============================================================
+
+------------------------------------------------------------
+ [case1_qwen3_pp4_ep4] Started:  Thu Mar  5 00:38:52 UTC 2026
+ [case1_qwen3_pp4_ep4] Script:   /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/examples/pretrain_qwen3_30b_a3b_moe.sh
+ [case1_qwen3_pp4_ep4] Env:      PP=4 EP=4
+------------------------------------------------------------
+ [case1_qwen3_pp4_ep4] ✓ PASSED  (261s)
+ [case1_qwen3_pp4_ep4] Finished: Thu Mar  5 00:43:13 UTC 2026
+
+------------------------------------------------------------
+ [case2_qwen3_pp2_ep8] Started:  Thu Mar  5 00:43:13 UTC 2026
+ [case2_qwen3_pp2_ep8] Script:   /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/examples/pretrain_qwen3_30b_a3b_moe.sh
+ [case2_qwen3_pp2_ep8] Env:      PP=2 EP=8
+------------------------------------------------------------
+ [case2_qwen3_pp2_ep8] ✓ PASSED  (261s)
+ [case2_qwen3_pp2_ep8] Finished: Thu Mar  5 00:47:34 UTC 2026
+
+------------------------------------------------------------
+ [case3_qwen3_pp8_ep2] Started:  Thu Mar  5 00:47:34 UTC 2026
+ [case3_qwen3_pp8_ep2] Script:   /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/examples/pretrain_qwen3_30b_a3b_moe.sh
+ [case3_qwen3_pp8_ep2] Env:      PP=8 EP=2
+------------------------------------------------------------
+ [case3_qwen3_pp8_ep2] ✓ PASSED  (261s)
+ [case3_qwen3_pp8_ep2] Finished: Thu Mar  5 00:51:55 UTC 2026
+
+------------------------------------------------------------
+ [case4_dsv3_pp2_ep8] Started:  Thu Mar  5 00:51:55 UTC 2026
+ [case4_dsv3_pp2_ep8] Script:   /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/examples/pretrain_deepseek_v3_moe_aligned.sh
+ [case4_dsv3_pp2_ep8] Env:      PP=2 EP=8
+------------------------------------------------------------
+ [case4_dsv3_pp2_ep8] ✓ PASSED  (261s)
+ [case4_dsv3_pp2_ep8] Finished: Thu Mar  5 00:56:16 UTC 2026
+
+------------------------------------------------------------
+ [case5_dsv3_pp2_ep4] Started:  Thu Mar  5 00:56:16 UTC 2026
+ [case5_dsv3_pp2_ep4] Script:   /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/examples/pretrain_deepseek_v3_moe_aligned.sh
+ [case5_dsv3_pp2_ep4] Env:      PP=2 EP=4
+------------------------------------------------------------
+ [case5_dsv3_pp2_ep4] ✓ PASSED  (261s)
+ [case5_dsv3_pp2_ep4] Finished: Thu Mar  5 01:00:37 UTC 2026
+
+------------------------------------------------------------
+ [case6_dsv3_pp4_ep4] Started:  Thu Mar  5 01:00:37 UTC 2026
+ [case6_dsv3_pp4_ep4] Script:   /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/examples/pretrain_deepseek_v3_moe_aligned.sh
+ [case6_dsv3_pp4_ep4] Env:      PP=4 EP=4
+------------------------------------------------------------
+ [case6_dsv3_pp4_ep4] ✓ PASSED  (261s)
+ [case6_dsv3_pp4_ep4] Finished: Thu Mar  5 01:04:58 UTC 2026
+
+============================================================
+ ALL CASES COMPLETED
+============================================================
+
+ GPU used:       0
+ Passed / Total: 6 / 6
+ Failed / Total: 0 / 6
+
+ Output directory: /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/scaling_traces_h800_20260305_003852
+
+ Profiler trace directories:
+   pp2_tp1_ep4_expn32_dp8_nl32_hs2048_sl2048/ — 16 trace files
+   pp2_tp1_ep8_expn128_dp8_nl48_hs2048_sl2048/ — 16 trace files
+   pp2_tp1_ep8_expn32_dp8_nl32_hs2048_sl2048/ — 16 trace files
+   pp4_tp1_ep4_expn128_dp4_nl48_hs2048_sl2048/ — 16 trace files
+   pp4_tp1_ep4_expn32_dp4_nl32_hs2048_sl2048/ — 16 trace files
+   pp8_tp1_ep2_expn128_dp2_nl48_hs2048_sl2048/ — 16 trace files
+
+ Memory trace files:
+   96 JSON files in memory_traces_scaling/
+
+ Per-case logs:    /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/scaling_traces_h800_20260305_003852/logs/
+ Master log:       /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/scaling_traces_h800_20260305_003852/logs/master.log
+
+ Finished: Thu Mar  5 01:04:58 UTC 2026
+============================================================

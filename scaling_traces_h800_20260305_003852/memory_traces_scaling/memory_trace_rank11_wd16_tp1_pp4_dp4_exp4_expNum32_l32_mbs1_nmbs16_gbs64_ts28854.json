@@ -1,0 +1,63 @@
+{
+    "9": {
+        "samples": [
+            {
+                "timestamp_s": 0.0003,
+                "reserved_memory_MB": 8559.5625,
+                "allocated_memory_MB": 5618.73681640625
+            },
+            {
+                "timestamp_s": 0.0106,
+                "reserved_memory_MB": 8779.5625,
+                "allocated_memory_MB": 5844.64892578125
+            },
+            {
+                "timestamp_s": 0.021,
+                "reserved_memory_MB": 9147.5625,
+                "allocated_memory_MB": 6267.56884765625
+            },
+            {
+                "timestamp_s": 0.0312,
+                "reserved_memory_MB": 9579.5625,
+                "allocated_memory_MB": 6703.78076171875
+            },
+            {
+                "timestamp_s": 0.0415,
+                "reserved_memory_MB": 10017.5625,
+                "allocated_memory_MB": 7138.15478515625
+            },
+            {
+                "timestamp_s": 0.0517,
+                "reserved_memory_MB": 10337.5625,
+                "allocated_memory_MB": 7413.49462890625
+            },
+            {
+                "timestamp_s": 0.0727,
+                "reserved_memory_MB": 10337.5625,
+                "allocated_memory_MB": 7411.24853515625
+            },
+            {
+                "timestamp_s": 0.0829,
+                "reserved_memory_MB": 10451.5625,
+                "allocated_memory_MB": 6903.7900390625
+            },
+            {
+                "timestamp_s": 0.0931,
+                "reserved_memory_MB": 10451.5625,
+                "allocated_memory_MB": 6257.8359375
+            },
+            {
+                "timestamp_s": 0.1114,
+                "reserved_memory_MB": 10451.5625,
+                "allocated_memory_MB": 5634.7373046875
+            },
+            {
+                "timestamp_s": 0.1217,
+                "reserved_memory_MB": 10451.5625,
+                "allocated_memory_MB": 5634.7373046875
+            }
+        ],
+        "peak_allocated_MB": 7497.25,
+        "theoretical_memory_MB": 117397.71
+    }
+}

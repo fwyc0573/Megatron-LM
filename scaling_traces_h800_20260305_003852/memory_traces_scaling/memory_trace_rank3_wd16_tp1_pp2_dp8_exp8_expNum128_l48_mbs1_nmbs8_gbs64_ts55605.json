@@ -1,0 +1,108 @@
+{
+    "9": {
+        "samples": [
+            {
+                "timestamp_s": 0.0002,
+                "reserved_memory_MB": 48707.5625,
+                "allocated_memory_MB": 44444.8447265625
+            },
+            {
+                "timestamp_s": 0.0105,
+                "reserved_memory_MB": 49119.5625,
+                "allocated_memory_MB": 45216.1806640625
+            },
+            {
+                "timestamp_s": 0.0208,
+                "reserved_memory_MB": 49503.5625,
+                "allocated_memory_MB": 46109.33056640625
+            },
+            {
+                "timestamp_s": 0.031,
+                "reserved_memory_MB": 50079.5625,
+                "allocated_memory_MB": 46940.025390625
+            },
+            {
+                "timestamp_s": 0.0412,
+                "reserved_memory_MB": 50795.5625,
+                "allocated_memory_MB": 47809.7353515625
+            },
+            {
+                "timestamp_s": 0.0515,
+                "reserved_memory_MB": 51603.5625,
+                "allocated_memory_MB": 48618.76318359375
+            },
+            {
+                "timestamp_s": 0.0617,
+                "reserved_memory_MB": 52283.5625,
+                "allocated_memory_MB": 49320.34375
+            },
+            {
+                "timestamp_s": 0.0718,
+                "reserved_memory_MB": 53083.5625,
+                "allocated_memory_MB": 50049.38818359375
+            },
+            {
+                "timestamp_s": 0.0822,
+                "reserved_memory_MB": 53983.5625,
+                "allocated_memory_MB": 50946.06982421875
+            },
+            {
+                "timestamp_s": 0.0924,
+                "reserved_memory_MB": 54665.5625,
+                "allocated_memory_MB": 51686.802734375
+            },
+            {
+                "timestamp_s": 0.1026,
+                "reserved_memory_MB": 55349.5625,
+                "allocated_memory_MB": 52396.4453125
+            },
+            {
+                "timestamp_s": 0.1152,
+                "reserved_memory_MB": 55689.5625,
+                "allocated_memory_MB": 52608.033203125
+            },
+            {
+                "timestamp_s": 0.1253,
+                "reserved_memory_MB": 56139.5625,
+                "allocated_memory_MB": 51375.103515625
+            },
+            {
+                "timestamp_s": 0.1355,
+                "reserved_memory_MB": 56139.5625,
+                "allocated_memory_MB": 49970.48388671875
+            },
+            {
+                "timestamp_s": 0.1457,
+                "reserved_memory_MB": 56139.5625,
+                "allocated_memory_MB": 48435.01904296875
+            },
+            {
+                "timestamp_s": 0.1558,
+                "reserved_memory_MB": 56139.5625,
+                "allocated_memory_MB": 47122.00341796875
+            },
+            {
+                "timestamp_s": 0.1659,
+                "reserved_memory_MB": 56139.5625,
+                "allocated_memory_MB": 45577.39697265625
+            },
+            {
+                "timestamp_s": 0.1886,
+                "reserved_memory_MB": 56733.5625,
+                "allocated_memory_MB": 44452.82958984375
+            },
+            {
+                "timestamp_s": 0.1988,
+                "reserved_memory_MB": 56733.5625,
+                "allocated_memory_MB": 44452.830078125
+            },
+            {
+                "timestamp_s": 0.2376,
+                "reserved_memory_MB": 56733.5625,
+                "allocated_memory_MB": 44452.82958984375
+            }
+        ],
+        "peak_allocated_MB": 52740.06,
+        "theoretical_memory_MB": 2009549.44
+    }
+}
