@@ -14,6 +14,7 @@ MASTER_PORT_BASE=${MASTER_PORT_BASE:-6400}
 OUTPUT_CSV=${OUTPUT_CSV:-"${PROJECT_ROOT}/docs/data/qwen3_a3b_moe_scaling_wallclock_timing.csv"}
 LOG_ROOT=${LOG_ROOT:-"${PROJECT_ROOT}/log/qwen3_a3b_moe_scaling_wallclock"}
 DRY_RUN=${DRY_RUN:-0}
+APPEND_CSV=${APPEND_CSV:-0}
 
 NNODES=1
 GPUS_PER_NODE=1
@@ -39,6 +40,7 @@ TRACE_START=1
 TRACE_SUBOP_SYNC_MODE=global
 SCALING_MIN_WARMUP_ITERS=0
 SCALING_PROFILE_ITERS=1
+TRANSFORMER_IMPL=${TRANSFORMER_IMPL:-transformer_engine}
 
 # Fixed configurations: world_size pp_size tp_size ep_size dp_size
 CONFIGS=(
@@ -47,6 +49,9 @@ CONFIGS=(
   "4096 16 8 32 32"
   "8192 16 8 64 64"
 )
+
+CONFIG_START_INDEX=${CONFIG_START_INDEX:-0}
+CONFIG_END_INDEX=${CONFIG_END_INDEX:-$(( ${#CONFIGS[@]} - 1 ))}
 
 pick_idle_gpu() {
   if ! command -v nvidia-smi >/dev/null 2>&1; then
@@ -129,10 +134,45 @@ fi
 echo "[INFO] Output CSV: ${OUTPUT_CSV}"
 echo "[INFO] Log root: ${LOG_ROOT}"
 echo "[INFO] DRY_RUN=${DRY_RUN}"
+echo "[INFO] APPEND_CSV=${APPEND_CSV}"
+echo "[INFO] CONFIG_START_INDEX=${CONFIG_START_INDEX}"
+echo "[INFO] CONFIG_END_INDEX=${CONFIG_END_INDEX}"
 
-csv_rows=()
+if [[ "${APPEND_CSV}" != "0" && "${APPEND_CSV}" != "1" ]]; then
+  echo "[ERROR] APPEND_CSV must be 0 or 1, got ${APPEND_CSV}" >&2
+  exit 1
+fi
+
+if ! [[ "${CONFIG_START_INDEX}" =~ ^[0-9]+$ && "${CONFIG_END_INDEX}" =~ ^[0-9]+$ ]]; then
+  echo "[ERROR] CONFIG_START_INDEX and CONFIG_END_INDEX must be non-negative integers." >&2
+  exit 1
+fi
+
+max_config_index=$(( ${#CONFIGS[@]} - 1 ))
+if (( CONFIG_START_INDEX > CONFIG_END_INDEX )); then
+  echo "[ERROR] CONFIG_START_INDEX (${CONFIG_START_INDEX}) must be <= CONFIG_END_INDEX (${CONFIG_END_INDEX})." >&2
+  exit 1
+fi
+if (( CONFIG_END_INDEX > max_config_index )); then
+  echo "[ERROR] CONFIG_END_INDEX (${CONFIG_END_INDEX}) out of range [0, ${max_config_index}]." >&2
+  exit 1
+fi
+
+csv_header="world_size,pp_size,tp_size,ep_size,dp_size,measured_ranks_count,single_iter_wallclock_seconds,estimated_5_iters_seconds"
+if [[ "${APPEND_CSV}" == "1" ]]; then
+  if [[ ! -f "${OUTPUT_CSV}" ]]; then
+    echo "[ERROR] APPEND_CSV=1 but OUTPUT_CSV does not exist: ${OUTPUT_CSV}" >&2
+    exit 1
+  fi
+else
+  echo "${csv_header}" > "${OUTPUT_CSV}"
+fi
 
 for config_idx in "${!CONFIGS[@]}"; do
+  if (( config_idx < CONFIG_START_INDEX || config_idx > CONFIG_END_INDEX )); then
+    continue
+  fi
+
   read -r world_size pp_size tp_size ep_size dp_size <<< "${CONFIGS[config_idx]}"
 
   validate_moe_config "${world_size}" "${pp_size}" "${tp_size}" "${ep_size}" "${dp_size}"
@@ -180,7 +220,7 @@ for config_idx in "${!CONFIGS[@]}"; do
       --kv-channels 128 \
       --qk-layernorm \
       --use-mcore-models \
-      --transformer-impl transformer_engine \
+      --transformer-impl "${TRANSFORMER_IMPL}" \
       --mock-data \
       --dataloader-type cyclic \
       --tokenizer-type NullTokenizer \
@@ -257,16 +297,10 @@ for config_idx in "${!CONFIGS[@]}"; do
   single_iter_wallclock_seconds=$(awk "BEGIN {printf \"%.6f\", (${config_end_ns}-${config_start_ns})/1000000000}")
   estimated_5_iters_seconds=$(awk "BEGIN {printf \"%.6f\", ${single_iter_wallclock_seconds}*5}")
 
-  csv_rows+=("${world_size},${pp_size},${tp_size},${ep_size},${dp_size},${measured_ranks_count},${single_iter_wallclock_seconds},${estimated_5_iters_seconds}")
+  csv_row="${world_size},${pp_size},${tp_size},${ep_size},${dp_size},${measured_ranks_count},${single_iter_wallclock_seconds},${estimated_5_iters_seconds}"
+  echo "${csv_row}" >> "${OUTPUT_CSV}"
 
   echo "[INFO] Config ${config_name} done: single_iter_wallclock_seconds=${single_iter_wallclock_seconds}, estimated_5_iters_seconds=${estimated_5_iters_seconds}"
 done
-
-{
-  echo "world_size,pp_size,tp_size,ep_size,dp_size,measured_ranks_count,single_iter_wallclock_seconds,estimated_5_iters_seconds"
-  for csv_row in "${csv_rows[@]}"; do
-    echo "${csv_row}"
-  done
-} > "${OUTPUT_CSV}"
 
 echo "[INFO] Completed all configurations. CSV saved to ${OUTPUT_CSV}"
