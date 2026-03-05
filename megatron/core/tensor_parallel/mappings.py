@@ -473,20 +473,24 @@ def _profiled_all_to_all_single(input_, output_split_sizes, input_split_sizes, g
     The decorator handles timing and attribute extraction.
     In scaling mode, it creates an empty tensor to simulate the communication buffer.
     """
-    # In scaling mode, we only simulate the buffer creation and skip the actual communication.
+    # In scaling mode we must not execute real communication work. Keep this path
+    # metadata-only and avoid comm-adjacent data movement that pollutes compute timing.
     if is_scaling_mode:
         if output_split_sizes is None:
-            # This logic branch is for cases where split sizes are not provided,
-            # which might imply an equal split. We'll create a similar shaped empty tensor.
-            output = torch.empty_like(input_)
-        else:
-            # Create an empty tensor with the shape of what the output of all_to_all would have been.
-            output = input_.new_empty(
-                size=[sum(output_split_sizes)] + list(input_.size()[1:]),
-                dtype=input_.dtype,
-                device=torch.cuda.current_device(),
-            )
-        return output
+            # Identity semantics for equal-split all_to_all in scaling mode with no
+            # additional materialization/copy kernels.
+            return input_
+        output_rows = int(sum(output_split_sizes))
+        # Keep scaling comm outputs finite/deterministic for downstream compute while
+        # avoiding copy_ work in metadata-only communication path.
+        return input_.new_zeros(
+            size=[output_rows] + list(input_.size()[1:]),
+            dtype=input_.dtype,
+        )
+
+    # Keep pre-comm tensor materialization inside the profiled comm wrapper so
+    # these kernels are attributed to comm phase in kernel-ground-truth mode.
+    input_ = input_.contiguous()
 
     if output_split_sizes is None:
         output = torch.empty_like(input_)
