@@ -11,6 +11,12 @@ if [[ ! -f "${TARGET_SCRIPT}" ]]; then
   exit 1
 fi
 
+num_query_groups=$(grep -E '^NUM_QUERY_GROUPS=' "${TARGET_SCRIPT}" | head -n1 | cut -d'=' -f2)
+if ! [[ "${num_query_groups}" =~ ^[0-9]+$ ]]; then
+  echo "[FAIL] NUM_QUERY_GROUPS is missing or not a positive integer in ${TARGET_SCRIPT}" >&2
+  exit 1
+fi
+
 declare -a CONFIGS=(
   "256 8 8 4 4"
   "1024 8 8 16 16"
@@ -23,6 +29,11 @@ for config in "${CONFIGS[@]}"; do
 
   if (( world_size != pp_size * tp_size * dp_size )); then
     echo "[FAIL] Invalid config arithmetic: ${config}" >&2
+    exit 1
+  fi
+
+  if (( num_query_groups % tp_size != 0 )); then
+    echo "[FAIL] NUM_QUERY_GROUPS(${num_query_groups}) must be divisible by tp_size(${tp_size}) for ${config}" >&2
     exit 1
   fi
 

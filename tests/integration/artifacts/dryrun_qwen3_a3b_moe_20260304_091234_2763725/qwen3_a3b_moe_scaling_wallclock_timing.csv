@@ -1,0 +1,5 @@
+world_size,pp_size,tp_size,ep_size,dp_size,measured_ranks_count,single_iter_wallclock_seconds,estimated_5_iters_seconds
+256,8,8,4,4,32,0.048647,0.243235
+1024,8,8,16,16,128,0.210650,1.053250
+4096,16,8,32,32,512,0.826585,4.132925
+8192,16,8,64,64,1024,1.849843,9.249215
