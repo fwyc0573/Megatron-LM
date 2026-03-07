@@ -1,0 +1,124 @@
+%!TEX root = main.tex 
+
+\section{Introduction} 
+\label{sec:introduction}
+% % scaling phnomenone
+% Recently, we have witnessed wide success and great potential in deep neural networks (DNNs). With the growing size of DNN models~\cite{shoeybi2019megatron, lepikhin2020gshard} and datasets, LLM training has become a standard practice to meet the computation requirements. Compared with single-device training, LLM training using multiple devices can substantially improve training throughput. The cluster size of LLM training increases rapidly \cite{goyal2017accurate}.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% new version %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% scaling phnomenone
+The unprecedented success of large language models (LLMs) has been driven in large part by the large-scale infrastructures that allow the model and training dataset to scale. 
+Organizations have constructed massive clusters with tens of thousands of GPUs to train models with hundreds of billions or even trillions of parameters~\cite{jiang2024megascale,goyal2017accurate,llama3-meta}, in a continuous stride to improve model capabilities.
+%  as promised by the scaling law~\cite{kaplan2020scaling}.
+
+% The scaling law underscores that the size of a deep neural network (DNN) model and its training data are pivotal in determining the model's capability~\cite{jiang2024megascale}. To achieve state-of-the-art (SOTA) performance, leading  
+% For instance, OpenAI and Meta use over 15,000 advanced GPUs to train their large language models (LLMs)~\cite{jiang2024preventing,llama3-meta}.
+
+% why we need a simulator: enumeration and extrapolation
+% 1. search for optimal training plan
+% 2. extrapolate gains of new hardware/strategy for planning
+Training LLMs on such massive scales consumes substantial time and financial resources. It is also inherently complex and rapidly evolving with a myriad of algorithm/model innovations~\cite{katharopoulos2020transformers,SMMD17}, parallelism strategies~\cite{zhao2023pytorch,ren2021zero,liu2024deepseek}, kernel optimization (\cite{SBZT24,dao2022flashattention}), and hardware designs \cite{memryx}. 
+% parallelism strategies and optimization techniques across the entire stack of from software to hardware to maximize the utilization of cluster resources.
+% algorithm-level innovation, op-level parallelism, op-level algorithm
+% \fx{The complexity is further compounded by emerging architectures like Mixture-of-Experts (MoE)}~\cite{liu2024deepseek,dai2024deepseekmoe}. HX:already mentioned in model innovations
+As a result, accurate simulation of LLM training has started to garner attention as an essential building block to effectively manage training infrastructures and systems~\cite{SimAI2025NSDI,duan2024proteus,won2023astra,lu2023distsim,hu2022dpro}. 
+
+Broadly, simulation is useful for two main purposes: enumeration and extrapolation.
+In LLM training context, simulation can be used to enumerate combinations of parallelism strategies, optimization techniques, and hardware configurations that are available in the current cluster, to derive the optimal training plan for a given job and to determine efficient resource allocation schedules across jobs \cite{SimAI2025NSDI,duan2024proteus}.
+Simulation is also useful (perhaps more so) to extrapolate beyond the currently available resources, which is paramount for strategic decision making such as capacity planning~\cite{jiang2024megascale,shoeybi2019megatron} that involve what-if questions with significant impact.
+For example, what speed-up can be expected by scaling the current cluster by a factor of 5, or by increasing the network bandwidth by 2x?
+This also greatly facilitates the development of new optimizations, which only need to be prototyped on a small scale for the simulator to extrapolate its potential benefits on a much larger scale.
+
+
+Prior work has made salient progress on training simulation~\cite{jia2019beyond,zhu2020daydream,hu2022dpro,lu2023distsim,isaev2023calculon,won2023astra,liang2025lumos,SimAI2025NSDI,duan2024proteus}. 
+Yet, they fall short in three key aspects that hinder their capabilities in supporting both enumeration and extrapolation practically.
+
+% First, modern large-scale training often employs 3D parallelism, a combination of data parallelism (DP), tensor parallelism (TP), and pipeline parallelism (PP), to break down the large models along different dimensions into sub-models that fit into a device's memory and maximize cluster resource utilization.
+First, LLM training employs {data parallelism (DP), tensor parallelism (TP), pipeline parallelism (PP), and expert parallelism (EP) for MoE models}, to break up a large model along different dimensions.
+To accurately simulate {various parallelism strategies and their memory usages on each device}, one needs to obtain the training workloads, which encompass the device- or rank-specific execution graphs {detailing the computation, communication, and memory events, along with their dependencies.}
+Existing work \cite{hu2022dpro,lu2023distsim,luo2022srifty,zhu2020daydream,SimAI2025NSDI} requires a full-scale cluster deployment of the job to trace the training workloads from each and every device at runtime.
+This is because each device builds its own execution graph independently in parallel during job initialization to most efficiently carry out training of its unique sub-model.
+%  according to the parallelism strategy setting and various optimization techniques (e.g. kernel fusion).
+%  perform runtime tracing at each device to collect training workloads.
+The \textit{in-situ} tracing approach is clearly very costly and sometimes even impractical for extrapolation usecases.
+% \fx{Ensuring these complex configurations truly "fit" requires accurately predicting peak GPU memory in training. Practitioners often resort to overly conservative memory estimates to preempt unexpected and costly out-of-memory (OOM) errors. This strategy, however, can lead to significant under-utilization of GPU resources.
+% % , causing them to miss more optimal training configurations (see Section~\ref{sec:usecase}).
+% }
+
+
+% exisiting simualtor and why they cannot work
+% Existing simulators, however, are not well-suited for large-scale scenarios (a detailed comparison of their formulation capabilities is provided in Table~\ref{tab:work_compare}). These simulators primarily fall into two categories. The first category is realism-oriented, where tools like Habitat~\cite{geoffrey2021habitat} rely on hardware metrics~\cite{kothapalli2009performance,zhang2011quantitative,liu2021seer} or learning-based models~\cite{chen2018tvm,baghdadi2021deep} but are confined to single-GPU scenarios. Multi-GPU simulators, such as Daydream~\cite{zhu2020daydream}, Srift~\cite{luo2022srifty} and dPRO~\cite{hu2022dpro}, focus only on data parallelism and depend heavily on specific hardware setups and datasets, limiting their scalability. While DistSim~\cite{lu2023distsim}, ASTRA-sim~\cite{won2023astra} and Proteus~\cite{duan2024proteus} attempt to simulate complex large-scale training, they fail to accurately capture training workloads and oversimplify communication modeling. SimAI~\cite{SimAI2025NSDI} introduces a unified simulator, but it overlooks the potential complexities of training behavior, and its reliance on costly, hacky solutions makes extension and maintenance  challenging.
+% The second category is optimization-oriented. FlexFlow~\cite{jia2019beyond}, for example, customizes a simulator to explore parallelization strategies, but approaches~\cite{fan2021dapple,elango2021pase} like this lack programmability and are limited to optimizing parallelism rather than accurately replaying the training process~\cite{duan2024proteus}.
+
+
+% challenges
+% Thus, there is an urgent need for a scalable and precise simulator to address the complex requirements of large-scale DNN training. Through our practice, we identified three main challenges that must be overcome.
+
+
+%%  challenges 2
+{Second}, simulating collective communication (CC) is critical because (1) it pieces all the devices and nodes together according to the parallelisms, and (2) its performance can often be the bottleneck \cite{duan2024efficient, qi2023zero, jiang2024megascale, huang2019gpipe}. 
+% Each training iteration involves numerous communication operations (e.g., All-Reduce, All-Gather), which support various parallel training strategies and consume a significant portion of time in large-scale LLM training.
+Most existing work~\cite{duan2024proteus, won2023astra,hu2022dpro,lu2023distsim,zhu2020daydream} rely on a coarse-grained $\alpha$-$\beta$ model \cite{valiant1990bridging} to simulate the CC time without considering the actual communication patterns and implementation optimizations.
+% , resulting in significant simulation errors.  
+On the other hand, more recent work such as SimAI \cite{SimAI2025NSDI} explicitly simulates each peer-to-peer (P2P) send and receive primitive of a CC kernel using a packet-level event-based network simulator such as ns-3 \cite{riley2010ns}.
+This fine-grained approach provides high accuracy at the cost of prohibitive overheads even at a medium scale: simulating a 128-GPU job takes SimAI over 2 hours with an optimized ns-3 implementation (\cref{subsec:challenges}). 
+
+%%  challenges 3
+{Third}, overlapping communication and computation \ops, an optimization widely used to improve efficiency \cite{chang2024flux, jiang2024megascale,chen2024centauri,zhang2017poseidon}, incurs non-negligible slowdowns to the computation due to contention for shared resources (e.g., cache, DRAM bandwidth) \cite{hwang2023ark,duan2024proteus}.
+% complex kernel behaviors emerge when employing SOTA training techniques, potentially impacting simulation accuracy.
+% A common optimization is the concurrent execution of computation and communication kernels to improve performance~. However, this concurrency often introduces additional slowdown effects (details provided in §\ref{subsec:challenges2}) due to GPU resource contention~.
+This, however, has largely been overlook thus far.
+Simulating interference-induced slowdown is particularly challenging since it depends on many idiosyncrasies ranging from scheduling logic of the ML framework and the underlying library to hardware-specific implementation optimizations.
+Much of these details are vendor-proprietary and inaccessible. 
+% These slowdown factors are highly dynamic and influenced by various factors, including the hardware and software environment during kernel execution, making them difficult to capture.
+
+
+% our work
+% In this work, we propose \sys, a dedicated simulator for large-scale distributed DNN training. Our design and implementation span the entire stack, leveraging mainstream training frameworks and communication libraries. Our key idea is to generate training workloads by extracting critical simulation information directly from the dataflows of these frameworks and libraries by enabling a special runtime mode, and to supplement the remaining simulation components (e.g., commnunication kernel running time and overlap slowdown factors) using a reasonable predictive approach, and in the end, reoraganize all execution operators to global timelines properbly based on domain-knowlege which pre-defined in simulator.
+
+In this work, we build \sys, a practical simulation platform for large-scale LLM training. 
+\sys is built with three key design choices.
+(1) It adopts an \textit{ex-situ} tracing approach to accurately capture training workloads using just a single device, avoiding the need for a full-scale cluster deployment. The key technical idea here is to transform the parallel initialization process at each rank into a sequential one, allowing a single device to act as each rank iteratively to trace the corresponding execution graph and GPU memory footprints.
+(2) It employs white-box modeling to simulate a CC kernel's performance with four parts: connection setup overhead, intra-server and inter-server transmission, and possible data reduction time. 
+% , and  as a series send and receive primitives according to the algorithms (ring vs tree). 
+The model is supplemented with exhaustive profiling to obtain key parameters (e.g. chunk size which determines number of rounds of transmission for a message) optimized by CC libraries like \nccl for different hardware features and software configurations that affect the individual components above.
+This hybrid approach strikes a good balance between accuracy and efficiency.
+(3) It introduces an black-box ML-based slowdown predictor to model the slowdown caused by overlapping \ops. 
+The XGBoost-based predictor relies on categorical features such as transmission protocol and channel configuration in \nccl, to numerical kernel-level performance statistics such as streaming multiprocessors (SM) occupancy and DRAM utilization, to capture their complex interactions.
+%  the slowdown factor in LLM training.
+
+% (3) It introduces an ML-based slowdown predictor to model the interference between overlapping computation and communication kernels.
+% Our design and implementation encompass the entire stack, leveraging mainstream training frameworks and communication libraries. Our key idea is to generate accurate training workloads by extracting critical simulation information directly from the dataflows of these frameworks and libraries through a specialized runtime mode. To complement this, we employs tailored predictive approaches in \sys to model missing simulation components, such as communication kernel runtime and overlap-induced slowdown factors. Finally, we reorganizes all execution operators into global timelines based on domain knowledge pre-defined within the simulator.
+
+We implement \sys to support mainstream training frameworks: PyTorch,  DeepSpeed~\cite{rasley2020deepspeed}, and Megatron-LM~\cite{shoeybi2019megatron}.
+Our implementation with $\sim$10k LoC also includes a suite of automation tools to facilitate workload tracing and runtime profiling.
+We evaluate \sys on H800 and A800 clusters across a variety of scenarios and models, achieving an average prediction accuracy of 91.4\% in training step time, and is up to 3x better than the state-of-the-art. 
+% \hxq{comp. and comm. results?}
+For 96-GPU training of GPT-175B, \sys achieves 92\% accuracy in less than 2 minutes. 
+Beyond dense models, \sys provides high-fidelity support for MoE workloads (average error 3.4\%) and further enables GPU memory–aware ex-situ simulation. 
+We plan to open source \sys to the community.
+% \hxq{revise this to reflect the new changes}
+% \jz{(Consider adding exp data to compare Moye with baselines.)} To reduce simulation overhead, \sys leverages a reusable database of profiling statistics. Simulating a 175B GPT model on a 256-GPU cluster takes less than 3 minutes.
+
+
+
+%% challeneg2
+% To address the second challenge, we analyze chunk-level data propagation mechanism within the NVIDIA Collective Communications Library (NCCL)~\cite{nccl} and propose a runtime model that considers intra-server and inter-server delays, data reduction operations, and connection setup overhead. We profile these factors on a small-scale cluster and use them to simulate the target configuration.
+
+%% challeneg3
+% To tackle the third challenge, we adopt a black-box approach utilizing a machine learning (ML) model. This model learns resource contention between concurrent kernels using kernel-level performance statistics from single-device training, along with training configurations, to estimate the slowdown factor in LLM training.
+
+% experiments
+
+% In §\ref{sec:evaluation}, we also demonstrate \sys's ability to assist engineers in optimizing the training process by providing detailed reports on load balancing, synchronization times, parameter sizes across different communication parallel groups, and more.
+
+% contributions
+% In summary, our contributions are the following:
+% \begin{itemize}[leftmargin=2mm]
+%     \item We develop a profiling toolkit that intercepts and overrides requests from the training framework, enabling precise and automated workload capture on a single host while circumventing hardware constraints. This toolkit  captures operators and manages complex dependencies under SOTA parallel strategies scenario.
+%     \item We conduct an in-depth analysis of the internal mechanism of NCCL and design a communication estimator using a hybrid profiling and formulation approach. This allows us to accurately predict large-scale communication performance from small-scale cluster measurements.
+%     \item We conduct extensive experiments on the concurrent execution of communication and computation kernels. We analyze the potential factors that are critical to resource contention and propose an ML-based predictor to simulate the interference and predict the slowdown factor.
+%     \item We design and implement the simulator for PyTorch, DeepSpeed, and Megatron-LM. It adopts a profile-and-predict approach to estimate training performance. We validate it on large-scale training clusters and large models. We plan to open-source the simulator and profiling database.
+% \end{itemize} 
+

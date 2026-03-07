@@ -1,0 +1,113 @@
+\section{Communication Modeling}
+\label{sec:comm_pred}
+
+\subsection{Background on \nccl} 
+\label{subsec:tree_allreduce}
+\nccl provides collective communication (CC) functions as single CUDA kernels \cite{nccl} to support various training parallelisms. Our models therefore predict performance at the kernel level, a close approximation that ignores negligible launch overheads (the same applies to the slowdown prediction in \cref{sec:overlap_pred}). 
+A key \nccl feature is pipelining messages as smaller equal-sized chunks, which is the basis for our formulation in \cref{subsec:whitebox_modeling}. For its \ar collective, \nccl supports both ring-based \cite{nccl} and tree-based \cite{tree} algorithms. Other CC kernels use ring-based algorithm only.
+
+\subsection{White-Box Modeling: Synchronization}
+\label{subsec:whitebox_modeling}
+
+\noindent \sys models a \nccl kernel as two sequential stages: synchronization and execution. Upon invocation, the kernel first checks whether it can start execution based on the readiness of ranks in the current communication group. If not all ranks are ready, the kernel waits for synchronization before it can proceed. 
+Thus, the total running time of a kernel is the sum of synchronization time and execution time.
+Here we investigate the synchronization time first. 
+
+\sys models synchronization time after \nccl's implementation logic.
+%  which varies across communication kernels, as illustrated in Figure~\ref{fig:comm_sync_logic}.
+For P2P \send and \recv, it waits until its target communicator (i.e., each rank's communicator instance) is ready to proceed. 
+In contrast, for CC kernels, the communicator associated with each rank in the current group must wait until all communicators have been successfully launched. 
+The last communicator to initiate determines the actual start time of this kernel.
+\sys's synchronization model captures the impact of stragglers by simulating their effect on communication delays.
+
+
+% 请确保在您的文档导言区（preamble）包含了 \usepackage{booktabs}
+\begin{table}[t]
+\centering
+\small
+\renewcommand{\arraystretch}{0.8}
+\begin{tabular}{cccc}
+\toprule
+\#GPUs & conn\_setup & data\_reduction & total\_trans \\
+\midrule
+32  & 7.3\% & 31.7\% & 61.0\% \\
+64  & 6.4\% & 38.3\% & 55.3\% \\
+128 & 5.8\% & 46.2\% & 48.1\% \\
+256 & 5.4\% & 39.3\% & 55.4\% \\
+\bottomrule
+\end{tabular}
+\caption{\fx{Breakdown of running time of \nccl \ar kernel (as percentage of total time) with varying GPU counts, profiled on standard A100-SXM IB-connected clusters. The total\_trans includes both intra- and inter-trans time.}}
+\label{table:runtime_percentage}
+\vspace{-2em}
+\end{table}
+
+
+
+\subsection{White-Box Modeling: Execution}
+\label{subsec:whitebox_modeling}
+
+
+\noindent Execution time represents the majority of kernel running time, and is the focus of our modeling. We build white-box models that closely follow the kernel execution process in \nccl under different algorithms, and profile all key parameters of the models exhaustively in various hardware/software settings to achieve accurate prediction without the high overheads of event-based simulation.
+
+\noindent\textbf{Basic model.}
+\fx{We perform a running time breakdown analysis of CC kernel in Table~\ref{table:runtime_percentage}.
+By inspecting \nccl's GPU-side implementation~\cite{nccl-implement, hu2025demystifying} and tracing the control flow of CC kernels}, we find that the execution time of a CC kernel can be decomposed into (at most) four \textit{non-overlapping} phases, using \ar as an example:
+\begin{equation} 
+    \begin{split} 
+        T_{comm\_kernel} = & T_{conn\_setup} +T_{intra\_trans} 
+        \\ & +T_{data\_reduction} +T_{inter\_trans}
+    \end{split} 
+    \label{eqn:cc_basic} 
+\end{equation}
+Here $T_{\text{conn\_setup}}$ is connection setup time; $T_{\text{intra\_trans}}$, $T_{\text{inter\_trans}}$ are the times to transmit tensor chunks according to the specific algorithm, and $T_{\text{data\_reduction}}$ is the computation time of the reduce operation over the received tensor chunks and the local tensor. 
+Note that not all four components are present in other CC kernels. 
+\fx{Thus, this decomposition is implementation-faithful rather than an empirical regression artifact.}
+
+Building on Eq.~(\ref{eqn:cc_basic}) \fx{and following the per-round send/recv schedule encoded in \nccl's ring and tree kernels~\cite{nccl-implement, nccl-ring-tree, hu2025demystifying}, we derive the following execution-time models for common CC kernels:}
+% Building on Eq.~(\ref{eqn:cc_basic}), we formulate the following execution-time models for common CC kernels and algorithms:
+\begin{align}
+    T^{Ring}_{all-gather} = &\ \alpha + \gamma\cdot \eta (N-1), \label{eqn:44}\\  
+    T^{Ring}_{reduce-scatter} = &\ \alpha +  \eta\big[(N-1) + \gamma \times (N-1)\big]\nonumber\\
+                            &  + \delta \times tensor\_size, \label{eqn:33}  \\
+    T^{Ring}_{\ar} =&\ \alpha + \eta\big[(N-1) + \gamma \times 2(N-1)\big]\nonumber\\
+                        &\ + \delta \times tensor\_size , \label{eqn:11} \\
+    T^{Tree}_{\ar} =&\ \alpha + \gamma (\eta-1) +  2\beta(K-1) \nonumber\\
+                    &\ + 2\gamma\log_2(M) + \delta \times tensor\_size. \label{eqn:22}
+\end{align}
+Here $N$ is the total number of devices, $M$ the number of nodes (servers), and $K = N/M$ the number of devices per node. We denote the connection setup time as $\alpha$, and the intra-server and inter-server transmission times as $\beta$ and $\gamma$. The reduce time depends on $\textit{tensor\_size}$ and the reduce throughput $\delta$. Finally, $\eta$ is the number of rounds (or chunks) for this tensor, which corresponds to \nccl's chunk-based implementation.
+
+\yc{
+Our white-box framework naturally extends to the \texttt{all-to-all} collective. 
+Instead of using dedicated ring or tree algorithms, \nccl implements \texttt{all-to-all} by decomposing it into $N$ concurrent point-to-point \send and \recv pairs~\cite{nccl-implement}. 
+These are executed by the \texttt{sendrecv} kernel using chunk-based pipelining. 
+We model its execution time as:
+\begin{equation}
+    T^{P2P}_{\texttt{all-to-all}} = \alpha + \max\!\big(\beta \cdot \eta(K-1),\; \gamma \cdot \eta(N-K)\big),
+\label{eqn:alltoall}
+\end{equation}
+where the $\max$ operator reflects the concurrent utilization of independent physical channels for intra-node (to $K-1$ GPUs) and inter-node (to $N-K$ GPUs) transfers. 
+The $\delta$ term is absent since \texttt{all-to-all} involves no reduction. This collective is the key communication primitive for MoE expert dispatch and combine in our Qwen3-A3B and DeepSeek-V3-style workloads. Rather than approximating these exchanges with all-reduce-like behavior, \sys models them explicitly as chunked point-to-point transfers and combines this with its synchronization model to capture delays introduced by straggling ranks.
+}
+
+This modeling decouples scale-dependent terms from fabric-dependent parameters: job scale and parallelism enter only through $N, M, K, \textit{tensor\_size}$, and $\eta$, while $(\alpha,\beta,\gamma,\delta)$ summarize the steady-state behavior of intra- and inter-node communication for a fixed hardware/software stack. Once these parameters are calibrated on a moderate-size cluster, the same closed-form expressions can be evaluated for much larger $N$ and $M$ without additional network-level simulation.
+
+% \noindent\textbf{Scale-dependent correction factor.}
+The above models treat $\gamma$ as a per-hop inter-server transmission time that is primarily determined by the underlying hardware, software, and \nccl configuration. In practice, large jobs may incur additional latency from multi-tier topologies and aggregate flow-level contention that are not constant across scales. To capture these second-order effects without resorting to packet-level simulation, \sys introduces a dimensionless scale correction factor $c_{\mathrm{scale}}(N)$ and defines an effective inter-server transmission time
+% \vspace{-0.25em}
+\begin{equation}
+\gamma_{\mathrm{eff}}(N)
+  = \gamma \cdot c_{\mathrm{scale}}(N),
+\label{eq:gamma_eff}
+\end{equation}
+% \vspace{-0.25em}
+where $c_{\mathrm{scale}}(N) \geq 1$ aggregates residual scale-dependent network effects at job size $N$; its dependence on the \nccl algorithm and cluster topology is left implicit for brevity. During prediction, \sys evaluates equations by substituting $\gamma_{\mathrm{eff}}(N)$ for $\gamma$, so that the analytic dependence on $N$, $M$, and $K$ captures the dominant algorithmic scaling behavior, while $c_{\mathrm{scale}}(N)$ adjusts for large-scale contention.
+
+\noindent\textbf{Offline exhaustive profiling.}
+The modeling above is explicitly related to nine parameters and implicitly to an additional parameter, $\textit{chunk\_size}$. Among them, $N$, $M$, $K$, and $\textit{tensor\_size}$ are user configurations, while $\alpha$, $\beta$, $\gamma$, $\delta$, and $\eta$ are what \sys attempts to obtain. Modeling them analytically is challenging. First, they depend on $\textit{chunk\_size}$ and $\textit{tensor\_size}$. The chunk size is not a predefined constant but dynamically tuned by \nccl~\cite{nccl}. Further, these parameters vary with hardware configuration and software implementation (e.g., InfiniBand vs.\ NVLink, \nccl version). These idiosyncrasies also differ across CCLs, making a single closed-form model difficult.
+
+We therefore adopt offline profiling to obtain these parameters, as they are fixed once the hardware/software configurations are settled. First, we modify \nccl to obtain the chunk size during the initialization phase. We enumerate representative combinations of $N$, $M$, $\textit{tensor\_size}$, and hardware type (InfiniBand, TCP, NVLink) to record the corresponding $\textit{chunk\_size}$ and number of rounds $\eta$ computed by \nccl. Then, for each $\textit{chunk\_size}$, we profile the corresponding connection setup time, intra-server and inter-server transmission time, and reduce throughput $(\alpha,\beta,\gamma,\delta)$ under the corresponding setting. 
+This profiling requires access to a real cluster, since the effective network bandwidth can differ across 2-node, 4-node, and 8-node deployments. 
+\fx{In common Clos-based topologies, we observe that the per-node bandwidth---and thus the baseline parameters $(\alpha,\beta,\gamma,\delta)$---quickly converge once the job spans a small number of nodes; residual scale-dependent effects beyond this regime are modeled through the correction factor $c_{\mathrm{scale}}(N)$ (see \cref{sec:implementation}).}
+
+
+Taken together, combining white-box analytical models with offline-profiled parameters and a lightweight scale correction factor provides a good first-order estimation of CC kernel performance with very low overheads.

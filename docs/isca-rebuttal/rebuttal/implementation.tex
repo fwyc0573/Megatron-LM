@@ -1,0 +1,88 @@
+%!TEX root = main.tex 
+
+\section{Implementation}
+\label{sec:implementation}
+
+% workloader tracer & MPU: torch.fx + custom tracing module; MPU + module init process； automated feature
+% timeline composer: Two-granularity event scheduling
+% CC Estimator: nccl coedes <-> equations;32-GPU cluster; two category cluster size to predict (<32 or >=32)
+% Validator: a series automated tool (NCU and NSYS) to help collect training dataset
+
+
+\noindent We implement \sys as illustrated in Figure~\ref{fig:arch}. 
+\sys is developed based on PyTorch 2.1, DeepSpeed 0.13.1, and Megatron-LM (commit ID: 53a350ed), and NCCL 2.18.6, all running on CUDA~12.1, comprising $\sim$10K lines of code (LoC). 
+$\sim$2K LoC are dedicated to Megatron-LM, 3K LoC to DeepSpeed and PyTorch, and the remaining 5K LoC for common core modules that underpin the simulation engine, training workload tracing, overlapping induced slowdown dataset collection, and CC parameter exhaustive profiling.
+% We provide \sys's example API calls for tracing and end-to-end simulation in \Cref{sec:api}.
+
+\noindent \textbf{Workload tracer.} 
+% \sys constructs the training workload using tailored modules for tracing \wg. 
+We implement two tracing modules to support \wg extraction for Huggingface models used by PyTorch and DeepSpeed and Megatron-LM models. For the former, the tracer leverages \texttt{torch.fx} to record \ops. 
+Since \texttt{torch.fx} only captures computation \op during the forward pass, we enhance it to capture \ops during backward passes by using tensor gradient functions and registering hooks, as well as optimizer steps and communication \ops (handled as placeholders).
+For Megatron-LM models, a custom tracing module is developed with a series of Python decorators and context managers.
+% \sys directs the handling of custom \ops in Megatron-LM to a general template, ensuring that the related function calls are recorded. 
+The generated \wg is output as a JSON file and stored in a database for future use. 
+% Notably, users can activate \sys's \extractor by adding a few extra lines of in their existing training scripts.
+
+% is designed with automated workload tracing capabilities, allowing users to perform workload tracing in the same manner as the original framework.
+
+
+\begin{comment}
+\noindent \textbf{Timeline composer.} 
+\sys employs two-level event scheduling for the \ma. 
+First, \sys generates a coarse-grained command-level scheduling plan based on the current training configuration, summarizing the sequence of command-level events (e.g., forward and backward passes) that each rank needs to perform. During the replay, each command-level event is decomposed into finer-grained \op-level events derived from the \wg{}s. Each \op's metadata includes runtime details specific to the corresponding operators, facilitating accurate scheduling and simulation.
+\end{comment}
+
+
+
+\noindent \textbf{\cm.} 
+% We model the runtime of different CC kernels based on their GPU-side implementations in NCCL. , we decompose a kernel's runtime into inter- and intra-server transmission times, and computation times per chunk. 
+To profile the key parameters for models in \cref{subsec:whitebox_modeling}, we utilize the \nccl profiling tool NPKit~\cite{NPKit}.
+\fx{We empirically profile these parameters on our clusters up to 4 nodes (32 GPUs) to obtain the baseline per-hop costs and additionally run NCCL-test on larger 720-GPU A100-SXM IB-connected clusters to calibrate the scale correction factor $c_{\mathrm{scale}}(N)$ introduced in \cref{subsec:whitebox_modeling}. \sys maintains a parameter database. Each entry stores the baseline parameters as well as the corresponding samples of $c_{\mathrm{scale}}(N)$ for different job sizes.
+To better support a small number of high-fidelity studies,
+\sys also exposes interfaces for approaches such as ns-3.}
+
+% our observations of large-scale production clusters indicate that network transmission bandwidth stabilizes and exhibits only minimal variation with cluster sizes beyond 32 GPUs. Therefore, for predicting communication operations in large-scale clusters, we define the minimum cluster size required as 32 GPUs.
+
+
+
+
+\noindent \textbf{Validator/Slowdown predictor.}
+\fx{We experimentally find the best hyperparameters for our XGBoost model (max depth 12, trained on $\sim$8000 kernels).}
+We implement an automated pipeline to construct the training dataset. 
+NVIDIA Nsight Compute~\cite{ncu} is used to profile GPU resource metrics such as SM throughput, memory bandwidth, and cache hit rates. 
+Nsight Systems~\cite{nsys} capture kernel execution traces under overlapping and non-overlapping conditions, exporting the data as SQLite databases. 
+% Overlap ratios are calculated by comparing the execution intervals of computation and communication kernels, with slowdown ratios derived from normalized running time differences. 
+% To align GPU resource metrics with slowdown data, we implemented a two-pointer matching algorithm based on kernel names, merging the datasets into a unified format for training. 
+% These automated through scripts to ensure efficiency and reproducibility, producing high-quality input for model training.
+
+
+
+
+
+
+
+% We experimentally find the best hyperparameters for our XGBoost model as shown in Table~\ref{tab:hyperparameters}.
+% \begin{table}[t]
+%     \scriptsize
+%     \centering
+%     \begin{tabular}{|c|c|}
+%         \hline
+%         \textbf{Hyperparameter} & \textbf{Value} \\
+%         \hline
+%         Model & XGBRegressor \\
+%         \hline
+%         Objective & reg:squarederror \\
+%         \hline
+%         Max depth & 12 \\
+%         \hline
+%         Random state & 42 \\
+%         \hline
+%         Train/Test Ratio & 0.8/0.2 \\
+%         \hline
+%         K-fold cross-validation & 5-fold \\
+%         \hline
+%     \end{tabular}
+%     \caption{The hyperparameters of XGBoost model.}
+%     % \vspace{-3mm}
+%     \label{tab:hyperparameters}
+% \end{table}
