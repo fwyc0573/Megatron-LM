@@ -4,6 +4,8 @@
 |------------|--------------------|
 | 2026-02-24 | Added unit-test environment bootstrap notes for LOCAL_RANK/NCCL-based test modules |
 | 2026-02-24 | Added fix for Claude Code VSCode launch failure under root container with bypassPermissions |
+| 2026-03-05 | Added checklist for shared-GPU OOM during distributed profiling runs |
+| 2026-03-06 | Added `CUDA_DEVICE_MAX_CONNECTIONS=1` prerequisite for Megatron scaling-mode torchrun validation |
 
 # Environment Handbook
 
@@ -72,3 +74,43 @@ This ensures `torch.cuda.device_count()==1` in test utilities and avoids waiting
 mkdir -p /etc/claude-code/.claude/skills
 printf '{}\n' > /etc/claude-code/managed-settings.json
 ```
+
+## Shared-GPU OOM During Distributed Profiling
+
+### Symptoms
+
+- `torchrun` launches normally but fails during model/DDP/optimizer initialization with `torch.cuda.OutOfMemoryError`.
+- `nvidia-smi` shows each GPU already occupied by long-running external jobs (e.g., >70GB used on 80GB cards).
+
+### Quick Diagnostic
+
+```bash
+nvidia-smi --query-gpu=index,memory.total,memory.used,memory.free,utilization.gpu --format=csv,noheader,nounits
+nvidia-smi --query-compute-apps=gpu_uuid,pid,used_memory,process_name --format=csv,noheader,nounits
+```
+
+### Mitigation
+
+1. Schedule profiling on reserved/idle GPUs.
+2. If immediate run is required, lower memory pressure first (`MODEL_PROFILE=smoke`, shorter `SEQ_LEN`, smaller parallel degrees where valid).
+3. Re-run with a new `MASTER_PORT` after resources are available.
+
+## Scaling-Mode `torchrun` Requires `CUDA_DEVICE_MAX_CONNECTIONS=1`
+
+### Symptoms
+
+- Early argument validation failure before model build:
+  - `RuntimeError: Using async gradient all reduce requires setting the environment variable CUDA_DEVICE_MAX_CONNECTIONS to 1`
+
+### Fix
+
+Run scaling-mode repro or wall-clock commands with:
+
+```bash
+CUDA_DEVICE_MAX_CONNECTIONS=1 NCCL_DEBUG=WARN CUDA_VISIBLE_DEVICES=<gpu_id> torchrun ...
+```
+
+### Notes
+
+- This is required even for single-process scaling-mode repro because Megatron argument validation still checks the async gradient all-reduce precondition.
+- Keep `MASTER_PORT` unique across repeated runs.

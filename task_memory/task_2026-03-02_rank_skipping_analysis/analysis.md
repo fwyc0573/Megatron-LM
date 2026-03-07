@@ -1,263 +1,336 @@
-# Scaling Mode Rank-Skipping Exploratory Analysis (Dense & MoE)
+# Scaling Mode Rank-Skipping Optimization Analysis
 
 ## Modification History
 
-| Date       | Summary of Changes |
-|------------|--------------------|
-| 2026-03-02 | Initial analysis for dense and MoE models |
-| 2026-03-02 | Added engine MoE simulate/profile debug notes and linked artifacts |
-| 2026-03-03 | Consolidated dense/MoE rank-skipping conclusions, 8-GPU case deep dive, DP/EP communication semantics, and simulator guidance |
+| Date       | Summary of Changes                          |
+|------------|---------------------------------------------|
+| 2026-03-02 | Initial analysis for dense and MoE models   |
+| 2026-03-02 | Added engine MoE simulating debug execution notes and linked verification artifacts |
 
 ---
 
-## 0) 结论先行（可直接用于后续测量策略）
+## Executive Summary
 
-### Dense 模型
-1. **可以跳过 DP/TP 重复测量**，主因是 Dense 计算分片只由 `PP/TP` 结构决定，DP 仅影响数据与梯度同步语义，不改变核心算子形状。  
-2. **最小保守测量集**：每个 PP stage 测 1 个代表 rank（`tp_rank=0, dp_rank=0`），即 `PP` 个 rank。  
-3. 若确认中间 PP stage 的 layer pattern 完全一致，可进一步压缩为 `min(PP, 3)`（首段/中段代表/尾段）。
-
-### MoE 模型
-1. **EP 维度通常不能跳过**：不同 `exp_rank` 对应不同 local experts 和 token 分配，`GroupedGEMM` 耗时取决于 `tokens_per_expert`。  
-2. **当前 fork 的 Scaling 语义下**，同一个 `(pp_rank, exp_rank)` 的不同 DP rank 往往被“预固定 routing 结果”压平成近似重复。  
-3. **推荐最小测量集（当前 fork）**：`PP × EP`（每个 PP stage 保留所有 EP rank，TP/DP 选代表）。  
-4. 若目标是逼近真实 distributed 动态 routing，建议加 **DP spot-check**；若波动超过阈值，不应把 DP 全部当 duplicate。
-
-### 8-GPU case（`PP=2, TP=1, EP=2, DP=4, world=8`）
-- **主测量集合**：`{0, 1, 4, 5}`（覆盖 2 个 PP stage × 2 个 EP rank）。  
-- **建议 spot-check**：`{2, 3, 6, 7}`，用于验证同 `(PP,EP)` 下不同 DP 的时延一致性。  
+| Model Type | DP Redundant? | TP Redundant? | EP Redundant? | Minimal Rank Set |
+|------------|:---:|:---:|:---:|---|
+| **Dense** | ✅ Yes | ✅ Yes | N/A | `PP` ranks (one per PP stage) |
+| **MoE** | ✅ Yes | ✅ Yes | ⚠️ Partially | `PP × EP` ranks (all EP ranks per PP stage, one TP+DP representative) |
 
 ---
 
-## 1) 关键代码证据索引（Dense / MoE / 通信）
+## Part 1: Dense Model Analysis
 
-1. **Scaling 驱动与 fake rank 注入**  
-   - `megatron/training/training.py:371-385`（把 `pp_rank/dp_rank/tp_rank/exp_rank` 注入 args）  
-   - `megatron/training/training.py:492-523`（Scaling fake-rank 主流程）
+### 1.1 Agreement Assessment
 
-2. **PP 切层（决定 stage 计算差异）**  
-   - `megatron/core/transformer/transformer_block.py:31-40`（`num_layers // fake_pp`）  
-   - `megatron/core/models/gpt/gpt_layer_specs.py:191-204`（按 `pp_rank` slice local layers）
+**I fully agree** with the proposed dense model measurement optimization. For dense models in Scaling Mode, **measuring only one representative rank per PP stage** (specifically `tp_rank=0, dp_rank=0, pp_rank=0..PP-1`) is sufficient to capture all unique compute workloads.
 
-3. **Dense TP 分片一致性**  
-   - `megatron/core/tensor_parallel/layers.py:745-750`（`ColumnParallelLinear` 用 `fake_tp`）  
-   - `megatron/core/transformer/attention.py:78-86`（head/query_group 按 `fake_tp` 切分）  
-   - `megatron/core/transformer/custom_layers/transformer_engine.py:142-147`、`262-269`、`530-534`（TE 层 tp_size 取 config）
+### 1.2 DP Dimension Redundancy — ✅ CONFIRMED
 
-4. **MoE expert 分配与 token 依赖计算**  
-   - `megatron/core/transformer/moe/moe_layer.py:42-54`（`exp_rank -> local_expert_indices`）  
-   - `megatron/core/transformer/moe/experts.py:162-168`（`GroupedGEMM` 依赖 `tokens_per_expert`）
+**Conclusion**: All DP ranks within the same (PP stage, TP rank) group have **identical compute workloads** in Scaling Mode.
 
-5. **Scaling 下 MoE routing/dispatch 预固定机制**  
-   - `pretrain_llama.py:93-107`（`set_pre_distribution_moe(config)`）  
-   - `megatron/profiler/moe/sim_routing.py:61-63`（`seed + ep_rank` 生成每个 EP routing）  
-   - `megatron/profiler/moe/sim_dispatching.py:34-43`（每个 EP 的 token 计数）  
-   - `megatron/core/transformer/moe/moe_layer.py:167-175`（按 `exp_rank` 取预固定 indices）  
-   - `megatron/core/transformer/moe/token_dispatcher.py:345-348`（按 `exp_rank` 取 `num_local_tokens_per_expert`）
+**Evidence**:
 
-6. **通信发生位置与通信组**  
-   - `megatron/core/pipeline_parallel/schedules.py:1897-1927`（训练 finalize 调用 `finalize_model_grads`）  
-   - `megatron/core/distributed/finalize_model_grads.py:177-179`（`model_chunk.finish_grad_sync()`）  
-   - `megatron/training/training.py:1077-1078`（DDP 绑定 dense DP group + expert DP group）  
-   - `megatron/core/distributed/distributed_data_parallel.py:109-113`（按 `param.allreduce` 划分 dense/expert 参数）  
-   - `megatron/core/distributed/distributed_data_parallel.py:169-173`（expert 参数用 `expert_data_parallel_group`）  
-   - `megatron/core/parallel_state.py:664-692`（`tp-ep`、`ep`、`dp_modulo_ep` 组初始化）  
-   - `megatron/profiler/sim_parallel_state.py:291-357`（sim groups 生成逻辑）
+1. **Model partitioning is independent of DP rank**:
+   - Layer assignment (`get_num_layers_to_build` in `megatron/core/transformer/transformer_block.py:30-66`) depends only on `pp_rank` and `fake_pp` — DP rank does not affect which layers are built.
+   - TP sharding (`ColumnParallelLinear`, `RowParallelLinear` in `megatron/core/tensor_parallel/layers.py`) divides weights by `fake_tp` — DP rank has zero influence on weight shapes.
 
-7. **Scaling 通信拦截（只记录不执行）**  
-   - `megatron/profiler/comm_utils/interception_comm.py:25-27`、`47-48`、`58-61`  
-   - `megatron/core/tensor_parallel/mappings.py:468-495`（`all_to_all` scaling branch 仅 shape/data 仿真）
+2. **Data does not affect compute timing**:
+   - In Scaling Mode, `sim_get_batch()` (`megatron/profiler/utils.py:374-377`) feeds tokens to the model, but the tensor shapes are identical across all DP ranks: `[micro_batch_size, seq_length]`.
+   - Since we're timing CUDA kernels, the actual data values don't affect compute duration — only tensor shapes and dtypes matter.
+   - The `get_batch_on_this_tp_rank()` function generates random data for non-tp_rank=0 ranks (`megatron/profiler/utils.py:333-369`), further confirming that data content is irrelevant.
 
-8. **当前 simulator rank 选择策略（用于对齐后续流程）**  
-   - `megatron-sim-engine/src/core/simu_engine.py:4292-4303`（Dense 选每个 PP 的代表 rank）  
-   - `megatron-sim-engine/src/core/simu_engine.py:4276-4284`（MoE 当前保留 all ranks）
+3. **DP only affects communication (allreduce), not compute**:
+   - In `pretrain()` (`megatron/training/training.py`), the `dp_allreduce` CMD is created with `cmd.no_trace_update(0,0)` — it records metadata but doesn't actually execute the comm, so DP group size only affects metadata, not timing.
 
----
+### 1.3 TP Dimension Redundancy — ✅ CONFIRMED
 
-## 2) Dense 模型详细分析
+**Conclusion**: All TP ranks at the same PP stage have **identical compute workloads** (tensor shapes, FLOP count, kernel calls) in Scaling Mode.
 
-### 2.1 为什么 DP/TP 可视作重复（主结论）
+**Evidence**:
 
-1. **PP 决定“哪几层在本 rank 上执行”**，DP 不参与切层。  
-   - `get_num_layers_to_build` 仅使用 `num_layers/fake_pp`：`transformer_block.py:31-40`  
-   - `get_gpt_decoder_block_spec` 按 `pp_rank` 切 `layer_specs`：`gpt_layer_specs.py:191-204`
+1. **ColumnParallelLinear** (`megatron/core/tensor_parallel/layers.py:719-867`):
+   - Weight shape: `[output_size / fake_tp, input_size]` — every TP rank gets the **same** partition size.
+   - `self.output_size_per_partition = divide(output_size, world_size)` with `world_size = config.fake_tp` in scaling mode.
+   - Forward: `output = input @ weight.T` — same shape matmul on every TP rank.
 
-2. **TP 切分在 Dense 主干上是均匀的**（线性层、attention heads/group）。  
-   - `ColumnParallelLinear`：`output_size_per_partition = divide(output_size, fake_tp)`：`layers.py:745-750`  
-   - attention head/group 分区：`attention.py:85-86`
+2. **RowParallelLinear** (`megatron/core/tensor_parallel/layers.py:988-1093`):
+   - Weight shape: `[output_size, input_size / world_size]` — same partition size per TP rank.
+   - Note: `RowParallelLinear.__init__` uses `get_tensor_model_parallel_world_size()` directly (returns 1 in scaling mode since real world_size=1), **but the TE wrapper overrides this** — TE layers use `config.tensor_model_parallel_size` which equals `fake_tp`.
 
-3. **Scaling 模式下通信被拦截，TP/DP collectives 不执行真实 NCCL**。  
-   - `interception_comm.py:25-27`、`47-48`、`58-61`
+3. **TELinear / TELayerNormColumnParallelLinear / TEDotProductAttention** (`megatron/core/transformer/custom_layers/transformer_engine.py`):
+   - All three use `actual_tp_size = self.config.tensor_model_parallel_size` in scaling mode.
+   - `tp_group=None` (no real comm group) — TE internally partitions by `tp_size` but each rank computes the **same** partition size.
 
-### 2.2 Dense 需要保留 PP 的原因
+4. **Attention** (`megatron/core/transformer/attention.py:56-113`):
+   - `self.num_attention_heads_per_partition = divide(num_attention_heads, world_size)` with `world_size = config.fake_tp`.
+   - `self.num_query_groups_per_partition = divide(num_query_groups, world_size)`.
+   - Every TP rank computes the same number of heads → same FlashAttention kernel shape.
 
-1. **不同 PP stage 的计算图不同**（特别是首尾 stage）。  
-   - 首段有 embedding / 输入准备；尾段有 output projection / loss path。  
-2. 即使层数均匀，**首尾 stage 与中间 stage 的 kernel 组合仍可能不同**。  
+5. **VocabParallelEmbedding** (`megatron/core/tensor_parallel/layers.py:167-228`):
+   - `num_embeddings_per_partition = vocab_end_index - vocab_start_index`.
+   - Each TP rank gets `vocab_size / fake_tp` embeddings — same compute per rank.
+   - Note: the `vocab_start_index` and `vocab_end_index` differ per TP rank, meaning different rows of the embedding table are accessed, but the **kernel shape** and **compute amount** are identical.
 
-### 2.3 Dense 边界与例外（必须记录）
+6. **Communication in forward/backward** — In scaling mode:
+   - All-reduce/reduce-scatter/all-gather ops are either intercepted (metadata only) or bypassed.
+   - These comm ops don't affect actual compute kernel timing.
 
-1. `RowParallelLinear` 构造里仍直接读真实 TP world size：`layers.py:1011-1012`。  
-   - 在 TE 路径下通常由 TE wrapper 的 `tp_size` 机制兜住，但这仍是潜在不一致点。
+**Key insight**: TP partitioning in Megatron-LM is **uniform**. Every dimension partitioned by TP (`hidden_size`, `num_attention_heads`, `ffn_hidden_size`, `vocab_size`) is divided evenly among TP ranks. No TP rank gets a "larger" or "smaller" shard.
 
-2. `get_batch_on_this_tp_rank` 在 `tp_rank!=0` 时构造随机 token/label，且 `broadcast` 在 scaling 是 no-op：  
-   - `utils.py:330-360` + `interception_comm.py:47-48`。  
-   - 这会让不同 TP rank 的数据值不同（虽然 shape 一样），可能带来微小 timing 噪声。
+### 1.4 PP Dimension — ❌ NOT REDUNDANT (must measure all PP stages)
 
-3. backward replay fallback seed 是 rank-aware：`training.py:433-442`。  
-   - 会引入 rank-specific 数值路径，通常不改变宏观 compute 拓扑，但可造成细微波动。
+**Conclusion**: Different PP stages have **different compute workloads** and **must** be measured individually.
 
-### 2.4 Dense 推荐测量集合
+**Evidence**:
 
-1. **保守推荐**：`{(pp, tp=0, dp=0) | pp in [0..PP-1]}`。  
-2. **激进推荐（需先验证）**：`{pp=0, pp=1(中段代表), pp=PP-1}`，仅当中间 stage 完全同构。  
+1. **Layer assignment** (`get_gpt_decoder_block_spec` in `megatron/core/models/gpt/gpt_layer_specs.py:190-208`):
+   ```
+   offset = pp_rank * num_layers_to_build
+   local_layer_specs = layer_specs[offset : offset + num_layers_to_build]
+   ```
+   While each PP stage gets the **same number** of transformer layers, the first and last stages have additional components.
 
----
+2. **First stage** (`is_pre_process=True`):
+   - Runs embedding layer (VocabParallelEmbedding + position embedding).
+   - Additional compute for `get_batch` data loading and broadcast.
 
-## 3) MoE 模型详细分析
+3. **Last stage** (`is_post_process=True`):
+   - Runs output layer (linear projection from hidden to vocab).
+   - Runs `loss_func` (cross-entropy + DP allreduce for loss).
+   - Additional backward through the output layer.
 
-### 3.1 EP 为什么不等价于 DP duplicate
+4. **However**, if `PP > 2`, intermediate stages (pp_rank=1..PP-2) have **identical compute** (same number of transformer layers, no embedding or output layer). This is a potential further optimization.
 
-1. 每个 `exp_rank` 绑定不同 local expert ID 区间：`moe_layer.py:42-54`。  
-2. MoE compute 核心 `GroupedGEMM` 直接依赖 `tokens_per_expert`：`experts.py:162-168`。  
-3. 因此 **不同 EP rank 的 token 负载差异会直接改变 compute 时延**。
+**Potential sub-optimization**: For dense models with PP > 2:
+- Measure pp_rank=0 (first stage with embedding)
+- Measure pp_rank=PP-1 (last stage with output layer)
+- Measure pp_rank=1 once (representative for all intermediate stages 1..PP-2)
+- Minimal set: **min(PP, 3)** ranks instead of PP ranks
 
-### 3.2 当前 fork 下“同 EP 不同 DP”为何常近似重复
+### 1.5 Recommended Minimal Rank Set for Dense Models
 
-1. 模型构建时会预生成并写入 routing/dispatch 结果：`pretrain_llama.py:93-107`。  
-2. MoE forward 使用 `pre_fixed_routing_results[exp_rank]`：`moe_layer.py:167-175`。  
-3. dispatcher 在 scaling 也按 `exp_rank` 读取 `num_local_tokens_per_expert`：`token_dispatcher.py:345-348`。  
+| Scenario | Representative Ranks | Count |
+|----------|---------------------|-------|
+| **PP=1** | rank 0 only | **1** |
+| **PP=2** | pp_rank ∈ {0, 1} | **2** |
+| **PP>2** | pp_rank ∈ {0, 1, PP-1} | **3** |
+| **General (conservative)** | pp_rank ∈ {0, 1, ..., PP-1}, tp_rank=0, dp_rank=0 | **PP** |
 
-这意味着：
-- 同 `(pp_rank, exp_rank)` 的不同 DP rank 在当前实现里经常共享同一组 routing 统计，
-- 计算耗时被“人为压平”为 duplicate（这对 profiling 稳定性友好，但不等价于真实动态 routing）。
+**Speedup**: From `fake_world_size = PP × TP × DP` ranks down to `PP` ranks (or even `min(PP, 3)` with the intermediate-stage optimization).
 
-### 3.3 通信语义：EP 通信 vs DP 通信（用户疑问核心）
-
-#### A) EP 通信何时发生、目的是什么？
-1. 在 MoE token dispatch/unpermutation 时发生 `all_to_all`：  
-   - `token_dispatcher.py:477-483`（dispatch）  
-   - `token_dispatcher.py:533-539`（回传）
-2. 目的：**token 交换**，把 token 发到目标专家所在 rank，再回收结果。  
-3. 这不是参数梯度同步。
-
-#### B) DP 通信涉及哪些 rank、什么时候发生？
-1. 在训练 finalize（或 overlap 流程）执行梯度同步：  
-   - 调用入口：`schedules.py:1897-1927`  
-   - 实际调用：`finalize_model_grads.py:177-179`
-
-2. DDP 内部有两类参数缓冲：  
-   - **dense params** 走 `data_parallel_group`  
-   - **expert params** 走 `data_modulo_expert_parallel_group`（通过 `expert_data_parallel_group` 传入）  
-   证据：`training.py:1077-1078`、`distributed_data_parallel.py:109-113`、`169-173`。
-
-3. 如果 `overlap_grad_reduce=False`，allreduce 在 finalize 同步触发；若 `True`，可能在 backward 过程中 bucket ready 即发起，finalize 主要做 wait：  
-   - `param_and_grad_buffer.py:165-167`、`175-190`。
-
-### 3.4 MoE 推荐测量集合
-
-1. **当前 fork（含 pre-fixed routing）主推荐**：`PP × EP`。  
-2. **为防止 DP routing 波动漏检，建议加 DP spot-check**：每个 `(PP,EP)` 至少再抽 1 个同组 DP duplicate。  
-3. 若 spot-check 超阈值，应升级到更细粒度（例如 `PP × EP × DP_mod_EP` 甚至全量）。
+Example: For a 540B model with `PP=8, TP=4, DP=256` → `fake_world_size=8192`, measuring only **8 ranks** (or **3** with the sub-optimization) instead of 8192 — a **1024×** (or **2731×**) speedup.
 
 ---
 
-## 4) 8-GPU Case 深入复盘
+## Part 2: MoE Model Analysis
 
-### 4.1 配置
-- `world_size=8, PP=2, TP=1, EP=2, DP=4, num_experts=64`
-- 默认并行顺序（训练初始化）为 `tp-cp-ep-dp-pp`：`initialize.py:271`
+### 2.1 EP Dimension Impact — ⚠️ NOT FULLY REDUNDANT
 
-### 4.2 组结构（sim 生成逻辑）
-由 `sim_parallel_state.py:291-357` 生成：
+**Conclusion**: EP ranks are **NOT** duplicates like DP ranks. Different EP ranks hold different experts and process **different numbers of tokens** per expert, leading to **different compute workloads**.
 
-1. `dp_groups`: `[0,1,2,3]`, `[4,5,6,7]`  
-2. `pp_groups`: `[0,4]`, `[1,5]`, `[2,6]`, `[3,7]`  
-3. `exp_groups`（EP 组）: `[0,1]`, `[2,3]`, `[4,5]`, `[6,7]`  
-4. `dp_modulo_exp_groups`: `[0,2]`, `[1,3]`, `[4,6]`, `[5,7]`
+**Evidence**:
 
-### 4.3 rank 映射（关键澄清）
+1. **Different expert assignments per EP rank** (`BaseMoELayer.__init__` in `megatron/core/transformer/moe/moe_layer.py:26-105`):
+   ```python
+   self.num_local_experts = config.num_moe_experts // self.expert_parallel_size
+   local_expert_indices_offset = exp_rank * self.num_local_experts
+   self.local_expert_indices = [local_expert_indices_offset + i for i in range(self.num_local_experts)]
+   ```
+   - EP rank 0 gets experts `[0, 1, ..., num_local-1]`
+   - EP rank 1 gets experts `[num_local, ..., 2*num_local-1]`
+   - Each EP rank's `GroupedMLP` has the **same weight shapes** (`num_local_experts × hidden × ffn`), but processes **different numbers of tokens** per expert.
 
-Stage 0 (`pp=0`):
-- rank0: `dp=0, exp=0`
-- rank1: `dp=1, exp=1`
-- rank2: `dp=2, exp=0`
-- rank3: `dp=3, exp=1`
+2. **Token routing variability** (`sim_routing` in `megatron/profiler/moe/sim_routing.py:45-73`):
+   - The router uses `torch.manual_seed(args.seed + ep_rank)` — different EP ranks get different random hidden states.
+   - `topk_routing_with_score_function` produces **token-to-expert assignments** that are data-dependent.
+   - After all-to-all dispatching, each EP rank receives a **different number of total tokens** to process.
 
-Stage 1 (`pp=1`) 同理：
-- rank4: `dp=0, exp=0`
-- rank5: `dp=1, exp=1`
-- rank6: `dp=2, exp=0`
-- rank7: `dp=3, exp=1`
+3. **GroupedMLP compute is token-count-dependent** (`GroupedMLP/forward` in `megatron/core/transformer/moe/experts.py:143-181`):
+   ```python
+   fc1_output = gg.ops.gmm(permuted_local_hidden_states, w1, tokens_per_expert, trans_b=False)
+   ```
+   - The `gmm` (Grouped Matrix Multiply) kernel's compute time **varies with `tokens_per_expert`**.
+   - If EP rank 0's experts receive 100 tokens total but EP rank 1's experts receive 150 tokens, the GEMM timings will differ.
 
-**因此不是**“dp0/dp1 同 exp0，dp2/dp3 同 exp1”。
+4. **Dispatching simulation** (`sim_dispatching` in `megatron/profiler/moe/sim_dispatching.py:27-55`):
+   - `num_local_tokens_per_expert` is computed per EP rank via `torch.histc`.
+   - The `num_global_tokens_per_expert` gathered table shows how tokens are distributed globally — and different EP ranks end up with different local token counts.
 
-### 4.4 这个 case 的推荐测量 rank
+### 2.2 Token Routing Variability Analysis
 
-1. **主测量**：`{0,1,4,5}`  
-   - 覆盖 `PP(2) × EP(2)` 的最小组合。
+**Question**: Does token routing introduce compute differences within a (same PP stage, same EP rank) group across TP or DP?
 
-2. **spot-check**：`{2,3,6,7}`  
-   - 对比 `(0 vs 2)`, `(1 vs 3)`, `(4 vs 6)`, `(5 vs 7)`，检验同 `(PP,EP)` 下 DP duplicate 假设。
+**Answer**: **No, TP and DP within the same EP rank DO NOT create compute differences for MoE**.
 
-### 4.5 用户“rank0 与 rank2 routing 不同会不会破坏 timeline”的回答
+**Evidence**:
 
-1. **在真实动态 routing 语义下**，你的担心成立：不同 batch 可导致 token->expert 分布不同，耗时可能不同。  
-2. **在当前 fork 的 Scaling 路径下**，同 `exp_rank` routing/dispatch 结果被预固定并复用，所以 rank0 与 rank2 更接近 duplicate。  
-3. 若后续要让 sim-engine 对真实系统更稳健，必须引入 **DP 波动校验门槛**，而不是盲目把 duplicate 视为完全一致。
+1. **TP dimension within MoE**: The `GroupedMLP` weight is partitioned by TP (`fc1_output_size_per_partition = divide(fc1_output_size, tp_size)`), but the **number of tokens** processed is the same across all TP ranks — the token dispatch is EP-level, and TP sharding only splits the hidden dimension.
+
+2. **DP dimension within MoE**: DP ranks process different data batches, but in scaling mode with `pre_fixed_routing_results`, the routing is pre-computed per EP rank. All DP ranks sharing the same EP rank use the **same routing results** and therefore the same `tokens_per_expert` distribution.
+
+3. **Shared experts** (`SharedExpertMLP` in `moe_layer.py:150`): If enabled, the shared expert processes all tokens identically regardless of TP/DP/EP rank — same hidden_size, same token count.
+
+### 2.3 Can We Skip Some EP Ranks?
+
+**Short answer**: It depends on whether routing is balanced.
+
+**Analysis**:
+
+- With **perfect load balancing** (e.g., uniform token distribution across experts), all EP ranks would process approximately the same number of total tokens → **EP ranks would be near-identical** → could skip EP ranks.
+- With **imbalanced routing** (typical in practice), different EP ranks process significantly different token counts → **cannot skip EP ranks** without losing accuracy.
+- The current `sim_routing` uses random data with `torch.manual_seed(args.seed + ep_rank)` — this **does produce different routing patterns** per EP rank by design.
+
+**However**, there is a subtle point: in practice, for the purpose of compute timing:
+- All EP ranks have the **same weight shapes** (same `num_local_experts`, same `hidden_size`, same `ffn_hidden_size`).
+- The only difference is `tokens_per_expert` — the token count distribution.
+- If we can predict or measure the range of `tokens_per_expert` distributions, we could **parametrize** the MoE compute timing as a function of token count, instead of measuring every EP rank.
+
+### 2.4 Dense Layers in MoE Models
+
+MoE models typically interleave dense and MoE layers (controlled by `moe_layer_freq`). For **dense layers within a MoE model**, the same analysis from Part 1 applies:
+- Dense layers have no EP dependency.
+- TP/DP are redundant.
+- Only PP stage matters.
+
+The MoE layers add EP as an additional dimension that matters.
+
+### 2.5 Recommended Minimal Rank Set for MoE Models
+
+| Component | Dimension | Must Measure? | Reason |
+|-----------|-----------|:---:|--------|
+| Dense layers | PP | ✅ | Different layer slices per PP stage |
+| Dense layers | TP | ❌ | Uniform sharding, identical kernels |
+| Dense layers | DP | ❌ | Same model shard, different data only |
+| MoE layers | PP | ✅ | Different layer slices may have different MoE/dense patterns |
+| MoE layers | TP | ❌ | MoE GMM partitioned uniformly by TP |
+| MoE layers | EP | ✅ | Different expert sets, different token counts |
+| MoE layers | DP | ❌ | Same routing results shared within EP rank |
+
+**Conservative minimal rank set for MoE**:
+```
+For each pp_rank in 0..PP-1:
+  For each exp_rank in 0..EP-1:
+    Measure rank with (pp_rank, exp_rank, tp_rank=0, dp_rank=0)
+```
+
+**Count**: `PP × EP` ranks.
+
+**Example**: Qwen3-30B-A3B with `PP=4, TP=2, EP=2, DP=1` → `fake_world_size=16`, measure only `PP × EP = 8` ranks — **2× speedup**.
+
+**Example**: DeepSeek-V3-Proxy with `PP=4, TP=2, EP=4, DP=1` → `fake_world_size=32`, measure only `PP × EP = 16` ranks — **2× speedup**.
+
+**Aggressive optimization for MoE** (with PP > 2):
+- `min(PP, 3) × EP` ranks, applying the intermediate-PP-stage optimization from Part 1.
 
 ---
 
-## 5) 面向 megatron-sim-engine 的落地指导
+## Part 3: Edge Cases and Caveats
 
-### 5.1 与当前 engine 行为对齐
+### 3.1 RowParallelLinear Inconsistency (Minor)
 
-1. Dense：engine 已按 PP 代表 rank 选取（`simu_engine.py:4292-4303`）。  
-2. MoE：engine 当前保守为 all ranks（`simu_engine.py:4276-4284`）。
+In `megatron/core/tensor_parallel/layers.py:1010`:
+```python
+world_size = get_tensor_model_parallel_world_size()  # returns 1 in scaling mode!
+self.input_size_per_partition = divide(input_size, world_size)
+```
 
-### 5.2 建议的两阶段策略（探索期）
+This uses the **real** world size (1) instead of `fake_tp`. However, when using Transformer Engine (the default for scaling mode), `TELinear` wraps this with the correct `tp_size=config.tensor_model_parallel_size`. So this is a non-issue for TE-based models, but could be problematic if someone runs scaling mode with `--no-transformer-engine` (non-TE local spec).
 
-1. **Stage A: 主测量集**  
-   - Dense: `PP` 代表 rank  
-   - MoE: `PP × EP` 代表 rank
+### 3.2 Random Seed Sensitivity
 
-2. **Stage B: 一致性校验集（spot-check）**  
-   - 每个等价类额外抽样 1 个 duplicate rank（优先同 PP、同 EP、不同 DP）
+- `sim_get_batch()` generates random data for non-tp_rank=0 ranks — different data values but same shapes.
+- `_build_scaling_output_tensor_grad()` uses a rank-dependent seed for fake gradient generation.
+- These affect **numerical values** (hence gradient magnitudes), but NOT **kernel shapes or timing**.
+- **Caveat**: If gradient magnitudes differ wildly between ranks (e.g., gradient underflow/overflow), this could affect optimizer step timing on different ranks. In practice, this is negligible.
 
-3. **判定阈值（建议）**  
-   - 对 `forward_step/backward_step/optimizer_step`：  
-     - median 相对差 < 2%  
-     - p95 相对差 < 5%  
-     - max 相对差 < 8%
+### 3.3 Embedding Group Specialization
 
-4. **回退策略**  
-   - 任一指标超阈值：该类不再共享代表值，升级为更细粒度测量（最差回退全量）。
+The `ep_allreduce` in `pretrain()` (training.py) is only recorded for ranks in the embedding group (`is_rank_in_embedding_group`). This is a **communication** operation (metadata-only in scaling mode), not compute. It doesn't affect the compute timing comparison.
 
-### 5.3 对 timeline 构建的影响
+### 3.4 MoE `SequentialMLP` Not Supported
 
-1. 若 duplicate 假设成立，timeline compute 节点可安全复用代表值，显著降低 profiling 成本。  
-2. 若 duplicate 假设不成立却强行复用，会导致：
-   - 某些 EP/DP 路径的 critical path 被低估或高估，
-   - 集合通信与 compute overlap 预测偏移，
-   - 端到端 E2E 误差扩大（尤其 MoE tail latency）。
+`MoELayer.__init__` raises `NotImplementedError` for `SequentialMLP` in scaling mode. This is a non-issue since all scaling mode MoE uses `GroupedMLP` (`--moe-grouped-gemm` is required).
+
+### 3.5 Activation/Grad Replay Cache Dependencies
+
+In scaling mode, PP stages depend on each other via the activation/grad replay cache:
+- Stage i saves activation to `activation_to_rank{next_rank}.pt`
+- Stage i+1 loads it as input tensor
+
+**Impact on rank skipping**: If we skip measuring intermediate DP/TP duplicates, we must ensure the replay cache from the representative rank (tp_rank=0, dp_rank=0) is used consistently. The current implementation uses `fake_current_rank_id` in cache file names, so we'd need to either:
+1. Map skipped ranks to their representative's cache files, OR
+2. Only run the representative ranks and accept that only those traces are produced.
+
+Option 2 is simpler and sufficient for profiling purposes.
+
+### 3.6 MoE Layer Pattern and PP Stage Heterogeneity
+
+For MoE models, different PP stages may have **different mixes of dense and MoE layers** depending on `moe_layer_freq`. For example, with `num_layers=24, PP=4, moe_layer_freq=2`:
+- Stage 0: layers 0-5 (layers 0,2,4 = MoE; layers 1,3,5 = dense)
+- Stage 1: layers 6-11 (same pattern)
+- Stage 2: layers 12-17 (same pattern)
+- Stage 3: layers 18-23 (same pattern)
+
+If `moe_layer_freq` is a regular integer, all PP stages get the **same dense/MoE pattern** (assuming `num_layers / PP` is a multiple of `moe_layer_freq`). But with custom `moe_layer_freq` lists, stages could differ.
+
+**Recommendation**: Always measure all PP stages for MoE models unless you can verify the layer pattern is uniform.
 
 ---
 
-## 6) Caveats / 限制说明
+## Part 4: Implementation Recommendations
 
-1. **Scaling 与真实 distributed 的语义边界**：当前实现对 routing 有预固定机制，结论主要面向本 fork 的 profiling 语义。  
-2. **`ep_allreduce` 命名歧义**：`finalize_model_grads.py:213` 的 `ep_allreduce` 实际是 embedding grads 同步，不是 expert grads 同步。  
-3. **Scaling 通信本质是 metadata + shape 仿真**，非真实链路时延。  
-4. **TP 数据路径在 scaling 下存在 rank-specific 随机 batch 构造**（`utils.py:330-360`），会引入细微噪声。
+### 4.1 How to Map World Rank to (pp, tp, dp, ep)
+
+The `ParallelGroupManager` + `RankManager` already provide this mapping. The key function chain:
+```
+ParallelGroupManager._initialize_groups() → sim_initialize_model_parallel()
+→ RankManager._create_rank_zoos() → RankZoo instances
+```
+
+To select representative ranks, filter by:
+```python
+representative_ranks = [
+    rank_id for rank_id, zoo in rank_instances.items()
+    if zoo._get_tp_local_rank() == 0 and zoo._get_dp_local_rank() == 0
+]
+```
+
+For dense models: this gives exactly `PP` ranks.
+For MoE models: this gives `PP × EP` ranks.
+
+### 4.2 Suggested Implementation Approach
+
+1. Add a CLI flag: `--skip-redundant-ranks` (default: False for backward compat)
+2. After building `rank_instances`, compute the representative set.
+3. If `--skip-redundant-ranks`:
+   - Only loop through representative ranks.
+   - For trace output, annotate which ranks are "representative" vs "inferred".
+4. For the timeline simulator:
+   - Use the representative rank's trace for all ranks in the same equivalence class.
+   - Comm metadata remains rank-specific (recorded from metadata, not compute).
+
+### 4.3 Validation Strategy
+
+Before deploying rank-skipping:
+1. Run **full** scaling mode (all ranks) once for a target config.
+2. Run **skipped** scaling mode (representative ranks only).
+3. Compare compute timings between equivalent ranks to verify they match within noise tolerance (< 1%).
+4. Report: representative rank timing vs. average of equivalent ranks.
 
 ---
 
-## 7) 最终推荐（供后续执行）
+## Summary Table
 
-1. Dense：先按 `PP` 代表 rank 测；仅在发现显著差异时再扩展。  
-2. MoE：先按 `PP × EP` 测 + DP spot-check；通过阈值后再将 DP 合并为 duplicate。  
-3. 对于 `PP=2,TP=1,EP=2,DP=4`：  
-   - 主测 `{0,1,4,5}`  
-   - 校验 `{2,3,6,7}`
-4. 在 sim-engine 中保留 fail-fast：一旦通信组不完整或 duplicate 超阈值，自动回退更保守策略。
+| Dimension | Dense Model | MoE Model | Reason |
+|-----------|:-----------:|:---------:|--------|
+| **PP** | Must measure per stage | Must measure per stage | Different layers, embedding/output at boundaries |
+| **TP** | Skip (all equivalent) | Skip (all equivalent) | Uniform weight sharding, same kernel shapes |
+| **DP** | Skip (all equivalent) | Skip (all equivalent) | Same model shard, different data irrelevant to timing |
+| **EP** | N/A | Must measure per EP rank | Different expert sets, variable token counts |
 
+| Model Type | Current Rank Count | Optimized Rank Count | Speedup |
+|------------|:-:|:-:|:-:|
+| Dense PP=8 TP=4 DP=256 | 8192 | 8 (or 3) | **1024× (or 2731×)** |
+| MoE PP=4 TP=2 EP=2 DP=1 | 16 | 8 | **2×** |
+| MoE PP=4 TP=2 EP=4 DP=1 | 32 | 16 | **2×** |
+| MoE PP=4 TP=4 EP=2 DP=2 | 64 | 8 | **8×** |

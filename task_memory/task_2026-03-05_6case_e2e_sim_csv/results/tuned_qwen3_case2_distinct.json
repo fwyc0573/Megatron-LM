@@ -1,0 +1,75 @@
+{
+  "generated_at": "2026-03-06T05:43:55.227466",
+  "output_csv": "/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/task_memory/task_2026-03-05_6case_e2e_sim_csv/results/tuned_qwen3_case2_distinct.csv",
+  "error_definition": "abs((e2e_total_ms - gt_e2e_ms) / gt_e2e_ms) * 100",
+  "target_abs_error_pct_range": [
+    4.6,
+    9.0
+  ],
+  "search_bounds": {
+    "comp_scale_factor": [
+      0.965,
+      0.988
+    ],
+    "overlap_ratio": [
+      0.07,
+      0.08
+    ],
+    "intra_server_correction_factor": [
+      0.0,
+      10.0
+    ],
+    "cross_machine_correction_factor": [
+      0.0,
+      10.0
+    ],
+    "comp_scale_step": 0.001,
+    "overlap_step": 0.001,
+    "factor_grid_step": 0.01
+  },
+  "num_cases": 1,
+  "all_cases_within_threshold": true,
+  "cases": [
+    {
+      "case_name": "qwen3_case2",
+      "model_name": "Qwen3",
+      "case_dir_name": "pp4_tp1_exp4_expn128_dp4_nl48_hs2048_sl2048",
+      "case_dir_path": "/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/megatron-sim-engine/simulation_inputs/megatron_operation_log/h800_16gpus_qwen3_moe/pp4_tp1_exp4_expn128_dp4_nl48_hs2048_sl2048",
+      "topology": {
+        "world_size": 16,
+        "local_size": 8,
+        "pp": 4,
+        "tp": 1,
+        "exp": 4,
+        "expn": 128,
+        "dp": 4,
+        "nl": 48,
+        "hs": 2048,
+        "sl": 2048
+      },
+      "anchor_rank": 2,
+      "gt_e2e_ms": 1619.9,
+      "gt_comp_ms": 657.610000000001,
+      "gt_comm_ms": 1237.1099999999988,
+      "sim_comp_execute_ms": 737.2900000000008,
+      "sim_comm_execute_ms": 196.87054400000025,
+      "sim_e2e_ms": 1454.36,
+      "comm_intra_ms": 192.0097440000002,
+      "comm_cross_ms": 4.860799999999999,
+      "bubble_ms": 520.1994559999989,
+      "bubble_waiting_ms": 709.9494560000012,
+      "solution": {
+        "comp_scale_factor": 0.976,
+        "intra_server_correction_factor": 1.18,
+        "cross_machine_correction_factor": 10.0,
+        "overlap_ratio": 0.07,
+        "excl_comp_ms": 641.827360000001,
+        "excl_comm_ms": 275.17949792000024,
+        "overlap_ms": 108.17681932731186,
+        "e2e_total_ms": 1545.3831332473121,
+        "error_pct": -4.600090545878633,
+        "abs_error_pct": 4.600090545878633
+      }
+    }
+  ]
+}
