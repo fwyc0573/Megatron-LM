@@ -27,6 +27,34 @@ def _scatter_add_by_indices(
     return output.scatter_add(0, scatter_indices, source)
 
 
+def _restore_scaling_token_rows(
+    output: torch.Tensor, hidden_shape: torch.Size, is_scaling_mode: bool
+) -> torch.Tensor:
+    """Restore row count in scaling mode so output can be reshaped back to hidden_shape."""
+    if not is_scaling_mode:
+        return output
+
+    if output.dim() != 2:
+        raise ValueError(f"Expected 2D output before reshape, got shape={tuple(output.shape)}")
+
+    expected_rows = int(hidden_shape[0]) * int(hidden_shape[1])
+    expected_hidden = int(hidden_shape[2])
+
+    if output.shape[1] != expected_hidden:
+        raise ValueError(
+            f"Hidden size mismatch before reshape: got {output.shape[1]}, expected {expected_hidden}"
+        )
+
+    if output.shape[0] == expected_rows:
+        return output
+
+    restored = output.new_zeros((expected_rows, expected_hidden))
+    rows_to_copy = min(expected_rows, int(output.shape[0]))
+    if rows_to_copy > 0:
+        restored[:rows_to_copy].copy_(output[:rows_to_copy])
+    return restored
+
+
 class MoETokenDispatcher:
     """
     MoE Token Dispatcher
@@ -552,6 +580,10 @@ class MoEAlltoAllTokenDispatcher(MoETokenDispatcher):
             # output: [S*B, H/TP] -> [S*B/TP, H]
             output = tensor_parallel.all_to_all_hp2sp(output)
 
-        # Reshape the output tensor
+        # In scaling mode, TP/EP comm is metadata-only and can produce fewer token rows
+        # than the original local hidden shape. Restore row count deterministically.
+        output = _restore_scaling_token_rows(
+            output, self.hidden_shape, self.config.is_scaling_mode
+        )
         output = output.view(self.hidden_shape)
         return output, None

@@ -1803,6 +1803,10 @@ def _add_moe_args(parser):
                        choices=['allgather', 'alltoall'],
                        default='allgather',
                        help='.')
+    group.add_argument('--moe-routing-profile', type=str,
+                       choices=['default', 'balanced', 'moderate_skew', 'strong_skew'],
+                       default='default',
+                       help='Use a deterministic routing profile for MoE tracing. "default" keeps the model router; other modes inject controlled expert-load skew for paired validation.')
     group.add_argument('--moe-per-layer-logging', action='store_true',
                        help='Enable per-layer logging for MoE, currently supports auxiliary loss and z loss.')
 
@@ -1953,6 +1957,14 @@ def _add_fake_args(parser):
         help=(
             'Number of profiled iterations per fake rank in scaling mode. '
             'Use values > 1 to reduce single-iteration timing noise.'
+        ),
+    )
+    group.add_argument(
+        '--scaling-trace-metadata-comm-duration',
+        action='store_true',
+        help=(
+            'In scaling mode, trace metadata-only communication sub-ops with measured duration '
+            'instead of hard-coded 0ms. This is useful for comp-vs-comm attribution debugging.'
         ),
     )
     group.add_argument(

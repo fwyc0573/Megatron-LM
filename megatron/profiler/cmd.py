@@ -438,6 +438,16 @@ class CMD:
         return bool(args is not None and getattr(args, "is_scaling_mode", False))
 
     @staticmethod
+    def _should_time_scaling_metadata_comm(current_cmd):
+        """Whether scaling metadata-only comm should carry measured sub-op duration."""
+        if current_cmd is None:
+            return False
+        args = getattr(current_cmd, "args", None)
+        return bool(
+            args is not None and getattr(args, "scaling_trace_metadata_comm_duration", False)
+        )
+
+    @staticmethod
     def _cleanup_expired_async_records():
         """Clean up expired async records to prevent memory leaks"""
         current_time = time.time()
@@ -478,10 +488,13 @@ class CMD:
                         metadata_only_comm = CMD._is_scaling_metadata_only_comm(
                             current_cmd=current_cmd, comm_func=comm_func
                         )
+                        time_metadata_only_comm = metadata_only_comm and CMD._should_time_scaling_metadata_comm(
+                            current_cmd=current_cmd
+                        )
                         sync_mode = CMD._get_subop_sync_mode(current_cmd=current_cmd)
                         subop_timestamp_ms = round(time.perf_counter() * 1000, 2)
                         if current_cmd.use_cuda:
-                            if metadata_only_comm:
+                            if metadata_only_comm and not time_metadata_only_comm:
                                 # Scaling mode comm sub-op: keep trigger + metadata only.
                                 result = _run_func()
                                 duration = 0.0
@@ -506,7 +519,7 @@ class CMD:
                                     )
                                     duration = start_event.elapsed_time(stop_event)
                         else:
-                            if metadata_only_comm:
+                            if metadata_only_comm and not time_metadata_only_comm:
                                 result = _run_func()
                                 duration = 0.0
                             else:
@@ -668,8 +681,11 @@ class CMD:
                         current_cmd=current_cmd,
                         comm_func=attr_info.get('comm_func', None),
                     )
+                    time_metadata_only_comm = metadata_only_comm and CMD._should_time_scaling_metadata_comm(
+                        current_cmd=current_cmd
+                    )
                     
-                    if metadata_only_comm:
+                    if metadata_only_comm and not time_metadata_only_comm:
                         duration = 0.0
                     elif current_cmd.use_cuda:
                         sync_mode = record.get('sync_mode', CMD._get_subop_sync_mode(current_cmd=current_cmd))

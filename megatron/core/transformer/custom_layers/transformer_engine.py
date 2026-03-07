@@ -89,6 +89,9 @@ class TENorm:
             expected_dtype = instance.weight.dtype if hasattr(instance, "weight") else x.dtype
             if x.dtype != expected_dtype:
                 x = x.to(expected_dtype)
+            # TE RMSNorm forward path internally uses view(), requiring contiguous input.
+            if not x.is_contiguous():
+                x = x.contiguous()
             return original_forward(x, *args, **kwargs)
 
         instance.forward = _forward_with_dtype_cast

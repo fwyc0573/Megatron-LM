@@ -516,10 +516,8 @@ class SelfAttention(Attention):
         """
         Derives `query`, `key` and `value` tensors from `hidden_states`.
         """
-        # Attention heads [sq, b, h] --> [sq, b, ng * (np/ng + 2) * hn)]
         mixed_qkv, _ = self.linear_qkv(hidden_states)
 
-        # [sq, b, hp] --> [sq, b, ng, (np/ng + 2) * hn]
         new_tensor_shape = mixed_qkv.size()[:-1] + (
             self.num_query_groups_per_partition,
             (
@@ -527,10 +525,7 @@ class SelfAttention(Attention):
                 * self.hidden_size_per_attention_head
             ),
         )
-        # print(f"new_tensor_shape: {new_tensor_shape}")
-        # print(f"input tensor: {mixed_qkv.numel()}")
         mixed_qkv = mixed_qkv.view(*new_tensor_shape)
-        # raise 0 
         split_arg_list = [
             (
                 self.num_attention_heads_per_partition
@@ -542,22 +537,17 @@ class SelfAttention(Attention):
         ]
 
         if SplitAlongDim is not None:
-
-            # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = SplitAlongDim(mixed_qkv, 3, split_arg_list,)
+            (query, key, value) = SplitAlongDim(mixed_qkv, 3, split_arg_list)
         else:
+            (query, key, value) = torch.split(mixed_qkv, split_arg_list, dim=3)
 
-            # [sq, b, ng, (np/ng + 2) * hn] --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
-            (query, key, value) = torch.split(mixed_qkv, split_arg_list, dim=3,)
-
-        # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
         query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
 
         if self.q_layernorm is not None:
-            query = self.q_layernorm(query)
+            query = self.q_layernorm(query.contiguous())
 
         if self.k_layernorm is not None:
-            key = self.k_layernorm(key)
+            key = self.k_layernorm(key.contiguous())
 
         if self.config.test_mode:
             self.run_realtime_tests()
