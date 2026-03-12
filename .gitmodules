@@ -1,0 +1,8 @@
+[submodule "Echo-slowdown"]
+	path = Echo-slowdown
+	url = https://github.com/NetX-lab/Echo-slowdown.git
+	branch = main
+[submodule "megatron-sim-engine"]
+	path = megatron-sim-engine
+	url = https://github.com/fwyc0573/megatron-sim-engine.git
+	branch = overlap-tracing
