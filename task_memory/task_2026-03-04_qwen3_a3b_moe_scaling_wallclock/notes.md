@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-03-08 | Added Config3 partial-duration evidence and resumed-rank chunk commands |
 | 2026-03-07 | Added setsid-managed full-sweep commands, PIDs, and log targets |
 | 2026-03-04 | Added implementation assumptions and workload notes |
 | 2026-03-04 | Updated Qwen3 TP=8 compatible query-group setting and runtime blocker notes |
@@ -100,3 +101,14 @@ bash /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM/examples/qwen
 - Config4 live log: `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/logs/run_qwen3_a3b_moe_wallclock_config4_setsid_20260307.log`
 - Config3 per-rank log root: `log/qwen3_a3b_moe_scaling_wallclock_final_20260307_setsid/ws4096_pp16_tp8_ep32_dp32/`
 - Config4 per-rank log root: `log/qwen3_a3b_moe_scaling_wallclock_final_20260307_setsid/ws8192_pp16_tp8_ep64_dp64/`
+
+## 2026-03-08 Config3 Transient Crash Audit
+- Config3 `20260307` run status at audit: `425/512` representative ranks completed; failure point was after rank `3392` finished all profiled phases.
+- Evidence line cluster: `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/logs/run_qwen3_a3b_moe_wallclock_config3_setsid_20260307.log`.
+- Log-file wall-clock for completed chunk (`birth -> mtime`): start `2026-03-07 03:18:57.730793206 +0000`, end `2026-03-07 11:13:30.624781655 +0000`.
+- Direct repro command for rank `3392` completed successfully; evidence log: `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/logs/repro_rank3392_20260308.log`.
+- Resume chunk command target: ranks `3400, 3408, ..., 4088` (`87` ranks) on `GPU0`.
+- Resume chunk PID file: `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/logs/run_qwen3_a3b_moe_wallclock_config3_resume_after3392_setsid_20260308.pid`.
+- Resume chunk live log: `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/logs/run_qwen3_a3b_moe_wallclock_config3_resume_after3392_setsid_20260308.log`.
+- Resume chunk per-rank log root: `log/qwen3_a3b_moe_scaling_wallclock_config3_resume_20260308/`.
+- Resume chunk CSV target: `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/qwen3_a3b_moe_scaling_wallclock_config3_resume_after3392_20260308.csv`.

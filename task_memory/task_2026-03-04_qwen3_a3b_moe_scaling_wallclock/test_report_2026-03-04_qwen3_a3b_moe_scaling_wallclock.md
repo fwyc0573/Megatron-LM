@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-03-08 | Added fresh run-status audit, transient rank3392 repro result, and Config3 remainder resume status |
 | 2026-03-07 | Added execution-status check and setsid-managed rerun status for Config3/Config4 |
 | 2026-03-04 | Initialized test report template for Qwen3-A3B MoE scaling wall-clock task |
 | 2026-03-04 | Filled static, unit, and integration dry-run results with evidence |
@@ -143,6 +144,11 @@
   - `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/qwen3_a3b_moe_scaling_wallclock_config4_setsid_20260307.csv`
   - `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/logs/run_qwen3_a3b_moe_wallclock_config3_setsid_20260307.log`
   - `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/logs/run_qwen3_a3b_moe_wallclock_config4_setsid_20260307.log`
+
+- On 2026-03-08, fresh verification showed `Config3` had completed `425/512` representative ranks before a `SIGSEGV` at process exit after rank `3392` already finished all profiled phases.
+- Direct repro of `fake_current_rank_id=3392` succeeded cleanly; evidence: `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/logs/repro_rank3392_20260308.log`.
+- A `setsid`-managed resume chunk for remaining `Config3` ranks `3400..4088` is now active; evidence: `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/logs/run_qwen3_a3b_moe_wallclock_config3_resume_after3392_setsid_20260308.log`.
+- `Config4` remained active at audit time and had advanced to representative rank `1808`; evidence: current `ps` + log audit recorded in `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/notes.md`.
 
 ### 5. Interim Real Timing Snapshot
 Current CSV (`docs/data/qwen3_a3b_moe_scaling_wallclock_timing.csv`) rows:

@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-03-08 | Audited setsid progress, reproduced rank3392 successfully, and launched Config3 remainder resume chunk |
 | 2026-03-07 | Diagnosed detached-run cleanup behavior and relaunched Config3/Config4 with setsid-managed sessions |
 | 2026-03-04 | Created progress tracker and initialized task status |
 | 2026-03-04 | Updated with script implementation and dry-run validation evidence |
@@ -59,3 +60,7 @@
 - 2026-03-07: Identified an execution-environment issue: `nohup`-style detached runs were not surviving harness/session cleanup reliably in this container.
 - 2026-03-07: Relaunched official full sweeps with `setsid` so wrapper shells are re-parented to PID 1 and keep `torchrun` children alive.
 - 2026-03-07: Active official runs now write to `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/qwen3_a3b_moe_scaling_wallclock_config3_setsid_20260307.csv` and `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/qwen3_a3b_moe_scaling_wallclock_config4_setsid_20260307.csv`.
+- 2026-03-08: Fresh audit showed `Config3` had stopped again after `425/512` completed ranks, with a `SIGSEGV` reported only after rank `3392` had already finished warmup/FWD/BWD/optimizer.
+- 2026-03-08: Direct repro for `fake_current_rank_id=3392` completed cleanly (`exit 0`) and re-confirmed the crash was transient rather than a deterministic rank-specific functional failure.
+- 2026-03-08: Launched a `setsid`-managed resume chunk on `GPU0` for remaining ranks `3400..4088` (`87` representatives), writing to `task_memory/task_2026-03-04_qwen3_a3b_moe_scaling_wallclock/qwen3_a3b_moe_scaling_wallclock_config3_resume_after3392_20260308.csv`.
+- 2026-03-08: Fresh audit showed `Config4` is still running under the `20260307` `setsid` session and had reached representative rank `1808` at audit time.
