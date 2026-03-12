@@ -168,7 +168,10 @@ def finalize_model_grads(model: List[torch.nn.Module], args):
             group_kind="dp",
             trace_start=args.trace_start,
             current_iter=args.current_iter,
-            args=args
+            args=args,
+            op_semantics=(
+                "wait_flush_only" if getattr(args, "overlap_grad_reduce", False) else "full_sync"
+            ),
         )
         CMD.set_current_cmd(cmd)
         with cmd:

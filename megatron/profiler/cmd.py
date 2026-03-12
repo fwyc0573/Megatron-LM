@@ -68,7 +68,7 @@ class CMD:
     def __init__(self, rank_id, mg_state, name_cmd, use_cuda=True, stage_operations_trace_dict=None, 
                  micro_batch_ids_dict=None, stage_id=None, duration=None, time_stamp=None, description=None, \
                     group_kind=None, input__shape=None, input__dtype=None, simu_start=None, trace_start=None, current_iter=None, \
-                        args=None):
+                        args=None, cmd_uid=None, op_semantics=None, finalize_base_duration_ms=None):
         self.rank_id = rank_id
         self.stage_id = stage_id
         self.mg_state = mg_state
@@ -77,6 +77,9 @@ class CMD:
         self.time_stamp = time_stamp
         self.description = description
         self.group_kind = group_kind
+        self.cmd_uid = cmd_uid or f"cmd-{uuid.uuid4().hex[:12]}"
+        self.op_semantics = op_semantics
+        self.finalize_base_duration_ms = finalize_base_duration_ms
         
         # Normalize input shape to list format
         if isinstance(input__shape, torch.Size):
@@ -109,6 +112,34 @@ class CMD:
         
         # Track if this CMD is the current global command
         self._is_current_cmd = False
+
+    @staticmethod
+    def _format_trace_line(rank_id, event_name, fields, sub_operations=None):
+        """Format a trace line while keeping sub_operations as the trailing field."""
+        field_parts = []
+        for key, value in fields.items():
+            field_parts.append(f"{key}={value}")
+        if sub_operations is None:
+            sub_operations = []
+        field_parts.append(f"sub_operations={sub_operations}")
+        return f"rank:{rank_id}:{event_name}(" + ",".join(field_parts) + ")"
+
+    @staticmethod
+    def emit_trace_event(rank_id, stage_operations_trace_dict, event_name, fields, sub_operations=None):
+        """Append a non-CMD trace event to the current trace file payload."""
+        if stage_operations_trace_dict is None:
+            raise RuntimeError(
+                f"Trace event {event_name} cannot be emitted without stage_operations_trace_dict"
+            )
+        line = CMD._format_trace_line(
+            rank_id=rank_id,
+            event_name=event_name,
+            fields=fields,
+            sub_operations=sub_operations,
+        )
+        if rank_id not in stage_operations_trace_dict:
+            stage_operations_trace_dict[rank_id] = []
+        stage_operations_trace_dict[rank_id].append(line)
 
     def set_tensor_shape_and_dtype(self, input__shape, input__dtype):
         """Set tensor shape and dtype with proper type validation"""
@@ -353,8 +384,41 @@ class CMD:
     def __str__(self):
         """String representation of the CMD object"""
         if not self.simu_start or (self.current_iter < self.trace_start - 1):
-            return f"rank:{self.rank_id}:{self.name_cmd}(stage_id={self.stage_id},batch_id=None,mg_state={self.mg_state},duration=None,description={self.description},group_kind={self.group_kind})"
-        return f"rank:{self.rank_id}:{self.name_cmd}(stage_id={self.stage_id},batch_id={self.batch_id},mg_state={self.mg_state},duration={self.duration},description={self.description},group_kind={self.group_kind},input__shape={self.input__shape},input__dtype={self.input__dtype},timestamp={self.time_stamp},sub_operations={self.sub_operations})"
+            return CMD._format_trace_line(
+                rank_id=self.rank_id,
+                event_name=self.name_cmd,
+                fields={
+                    "stage_id": self.stage_id,
+                    "batch_id": None,
+                    "mg_state": self.mg_state,
+                    "duration": None,
+                    "description": self.description,
+                    "group_kind": self.group_kind,
+                    "cmd_uid": self.cmd_uid,
+                    "op_semantics": self.op_semantics,
+                    "finalize_base_duration_ms": self.finalize_base_duration_ms,
+                },
+                sub_operations=self.sub_operations,
+            )
+        return CMD._format_trace_line(
+            rank_id=self.rank_id,
+            event_name=self.name_cmd,
+            fields={
+                "stage_id": self.stage_id,
+                "batch_id": self.batch_id,
+                "mg_state": self.mg_state,
+                "duration": self.duration,
+                "description": self.description,
+                "group_kind": self.group_kind,
+                "cmd_uid": self.cmd_uid,
+                "op_semantics": self.op_semantics,
+                "finalize_base_duration_ms": self.finalize_base_duration_ms,
+                "input__shape": self.input__shape,
+                "input__dtype": self.input__dtype,
+                "timestamp": self.time_stamp,
+            },
+            sub_operations=self.sub_operations,
+        )
 
     def add_sub_operation(self, operation_name, duration, attr_info, timestamp_ms=None):
         """Add a sub-operation to this CMD"""
@@ -462,24 +526,36 @@ class CMD:
                 CMD.temp_async_records.pop(key, None)
 
     @staticmethod
-    def get_trace_decorator(attrs: Optional[Dict[str, List[str]]] = None, group_type: Optional[str] = None, comm_func: Optional[str] = None, overlap_op: Optional[str] = None, dynamic_attrs: Optional[Dict[str, str]] = None):
+    def get_trace_decorator(
+        attrs: Optional[Dict[str, List[str]]] = None,
+        group_type: Optional[str] = None,
+        comm_func: Optional[str] = None,
+        overlap_op: Optional[str] = None,
+        dynamic_attrs: Optional[Dict[str, str]] = None,
+    ):
         """Get a decorator for tracing function calls"""
+
         def decorator(func):
             def wrapper(*args, **kwargs):
                 # Fix: Correct condition check for async operations
                 # TODO: I think in async comm. op, we should not use sync() which break the oringinal running mode (async and paralell)
                 # 这2类async comm在real running mode的下，直接返回：因为无法记录comm（还会导致并行并发被sync破坏
                 # scaling mode模式下，还是会测量耗时（单纯用于模拟cpu侧？）
-                if (func.__name__ in ["allreduce", "_reduce"]) and kwargs.get('async_op', False) and CMD.get_current_profile_sign() is False:
+                if (
+                    func.__name__ in ["allreduce", "_reduce"]
+                    and kwargs.get('async_op', False)
+                    and CMD.get_current_profile_sign() is False
+                ):
                     return func(*args, **kwargs)
-                
+
                 current_cmd = CMD.get_current_cmd()
                 if current_cmd is not None:
                     try:
                         def _run_func():
+                            phase_range = getattr(current_cmd, "phase_range", None)
                             phase_ctx = (
-                                current_cmd.phase_range("comm")
-                                if comm_func is not None
+                                phase_range("comm")
+                                if comm_func is not None and callable(phase_range)
                                 else nullcontext()
                             )
                             with phase_ctx:
@@ -535,7 +611,7 @@ class CMD:
                             try:
                                 bound_args = inspect.signature(func).bind(*args, **kwargs)
                                 bound_args.apply_defaults()
-                                
+
                                 if attrs:
                                     for var_name, attributes in attrs.items():
                                         variable = bound_args.arguments.get(var_name)
@@ -549,15 +625,15 @@ class CMD:
                                                         attr_info[f"{var_name}_{attr}"] = value
                                                 else:
                                                     attr_info[f"{var_name}_{attr}"] = variable
-                                
+
                                 if dynamic_attrs:
                                     for attr_key, arg_name in dynamic_attrs.items():
                                         if arg_name in bound_args.arguments:
                                             attr_info[attr_key] = bound_args.arguments[arg_name]
-                                            
+
                             except Exception as e:
                                 print(f"Warning: Failed to extract attributes for {func.__name__}: {e}")
-                                
+
                         if group_type and 'group' not in attr_info:
                             attr_info['group'] = group_type
                         if comm_func:
@@ -580,7 +656,9 @@ class CMD:
                     # Handle the case when current_cmd is None - just execute without tracing
                     result = func(*args, **kwargs)
                 return result
+
             return wrapper
+
         return decorator
 
     @staticmethod

@@ -2,6 +2,8 @@
 
 import math
 import os
+import time
+import uuid
 from enum import Enum
 from logging import getLogger
 from typing import Dict, List, Optional
@@ -19,6 +21,13 @@ from megatron.profiler.cmd import CMD
 class BufferType(Enum):
     PARAM = 1
     GRAD = 2
+
+
+class _ScalingMetadataOnlyHandle:
+    """Sentinel handle used when scaling-mode overlap tracing must not launch real collectives."""
+
+    def wait(self):
+        return True
 
 
 def shard_buffer(buffer: torch.Tensor, data_parallel_world_size: int):
@@ -64,6 +73,8 @@ class Bucket:
         data_parallel_group: torch.distributed.ProcessGroup,
         data_parallel_world_size: int,
         gradient_scaling_factor: float,
+        buffer_id: Optional[int] = None,
+        bucket_id: Optional[int] = None,
     ):
         self.ddp_config = ddp_config
 
@@ -80,6 +91,8 @@ class Bucket:
         # within the full grad_buffer.
         self.offset = offset
         self.numel_unpadded = numel_unpadded
+        self.buffer_id = buffer_id
+        self.bucket_id = bucket_id
         self.data_parallel_group = data_parallel_group
         self.data_parallel_world_size = data_parallel_world_size
         self.data_parallel_rank = torch.distributed.get_rank(group=data_parallel_group)
@@ -92,10 +105,131 @@ class Bucket:
         Reset metadata in bucket in preparation for the next iteration of training.
         """
         self.params_with_grad = set()
+        self.trace_params_with_grad = set()
+        self.trace_ready_cmd_uid = None
         self.communication_handle = None
         self.communication_issued = False
+        self.pending_trace = None
 
-    def start_grad_sync(self):
+    def _get_trace_enabled_cmd(self):
+        current_cmd = CMD.get_current_cmd()
+        if current_cmd is None or current_cmd.args is None:
+            return None
+        if not getattr(current_cmd.args, 'trace_ddp_grad_overlap', False):
+            return None
+        if not getattr(current_cmd, 'simu_start', True):
+            return None
+        trace_start = getattr(current_cmd, 'trace_start', None)
+        current_iter = getattr(current_cmd, 'current_iter', None)
+        if trace_start is not None and current_iter is not None:
+            if current_iter < trace_start - 1:
+                return None
+        return current_cmd
+
+    def _init_pending_trace(self, current_cmd):
+        if current_cmd is None:
+            raise RuntimeError(
+                f'DDP overlap trace for bucket {self.bucket_id} requires an active CMD context'
+            )
+        if self.pending_trace is not None:
+            return
+        self.pending_trace = {
+            'comm_uid': f'ddpcomm-{uuid.uuid4().hex[:12]}',
+            'iter': getattr(current_cmd, 'current_iter', None),
+            'stage_id': getattr(current_cmd, 'stage_id', None),
+            'mg_state': getattr(current_cmd, 'mg_state', None),
+            'group_kind': 'dp',
+            'comm_func': 'reduce_scatter' if self.ddp_config.use_distributed_optimizer else 'allreduce',
+            'buffer_id': self.buffer_id,
+            'bucket_id': self.bucket_id,
+            'bucket_offset': self.offset,
+            'bucket_numel': int(self.grad_data.numel()),
+            'bucket_numel_unpadded': self.numel_unpadded,
+            'param_count': len(self.params),
+            'trigger_cmd_uid': getattr(current_cmd, 'cmd_uid', None),
+            'trigger_op': getattr(current_cmd, 'name_cmd', None),
+            'trigger_batch_id': getattr(current_cmd, 'batch_id', None),
+            'trigger_timestamp_ms': round(time.perf_counter() * 1000, 2),
+            'launch_timestamp_ms': None,
+            'launch_source': None,
+            'timing_domain': None,
+            'metadata_only': None,
+            'status': None,
+            'completion_observed_timestamp_ms': None,
+            'completion_source': None,
+            'wait_cmd_uid': None,
+            'wait_start_timestamp_ms': None,
+            'wait_end_timestamp_ms': None,
+            'logical_stream_role': 'dp_comm',
+            'grad_dtype': self.grad_data.dtype,
+            'data_parallel_world_size': self.data_parallel_world_size,
+            '_trace_dict': current_cmd.stage_operations_trace_dict,
+            '_rank_id': current_cmd.rank_id,
+            '_trace_args': current_cmd.args,
+            '_event_emitted': False,
+        }
+
+    def _emit_pending_trace(self):
+        if self.pending_trace is None or self.pending_trace['_event_emitted']:
+            return
+        fields = {
+            key: value
+            for key, value in self.pending_trace.items()
+            if not key.startswith('_')
+        }
+        duration = 0.0
+        if (
+            fields['launch_timestamp_ms'] is not None
+            and fields['completion_observed_timestamp_ms'] is not None
+        ):
+            duration = max(
+                0.0,
+                round(
+                    float(fields['completion_observed_timestamp_ms'])
+                    - float(fields['launch_timestamp_ms']),
+                    2,
+                ),
+            )
+        fields['duration'] = duration
+        fields['timestamp'] = (
+            fields['completion_observed_timestamp_ms']
+            if fields['completion_observed_timestamp_ms'] is not None
+            else fields['launch_timestamp_ms']
+        )
+        CMD.emit_trace_event(
+            rank_id=self.pending_trace['_rank_id'],
+            stage_operations_trace_dict=self.pending_trace['_trace_dict'],
+            event_name='ddp_grad_comm',
+            fields=fields,
+        )
+        self.pending_trace['_event_emitted'] = True
+
+    def _mark_trace_completion(self, future):
+        if self.pending_trace is not None and not self.pending_trace['_event_emitted']:
+            self.pending_trace['completion_observed_timestamp_ms'] = round(
+                time.perf_counter() * 1000, 2
+            )
+            self.pending_trace['completion_source'] = 'future_callback'
+            self.pending_trace['status'] = 'completed'
+        return future
+
+    def note_param_ready(self, param: torch.nn.Parameter):
+        """Record bucket trigger metadata from the active backward CMD."""
+        assert param in self.params, 'Param is not in the bucket'
+        current_cmd = self._get_trace_enabled_cmd()
+        if current_cmd is None:
+            return
+        current_cmd_uid = getattr(current_cmd, 'cmd_uid', None)
+        if self.trace_ready_cmd_uid != current_cmd_uid:
+            self.trace_ready_cmd_uid = current_cmd_uid
+            self.trace_params_with_grad = set()
+            if self.pending_trace is not None and self.pending_trace['launch_timestamp_ms'] is None:
+                self.pending_trace = None
+        self.trace_params_with_grad.add(param)
+        if len(self.trace_params_with_grad) == len(self.params) and self.pending_trace is None:
+            self._init_pending_trace(current_cmd)
+
+    def start_grad_sync(self, launch_source: str = 'grad_sync_func'):
         """
         Initiates grad sync (all-reduce or reduce-scatter) communication operation
         for this bucket.
@@ -107,6 +241,23 @@ class Bucket:
         assert (
             self.communication_handle is None and not self.communication_issued
         ), 'Should not have multiple communication calls in flight at once'
+
+        current_cmd = CMD.get_current_cmd()
+        trace_cmd = self._get_trace_enabled_cmd()
+        trace_enabled = trace_cmd is not None or self.pending_trace is not None
+        if trace_enabled and self.pending_trace is None:
+            self._init_pending_trace(trace_cmd)
+
+        trace_args = None
+        if trace_enabled:
+            trace_args = self.pending_trace['_trace_args']
+        elif current_cmd is not None and current_cmd.args is not None:
+            trace_args = current_cmd.args
+        scaling_metadata_only = bool(
+            trace_args is not None
+            and getattr(trace_args, 'trace_ddp_grad_overlap', False)
+            and getattr(trace_args, 'is_scaling_mode', False)
+        )
 
         # Make sure norm of grads in bucket are not NaN
         # prior to data-parallel all-reduce / reduce-scatter.
@@ -120,6 +271,26 @@ class Bucket:
             )
 
         self.grad_data *= self.gradient_scaling_factor
+        if trace_enabled:
+            self.pending_trace['launch_timestamp_ms'] = round(time.perf_counter() * 1000, 2)
+            self.pending_trace['launch_source'] = launch_source
+            if scaling_metadata_only:
+                self.pending_trace['timing_domain'] = 'metadata_only'
+                self.pending_trace['metadata_only'] = True
+                self.pending_trace['status'] = 'launch_only'
+                self.communication_handle = _ScalingMetadataOnlyHandle()
+                self.communication_issued = True
+                self._emit_pending_trace()
+                return
+
+            self.pending_trace['timing_domain'] = 'actual'
+            self.pending_trace['metadata_only'] = False
+
+        if scaling_metadata_only:
+            self.communication_handle = _ScalingMetadataOnlyHandle()
+            self.communication_issued = True
+            return
+
         # Use async_op only when overlap_grad_reduce is True.
         if self.ddp_config.use_distributed_optimizer:
             local_data_view = shard_buffer(self.grad_data, self.data_parallel_world_size)[
@@ -132,25 +303,26 @@ class Bucket:
                 async_op=self.ddp_config.overlap_grad_reduce,
             )
         else:
-            # import torch.distributed as dist
-            # rank_id = dist.get_rank()
-            # print(f"rank_id: {rank_id} | allreduce | Grad data size: {self.grad_data.size()}, dtype: {self.grad_data.dtype}")
-            # raise 0 
-            # nvtx.range_push(f"all_reduce_dp_{self.data_parallel_rank}")
-            
-            # 获取分布式信息用于调试
-            global_rank = torch.distributed.get_rank()
-            dp_group_ranks = list(range(torch.distributed.get_world_size(group=self.data_parallel_group)))
-            # print(f"Global rank: {global_rank}, EP?DP group ranks: {dp_group_ranks}, EP?DP rank: {self.data_parallel_rank}")
-            
             self.communication_handle = torch.distributed.all_reduce(
                 self.grad_data,
                 group=self.data_parallel_group,
                 async_op=self.ddp_config.overlap_grad_reduce,
             )
-            cmd = CMD.get_current_cmd()
-            cmd.set_tensor_shape_and_dtype(self.grad_data.shape, self.grad_data.dtype)
-        
+            if current_cmd is not None:
+                current_cmd.set_tensor_shape_and_dtype(self.grad_data.shape, self.grad_data.dtype)
+
+        if trace_enabled:
+            if not hasattr(self.communication_handle, 'get_future'):
+                raise RuntimeError(
+                    'DDP overlap trace requires Work.get_future() support for host-observed completion'
+                )
+            future = self.communication_handle.get_future()
+            if future is None or not hasattr(future, 'then'):
+                raise RuntimeError(
+                    'DDP overlap trace requires a future with then() support for completion callback'
+                )
+            future.then(self._mark_trace_completion)
+
         self.communication_issued = True
 
     def finish_grad_sync(self):
@@ -163,13 +335,32 @@ class Bucket:
         """
         # If overlap_grad_reduce is False, start (and finish) synchronous communication call here.
         if not self.ddp_config.overlap_grad_reduce:
-            self.start_grad_sync()
+            self.start_grad_sync(launch_source='finalize_flush')
             return
         assert self.communication_handle is not None and self.communication_issued, (
             f'Communication call has not been issued for this bucket '
             f'({len(self.params_with_grad)}/{len(self.params)} params have grad available)'
         )
+        if self.pending_trace is not None and self.pending_trace['metadata_only']:
+            self.communication_handle.wait()
+            return
+
+        current_cmd = self._get_trace_enabled_cmd()
+        if self.pending_trace is not None:
+            if current_cmd is None:
+                raise RuntimeError(
+                    'DDP overlap trace requires an active dp_allreduce CMD during finish_grad_sync'
+                )
+            self.pending_trace['wait_cmd_uid'] = current_cmd.cmd_uid
+            self.pending_trace['wait_start_timestamp_ms'] = round(time.perf_counter() * 1000, 2)
         self.communication_handle.wait()
+        if self.pending_trace is not None:
+            self.pending_trace['wait_end_timestamp_ms'] = round(time.perf_counter() * 1000, 2)
+            if self.pending_trace['completion_observed_timestamp_ms'] is None:
+                raise RuntimeError(
+                    'DDP overlap trace missing completion timestamp after Work.wait()'
+                )
+            self._emit_pending_trace()
         # nvtx.range_pop()
 
     def register_grad_ready(self, param: torch.nn.Parameter):
@@ -187,7 +378,7 @@ class Bucket:
         self.params_with_grad.add(param)
         # If all params in bucket have grads available, issue communication call.
         if len(self.params_with_grad) == len(self.params):
-            self.start_grad_sync()
+            self.start_grad_sync(launch_source='param_hook')
 
 
 class ParamAndGradBuffer:
@@ -219,6 +410,7 @@ class ParamAndGradBuffer:
         bucket_size: int,
         param_to_name: Dict[torch.nn.Parameter, str],
         gradient_scaling_factor: float,
+        buffer_id: Optional[int] = None,
     ):
         self.ddp_config = ddp_config
 
@@ -238,6 +430,7 @@ class ParamAndGradBuffer:
         )
         self.gradient_scaling_factor = gradient_scaling_factor
         self.is_last_microbatch = True
+        self.buffer_id = buffer_id
 
         # Data structures to store underlying buckets and relevant indexing data.
         self.buckets = []
@@ -475,6 +668,8 @@ class ParamAndGradBuffer:
             data_parallel_group=self.data_parallel_group,
             data_parallel_world_size=self.data_parallel_world_size,
             gradient_scaling_factor=self.gradient_scaling_factor,
+            buffer_id=self.buffer_id,
+            bucket_id=bucket_id,
         )
         self.buckets.append(bucket)
         for bucket_param in bucket_params:
@@ -491,7 +686,7 @@ class ParamAndGradBuffer:
             bucket.reset()
         self.is_last_microbatch = True
 
-    def start_grad_sync(self):
+    def start_grad_sync(self, launch_source: str = 'grad_sync_func'):
         """
         Initiates grad sync (all-reduce or reduce-scatter) communication operations
         for all buckets in the grad buffer.
@@ -502,7 +697,7 @@ class ParamAndGradBuffer:
         """
         # print(f"start_grad_sync | len(self.buckets):{self.buckets}")
         for bucket in self.buckets:
-            bucket.start_grad_sync()
+            bucket.start_grad_sync(launch_source=launch_source)
 
     def finish_grad_sync(self):
         """
@@ -529,3 +724,8 @@ class ParamAndGradBuffer:
         if self.is_last_microbatch:
             bucket = self.param_to_bucket[param]
             bucket.register_grad_ready(param)
+
+    def note_param_ready(self, param: torch.nn.Parameter):
+        """Record trace-only readiness metadata even when grad sync is delayed."""
+        bucket = self.param_to_bucket[param]
+        bucket.note_param_ready(param)

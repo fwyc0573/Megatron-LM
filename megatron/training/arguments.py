@@ -309,6 +309,12 @@ def validate_args(args, defaults={}):
         assert args.use_mcore_models, \
             '--overlap-param-gather only supported with MCore models'
 
+    if args.trace_ddp_grad_overlap:
+        assert args.overlap_grad_reduce, \
+            '--trace-ddp-grad-overlap requires --overlap-grad-reduce'
+        assert args.do_trace, \
+            '--trace-ddp-grad-overlap requires --do-trace'
+
     # Parameters dtype.
     args.params_dtype = torch.float
     if args.fp16:
@@ -2023,6 +2029,14 @@ def _add_fake_args(parser):
     )
     group.add_argument('--trace-memory', action='store_true',
                        help='Enable memory tracking.')
+    group.add_argument(
+        '--trace-ddp-grad-overlap',
+        action='store_true',
+        help=(
+            'Trace DDP gradient-overlap bucket lifecycle events. Requires '
+            '--do-trace and --overlap-grad-reduce.'
+        ),
+    )
     # group.add_argument('--trace-memory-dir', type=str, default='memory_traces',
     #                    help='Directory to save memory traces.')
     group.add_argument('--trace-memory-interval', type=float, default=0.001,

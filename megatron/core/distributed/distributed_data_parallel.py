@@ -99,6 +99,7 @@ class DistributedDataParallel(MegatronModule):
         param_to_name = {}
         dense_params = []
         expert_parallel_params = []
+        next_buffer_id = 0
         for name, param in self.module.named_parameters():
             if not param.requires_grad:
                 continue
@@ -114,6 +115,7 @@ class DistributedDataParallel(MegatronModule):
         def allocate_buffers_for_parameters(
             input_params, data_parallel_group, gradient_scaling_factor=1.0,
         ):
+            nonlocal next_buffer_id
             param_and_grad_dtype_to_params = {}
 
             # Group parameters by their gradient type.
@@ -149,8 +151,10 @@ class DistributedDataParallel(MegatronModule):
                         self.bucket_size,
                         param_to_name,
                         gradient_scaling_factor,
+                        buffer_id=next_buffer_id,
                     )
                 )
+                next_buffer_id += 1
                 for param in params:
                     self.param_to_buffer[param] = buffers[-1]
 
@@ -228,6 +232,7 @@ class DistributedDataParallel(MegatronModule):
                 param.grad = None
 
                 if self.ddp_config.overlap_grad_reduce:
+                    param_to_buffer[param].note_param_ready(param)
                     param_to_buffer[param].register_grad_ready(param)
 
         return param_hook
@@ -255,7 +260,7 @@ class DistributedDataParallel(MegatronModule):
         communication ops.
         """
         for buffer in self.buffers + self.expert_parallel_buffers:
-            buffer.start_grad_sync()
+            buffer.start_grad_sync(launch_source='grad_sync_func')
 
     def finish_grad_sync(self):
         """

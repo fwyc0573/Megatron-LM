@@ -260,6 +260,72 @@ def _should_fail_on_missing_scaling_grad_replay(args):
     )
 
 
+def _validate_trace_ddp_grad_overlap_runtime_args(args):
+    """Fail fast on runtime combinations that invalidate overlap tracing semantics."""
+    if not getattr(args, "trace_ddp_grad_overlap", False):
+        return
+    if not getattr(args, "overlap_grad_reduce", False):
+        raise RuntimeError(
+            "--trace-ddp-grad-overlap requires --overlap-grad-reduce at runtime"
+        )
+    if hasattr(args, "do_trace") and not getattr(args, "do_trace"):
+        raise RuntimeError(
+            "--trace-ddp-grad-overlap requires --do-trace at runtime"
+        )
+    if getattr(args, "is_scaling_mode", False) and getattr(
+        args, "scaling_disable_ddp_wrap", False
+    ):
+        raise RuntimeError(
+            "--trace-ddp-grad-overlap is incompatible with --scaling-disable-ddp-wrap "
+            "in scaling mode because disabling DDP hooks suppresses the overlap trigger path"
+        )
+
+
+def _emit_scaling_dp_allreduce_placeholder(
+    cmd,
+    insert_index,
+    start_timestamp_ms,
+    end_timestamp_ms,
+):
+    """Insert a traced scaling-mode DDP finalize placeholder at its semantic position."""
+    if cmd.stage_operations_trace_dict is None:
+        raise RuntimeError(
+            "Scaling DDP overlap placeholder emission requires cmd.stage_operations_trace_dict"
+        )
+    if cmd.name_cmd != "dp_allreduce":
+        raise RuntimeError(
+            "Scaling DDP overlap placeholder emission requires name_cmd=dp_allreduce"
+        )
+    if cmd.op_semantics != "metadata_placeholder":
+        raise RuntimeError(
+            "Scaling DDP overlap placeholder emission requires op_semantics=metadata_placeholder"
+        )
+
+    duration_ms = round(float(end_timestamp_ms) - float(start_timestamp_ms), 2)
+    if duration_ms < 0:
+        raise RuntimeError(
+            "Scaling DDP overlap placeholder emission computed a negative finalize base duration"
+        )
+
+    if cmd.micro_batch_ids_dict is not None:
+        cmd.micro_batch_ids_dict.setdefault(cmd.name_cmd, -1)
+        cmd.micro_batch_ids_dict[cmd.name_cmd] += 1
+        cmd.batch_id = cmd.micro_batch_ids_dict[cmd.name_cmd]
+
+    cmd.duration = duration_ms
+    cmd.time_stamp = round(float(end_timestamp_ms), 2)
+    cmd.finalize_base_duration_ms = duration_ms
+
+    stage_trace = cmd.stage_operations_trace_dict.setdefault(cmd.rank_id, [])
+    if insert_index < 0 or insert_index > len(stage_trace):
+        raise RuntimeError(
+            f"Scaling DDP overlap placeholder emission received invalid insert_index={insert_index} "
+            f"for rank {cmd.rank_id} trace length {len(stage_trace)}"
+        )
+    stage_trace.insert(insert_index, str(cmd))
+    return duration_ms
+
+
 def _get_scaling_scheduler_increment_dp_size(args):
     """Select dp-size factor for scaling scheduler increment."""
     if getattr(args, "scaling_align_scheduler_increment", False):
@@ -310,6 +376,7 @@ def pretrain(train_valid_test_dataset_provider,
 
     args = get_args()
     timers = get_timers()
+    _validate_trace_ddp_grad_overlap_runtime_args(args)
 
     # YC: seed set
     set_seed(args.seed)
@@ -707,7 +774,9 @@ def pretrain(train_valid_test_dataset_provider,
             # dp_allreduce
             pos_p_t = (args.pp_rank,args.tp_rank)
             used_dtype = torch.float16 if args.fp16 or args.bf16 else torch.float32
-            cmd = CMD(
+            backward_step_end_timestamp_ms = cmd.time_stamp
+            dp_allreduce_insert_index = None
+            dp_allreduce_cmd = CMD(
             rank_id=rank_id,
             mg_state="finalize",
             name_cmd="dp_allreduce",
@@ -721,10 +790,17 @@ def pretrain(train_valid_test_dataset_provider,
             trace_start=args.trace_start,
             current_iter=args.current_iter,
             args=args,
+            op_semantics=(
+                "metadata_placeholder" if getattr(args, "trace_ddp_grad_overlap", False) else None
+            ),
             input__shape=[args.global_model_params_dict[pos_p_t]["elem_sum"]], 
             input__dtype=used_dtype,
             )
-            cmd.no_trace_update(0,0)
+            if getattr(args, "trace_ddp_grad_overlap", False) and _is_scaling_profile_window(args):
+                args.stage_operations_trace.setdefault(rank_id, [])
+                dp_allreduce_insert_index = len(args.stage_operations_trace[rank_id])
+            else:
+                dp_allreduce_cmd.no_trace_update(0,0)
 
             # ep_allreduce
             if (args.is_rank_in_embedding_group and args.fake_pp > 1):
@@ -761,6 +837,18 @@ def pretrain(train_valid_test_dataset_provider,
                 input__dtype=ep_input__dtype,
                 )
                 cmd.no_trace_update(0,0)
+
+            if dp_allreduce_insert_index is not None:
+                if backward_step_end_timestamp_ms is None:
+                    raise RuntimeError(
+                        'Scaling DDP overlap placeholder emission requires backward_step end timestamp'
+                    )
+                _emit_scaling_dp_allreduce_placeholder(
+                    cmd=dp_allreduce_cmd,
+                    insert_index=dp_allreduce_insert_index,
+                    start_timestamp_ms=backward_step_end_timestamp_ms,
+                    end_timestamp_ms=round(time.perf_counter() * 1000, 2),
+                )
 
             cmd = CMD(
             rank_id=rank_id,
