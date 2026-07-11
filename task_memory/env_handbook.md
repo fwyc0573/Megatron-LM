@@ -6,6 +6,7 @@
 | 2026-02-24 | Added fix for Claude Code VSCode launch failure under root container with bypassPermissions |
 | 2026-03-05 | Added checklist for shared-GPU OOM during distributed profiling runs |
 | 2026-03-06 | Added `CUDA_DEVICE_MAX_CONNECTIONS=1` prerequisite for Megatron scaling-mode torchrun validation |
+| 2026-03-12 | Added Echo-slowdown shell/Nsight compatibility notes for workflow validation |
 
 # Environment Handbook
 
@@ -114,3 +115,30 @@ CUDA_DEVICE_MAX_CONNECTIONS=1 NCCL_DEBUG=WARN CUDA_VISIBLE_DEVICES=<gpu_id> torc
 
 - This is required even for single-process scaling-mode repro because Megatron argument validation still checks the async gradient all-reduce precondition.
 - Keep `MASTER_PORT` unique across repeated runs.
+
+
+## Echo-slowdown Workflow Compatibility on This Machine
+
+### Symptoms
+
+- `run.sh` or `run-nsys.sh` fails with:
+  - `set: Illegal option -o pipefail`
+  - `unrecognised option '--python-backtrace=cuda'`
+  - `ImportError` caused by importing the wrong external `utils` package
+- `nsys profile` generates `.nsys-rep` but exits with code `143` on the multi-process training script.
+- A fresh `kernel_metric` run is much heavier than the practical workflow needs.
+
+### Fix
+
+1. Invoke Echo shell wrappers with `bash`, not `sh`.
+2. Export `PYTHONPATH=<repo>/Echo-slowdown:${PYTHONPATH:-}` inside Echo wrapper scripts so the local `utils` package wins.
+3. Replace `jq`-based JSON extraction with a Python helper when `jq` is absent.
+4. Use `nsys` flags compatible with Nsight Systems `2023.1.2.43` by removing unsupported Python backtrace options.
+5. Accept the observed `143` return code only when the expected `.nsys-rep` file was actually produced, then continue to `nsys export`.
+6. For practical end-to-end validation, prefer:
+
+```bash
+SKIP_KERNEL_METRIC=1 bash Echo-slowdown/run_all.sh
+```
+
+This reuses `Echo-slowdown/merge/input/kernel_metric_output.csv` and still exercises the real `slowdown_collection -> merge -> train -> predict` chain.
