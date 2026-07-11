@@ -2,6 +2,7 @@
 
 """Pretrain GPT"""
 
+import argparse
 import torch
 from functools import partial, reduce
 import sys, os
@@ -21,6 +22,20 @@ from megatron.training.utils import get_ltor_masks_and_position_ids
 from megatron.training.utils import average_losses_across_data_parallel_group
 from pretrain_gpt import model_provider, is_dataset_built_on_rank
 from tools.retro.sft.dataset_conv import JsonQADataset, JsonQADatasetConfig, RetroJsonQADataset, RetroJsonQADatasetConfig
+
+
+def _argparse_bool(value):
+    if isinstance(value, bool):
+        return value
+
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "t", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "f", "no", "n", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(
+        f"Boolean value expected, got {value!r}. Use true/false or 1/0."
+    )
 
 
 def get_tasks_args(parser):
@@ -79,7 +94,7 @@ def get_tasks_args(parser):
     group.add_argument('--bert-retriever-neighbours', action='store_true', default=False)
     group.add_argument('--prefix', action='store_true', default=False)
     group.add_argument('--question-in-encoder', action='store_true', default=False)
-    group.add_argument('--reset_eval', type=bool, default=True)  ## by default reset eval for each eval
+    group.add_argument('--reset_eval', type=_argparse_bool, default=True)  ## by default reset eval for each eval
     return parser
 
 

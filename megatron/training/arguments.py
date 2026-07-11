@@ -309,6 +309,9 @@ def validate_args(args, defaults={}):
         assert args.use_mcore_models, \
             '--overlap-param-gather only supported with MCore models'
 
+    if args.overlap_grad_reduce and args.do_trace:
+        args.trace_ddp_grad_overlap = True
+
     if args.trace_ddp_grad_overlap:
         assert args.overlap_grad_reduce, \
             '--trace-ddp-grad-overlap requires --overlap-grad-reduce'
@@ -919,7 +922,7 @@ def _add_network_size_args(parser):
                        help='Use squared relu activation instead of default gelu')
     group.add_argument('--swiglu', action='store_true',
                        help='Use gated linear units and SiLU activation instead of default gelu')
-    group.add_argument('--onnx-safe', type=bool, required=False,
+    group.add_argument('--onnx-safe', type=_argparse_bool, required=False,
                        help='Use workarounds for known problems with '
                        'Torch ONNX exporter')
     group.add_argument('--bert-no-binary-head', action='store_false',
@@ -1486,7 +1489,7 @@ def _add_distributed_args(parser):
                        'a custom built image that support ring-exchange p2p.')
     group.add_argument('--local_rank', type=int, default=None,
                        help='local rank passed from distributed launcher.')
-    group.add_argument('--lazy-mpu-init', type=bool, required=False,
+    group.add_argument('--lazy-mpu-init', type=_argparse_bool, required=False,
                        help='If set to True, initialize_megatron() '
                        'skips DDP initialization and returns function to '
                        'complete it instead.Also turns on '
@@ -1834,11 +1837,32 @@ def _add_experimental_args(parser):
     return parser
 
 
+def _argparse_bool(value):
+    if isinstance(value, bool):
+        return value
+
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "t", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "f", "no", "n", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(
+        f"Boolean value expected for trace flag, got {value!r}. Use true/false or 1/0."
+    )
+
+
 def _add_trace_args(parser):
     group = parser.add_argument_group(title='trace')
     # 添加 --trace-start 参数
-    group.add_argument('--do-trace', type=bool, default=True,
-                       help='Trace or not')
+    group.add_argument(
+        '--do-trace',
+        type=_argparse_bool,
+        nargs='?',
+        const=True,
+        default=True,
+        metavar='BOOL',
+        help='Trace or not. Accepts true/false, 1/0, on/off.',
+    )
     group.add_argument('--trace-start', type=int, default=0,
                        help='The iteration to start tracing.')
     group.add_argument(
@@ -1923,7 +1947,7 @@ def _add_trace_args(parser):
 
 def _add_fake_args(parser):
     group = parser.add_argument_group(title='fake')
-    # group.add_argument('--is-scaling-mode', type=bool, default=False,
+    # group.add_argument('--is-scaling-mode', action='store_true', default=False,
     #                 help='Enable scaling mode for fake distributed training.')
     group.add_argument('--is-scaling-mode', action='store_true',
                        help='Enable scaling mode for fake distributed training.')

@@ -45,6 +45,29 @@ def test_trace_ddp_grad_overlap_flag_parses():
     assert args.trace_ddp_grad_overlap is True
 
 
+def test_trace_ddp_grad_overlap_auto_enabled_when_ddp_overlap_is_on():
+    args = _parse_and_validate(_base_cli() + ["--overlap-grad-reduce"])
+    assert args.trace_ddp_grad_overlap is True
+
+
+def test_do_trace_false_disables_trace_ddp_grad_overlap_auto_enable():
+    args = _parse_and_validate(_base_cli() + ["--overlap-grad-reduce", "--do-trace", "False"])
+    assert args.do_trace is False
+    assert args.trace_ddp_grad_overlap is False
+
+
+def test_do_trace_zero_disables_trace_ddp_grad_overlap_auto_enable():
+    args = _parse_and_validate(_base_cli() + ["--overlap-grad-reduce", "--do-trace", "0"])
+    assert args.do_trace is False
+    assert args.trace_ddp_grad_overlap is False
+
+
+def test_do_trace_invalid_value_is_rejected():
+    with mock.patch.object(sys, "argv", _base_cli() + ["--do-trace", "maybe"]):
+        with pytest.raises(SystemExit):
+            parse_args(ignore_unknown_args=True)
+
+
 def test_trace_ddp_grad_overlap_requires_overlap_grad_reduce():
     with pytest.raises(AssertionError, match="--overlap-grad-reduce"):
         _parse_and_validate(_base_cli() + ["--trace-ddp-grad-overlap"])

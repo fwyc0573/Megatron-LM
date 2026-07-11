@@ -17,6 +17,20 @@ from megatron.core.models.retro.utils import (
 from megatron.core.transformer import TransformerConfig
 
 
+def _argparse_bool(value):
+    if isinstance(value, bool):
+        return value
+
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "t", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "f", "no", "n", "off"}:
+        return False
+    raise argparse.ArgumentTypeError(
+        f"Boolean value expected, got {value!r}. Use true/false or 1/0."
+    )
+
+
 def parse_args(extra_args_provider=None, ignore_unknown_args=False):
     """Parse all arguments."""
     parser = argparse.ArgumentParser(description='Megatron-LM Arguments',
@@ -755,7 +769,7 @@ def _add_network_size_args(parser):
                        help='Use squared relu activation instead of default gelu')
     group.add_argument('--swiglu', action='store_true',
                        help='Use gated linear units and SiLU activation instead of default gelu')
-    group.add_argument('--onnx-safe', type=bool, required=False,
+    group.add_argument('--onnx-safe', type=_argparse_bool, required=False,
                        help='Use workarounds for known problems with '
                        'Torch ONNX exporter')
     group.add_argument('--bert-no-binary-head', action='store_false',
@@ -1319,7 +1333,7 @@ def _add_distributed_args(parser):
                        'a custom built image that support ring-exchange p2p.')
     group.add_argument('--local_rank', type=int, default=None,
                        help='local rank passed from distributed launcher.')
-    group.add_argument('--lazy-mpu-init', type=bool, required=False,
+    group.add_argument('--lazy-mpu-init', type=_argparse_bool, required=False,
                        help='If set to True, initialize_megatron() '
                        'skips DDP initialization and returns function to '
                        'complete it instead.Also turns on '

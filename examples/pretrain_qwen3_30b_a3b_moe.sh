@@ -7,6 +7,8 @@
 # SEQ_LEN=2048 \
 # MICRO_BATCH_SIZE=8 \
 # TRACE_SUBOP_SYNC_MODE=event \
+# OVERLAP_GRAD_REDUCE=1 \
+# DDP_BUCKET_SIZE=10000000 \
 # bash examples/pretrain_qwen3_30b_a3b_moe.sh
 
 set -euo pipefail
@@ -57,6 +59,8 @@ SCALING_COMM_ADJACENT_COPY_ITERS=${SCALING_COMM_ADJACENT_COPY_ITERS:-0}
 SCALING_DISABLE_DDP_WRAP=${SCALING_DISABLE_DDP_WRAP:-0}
 TRACE_MEMORY=${TRACE_MEMORY:-0}
 TRACE_MEMORY_INTERVAL=${TRACE_MEMORY_INTERVAL:-0.1}
+OVERLAP_GRAD_REDUCE=${OVERLAP_GRAD_REDUCE:-${ENABLE_DDP_OVERLAP:-0}}
+DDP_BUCKET_SIZE=${DDP_BUCKET_SIZE:-}
 
 NNODES=${NNODES:-1}
 GPUS_PER_NODE=${GPUS_PER_NODE:-8}
@@ -185,6 +189,10 @@ if [[ "${TRACE_MEMORY}" == "1" ]]; then
   TRACE_ARGS+=(--trace-memory)
   TRACE_ARGS+=(--trace-memory-interval "${TRACE_MEMORY_INTERVAL}")
 fi
+if [[ "${OVERLAP_GRAD_REDUCE}" != "0" && "${OVERLAP_GRAD_REDUCE}" != "1" ]]; then
+  echo "[ERROR] OVERLAP_GRAD_REDUCE must be 0 or 1, got ${OVERLAP_GRAD_REDUCE}."
+  exit 1
+fi
 
 COMMON_ARGS=(
   --kv-channels 128
@@ -241,6 +249,13 @@ COMMON_ARGS=(
   --eval-interval 10000
   --bf16
 )
+
+if [[ "${OVERLAP_GRAD_REDUCE}" == "1" ]]; then
+  COMMON_ARGS+=(--overlap-grad-reduce)
+  if [[ -n "${DDP_BUCKET_SIZE}" ]]; then
+    COMMON_ARGS+=(--ddp-bucket-size "${DDP_BUCKET_SIZE}")
+  fi
+fi
 
 if [[ "${MODE}" == "distributed" ]]; then
   torchrun \
