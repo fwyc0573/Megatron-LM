@@ -79,7 +79,21 @@ def test_cmd_kernel_ground_truth_nvtx_enabled_pushes_and_pops():
     pushed_label = range_push.call_args[0][0]
     assert pushed_label.startswith("cmd_gt|rank=0|op=forward_step|state=steady")
     assert "|stage=1|" in pushed_label
+    assert "|cmd_uid=" in pushed_label
     assert range_pop.call_count == 1
+
+
+def test_cmd_kernel_ground_truth_nvtx_label_keeps_required_fields_and_cmd_uid():
+    cmd = _build_cmd(enable_nvtx=True)
+    label = cmd._build_kernel_ground_truth_nvtx_label()
+    assert label is not None
+    assert "|rank=0|" in label
+    assert "|op=forward_step|" in label
+    assert "|state=steady|" in label
+    assert "|stage=1|" in label
+    assert "|batch=" in label
+    assert "|iter=1|" in label
+    assert f"|cmd_uid={cmd.cmd_uid}" in label
 
 
 def test_cmd_kernel_ground_truth_nvtx_disabled_does_not_emit_range():

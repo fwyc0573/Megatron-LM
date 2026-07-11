@@ -230,9 +230,10 @@ class CMD:
         batch_id = getattr(self, "batch_id", "None")
         current_iter = getattr(self, "current_iter", "None")
         mg_state = getattr(self, "mg_state", "None")
+        cmd_uid = getattr(self, "cmd_uid", "None")
         label = (
             f"{label_prefix}|rank={rank}|op={self.name_cmd}|state={mg_state}|"
-            f"stage={stage_id}|batch={batch_id}|iter={current_iter}"
+            f"stage={stage_id}|batch={batch_id}|iter={current_iter}|cmd_uid={cmd_uid}"
         )
         if phase is not None:
             label += f"|phase={phase}"
