@@ -15,6 +15,23 @@ from .param_and_grad_buffer import ParamAndGradBuffer
 logger = getLogger(__name__)
 
 
+def _resolve_bucketing_pipeline_rank(args, default_pipeline_rank: int) -> int:
+    pipeline_rank = int(default_pipeline_rank)
+    if args is None:
+        return pipeline_rank
+    if not bool(getattr(args, "is_scaling_mode", False)):
+        return pipeline_rank
+    fake_pp_rank = getattr(args, "pp_rank", None)
+    if fake_pp_rank is None:
+        raise RuntimeError(
+            "Scaling mode DDP bucketing requires args.pp_rank to be populated before DDP initialization."
+        )
+    try:
+        return int(fake_pp_rank)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"Invalid scaling-mode pp_rank for DDP bucketing: {fake_pp_rank!r}") from exc
+
+
 class DistributedDataParallel(MegatronModule):
     """
     DDP wrapper which stores grads in contiguous buffers. Also has option of overlapping
@@ -61,6 +78,7 @@ class DistributedDataParallel(MegatronModule):
 
         self.ddp_config = ddp_config
         self.disable_param_hook_accumulation = False
+        args = None
         try:
             from megatron.training import get_args
 
@@ -71,6 +89,7 @@ class DistributedDataParallel(MegatronModule):
             )
         except Exception:
             self.disable_param_hook_accumulation = False
+            args = None
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             logger.info(
                 f'Setting up DistributedDataParallel with {type(self.ddp_config).__name__}: {self.ddp_config}'
@@ -86,8 +105,12 @@ class DistributedDataParallel(MegatronModule):
         # disable_bucketing is True (e.g., we might not want to break up model parameters
         # into buckets for model chunks after the first in the interleaved schedule).
         self.bucket_size = self.ddp_config.bucket_size
+        pipeline_rank_for_bucketing = _resolve_bucketing_pipeline_rank(
+            args=args,
+            default_pipeline_rank=parallel_state.get_pipeline_model_parallel_rank(),
+        )
         # 除了first stage以外，没有必要进行bucketing
-        if parallel_state.get_pipeline_model_parallel_rank() > 0:
+        if pipeline_rank_for_bucketing > 0:
             self.bucket_size = None
         if disable_bucketing:
             self.bucket_size = None
