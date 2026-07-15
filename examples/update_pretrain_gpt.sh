@@ -4,11 +4,11 @@
 # export OMP_NUM_THREADS=1
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 # export NCCL_IB_GID_INDEX=3
-export NCCL_DEBUG=WARN # WARN INFO
+export NCCL_DEBUG="${NCCL_DEBUG:-WARN}" # WARN INFO
 # export NCCL_ALGO=RING #Ring
 # export GLOO_SOCKET_IFNAME="bond4"
 
-export CUDA_VISIBLE_DEVICES=7 #0,1,2,3
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-7}" #0,1,2,3
 
 # export TORCH_CUDA_ARCH_LIST=Ampere
 
@@ -25,9 +25,15 @@ MASTER_ADDR="localhost" #"localhost"
 # Parallelism variables 
 FIXED_PP=1 # 实际使用的PP大小，设为1
 FIXED_TP=1 # 实际使用的TP大小，设为1
-FIXED_DP=$((${GPU_NUM}/${TP}/${PP}))
+FIXED_DP=$((${GPU_NUM}/${FIXED_TP}/${FIXED_PP}))
 
-BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/ytyang/yichengfeng/Megatron-LM
+BASE_PATH="${BASE_PATH:-/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM}" #/data/ytyang/yichengfeng/Megatron-LM
+LOG_ROOT="${LOG_ROOT:-${BASE_PATH}/logs}"
+
+if [[ "${BASE_PATH}" =~ [[:space:]] ]]; then
+    echo "ERROR: BASE_PATH must not contain whitespace: ${BASE_PATH}" >&2
+    exit 1
+fi
 
 # 批量配置支持
 # 定义配置数组：每行格式为 "WORLD_SIZE PP_SIZE TP_SIZE"
@@ -41,7 +47,7 @@ BASE_PATH=/research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM #/data/y
 #     "8192 64 2"
 # )
 BATCH_CONFIGS=(
-    "128 8 8"
+    "${FAKE_WORLD_SIZE:-128} ${FAKE_PP:-8} ${FAKE_TP:-8}"
 )
 
 
@@ -51,30 +57,45 @@ DEFAULT_FAKE_TP=2
 DEFAULT_FAKE_WORLD_SIZE=8192
 
 # 模型和批次设置
-MODEL_SIZE=70 # 使用原脚本中的模型大小 485
+MODEL_SIZE="${MODEL_SIZE:-70}" # 使用原脚本中的模型大小 485
 # NUM_MICBATCH=1
 MICRO_BATCH_SIZE=1
 
 # 函数：验证配置的有效性
+MAX_TOPOLOGY_VALUE=2147483647
+
+require_positive_integer() {
+    local name=$1
+    local value=$2
+
+    if [[ ! "${value}" =~ ^[1-9][0-9]*$ ]]; then
+        echo "ERROR: ${name} must be a positive integer, got ${value}" >&2
+        return 1
+    fi
+
+    if (( ${#value} > ${#MAX_TOPOLOGY_VALUE} )) || (( 10#${value} > MAX_TOPOLOGY_VALUE )); then
+        echo "ERROR: ${name} must be between 1 and ${MAX_TOPOLOGY_VALUE}, got ${value}" >&2
+        return 1
+    fi
+}
+
 validate_config() {
     local world_size=$1
     local pp_size=$2
     local tp_size=$3
-    local dp_size=$4
+    local parallel_size
 
-    if [ "$((dp_size * pp_size * tp_size))" -ne "$world_size" ]; then
-        echo "ERROR: Invalid configuration!"
-        echo "  WORLD_SIZE=${world_size}, PP=${pp_size}, TP=${tp_size}, DP=${dp_size}"
-        echo "  DP * PP * TP = $((dp_size * pp_size * tp_size)) != WORLD_SIZE = ${world_size}"
+    require_positive_integer "WORLD_SIZE" "${world_size}" || return 1
+    require_positive_integer "PP_SIZE" "${pp_size}" || return 1
+    require_positive_integer "TP_SIZE" "${tp_size}" || return 1
+
+    parallel_size=$((pp_size * tp_size))
+    if (( world_size % parallel_size != 0 )); then
+        echo "ERROR: Invalid configuration!" >&2
+        echo "  WORLD_SIZE=${world_size}, PP=${pp_size}, TP=${tp_size}" >&2
+        echo "  WORLD_SIZE must be divisible by PP * TP = ${parallel_size}" >&2
         return 1
     fi
-
-    if [ "$dp_size" -le 0 ]; then
-        echo "ERROR: DP_SIZE must be positive, got ${dp_size}"
-        return 1
-    fi
-
-    return 0
 }
 
 
@@ -85,6 +106,7 @@ if   [[ ${MODEL_SIZE} == 13 ]];   then HIDDEN_SIZE=5120;  NUM_HEAD=32; NUM_LAYER
 elif [[ ${MODEL_SIZE} == 70 ]];  then HIDDEN_SIZE=8192;  NUM_HEAD=64; NUM_LAYERS=64; # 
 elif [[ ${MODEL_SIZE} == 175 ]];  then HIDDEN_SIZE=12288;  NUM_HEAD=96; NUM_LAYERS=96;
 elif [[ ${MODEL_SIZE} == "tiny" ]]; then HIDDEN_SIZE=128;  NUM_HEAD=8; NUM_LAYERS=4;
+elif [[ ${MODEL_SIZE} == "tiny_h64" ]]; then HIDDEN_SIZE=256; NUM_HEAD=4; NUM_LAYERS=4;
 elif [[ ${MODEL_SIZE} == "2T" ]];  then HIDDEN_SIZE=25600;  NUM_HEAD=160; NUM_LAYERS=256;
 elif [[ ${MODEL_SIZE} == "1T" ]];  then HIDDEN_SIZE=25600;  NUM_HEAD=160; NUM_LAYERS=128;
 elif [[ ${MODEL_SIZE} == 485 ]];  then HIDDEN_SIZE=20480;  NUM_HEAD=160; NUM_LAYERS=96;
@@ -131,13 +153,26 @@ SEQ_LEN=$MAX_SEQ_LEN
 VOCAB_FILE=${BASE_PATH}/data/output_prefix_gpt2/gpt2-vocab.json
 MERGE_FILE=${BASE_PATH}/data/output_prefix_gpt2/gpt2-merges.txt
 DATA_PATH=${BASE_PATH}/data/output_prefix_gpt2/my-gpt2_text_document
-DATA_ARGS="
-    --data-path $DATA_PATH \
-    --vocab-file $VOCAB_FILE \
-    --merge-file $MERGE_FILE \
-    --split 949,50,1 \
-    --vocab-size 51200 
-"
+MOCK_DATA="${MOCK_DATA:-0}"
+if [[ "${MOCK_DATA}" == "1" ]]; then
+    DATA_ARGS=(
+        --mock-data
+        --tokenizer-type NullTokenizer
+        --vocab-size 51200
+    )
+elif [[ "${MOCK_DATA}" == "0" ]]; then
+    DATA_ARGS=(
+        --data-path "${DATA_PATH}"
+        --vocab-file "${VOCAB_FILE}"
+        --merge-file "${MERGE_FILE}"
+        --split 949,50,1
+        --tokenizer-type GPT2BPETokenizer
+        --vocab-size 51200
+    )
+else
+    echo "ERROR: MOCK_DATA must be 0 or 1, got ${MOCK_DATA}" >&2
+    exit 1
+fi
 # --vocab-size 3200
 
 OUTPUT_ARGS="
@@ -153,20 +188,22 @@ execute_single_config() {
     local pp_size=$2
     local tp_size=$3
     local config_index=$4
-
-    # 计算DP大小
-    local dp_size=$((world_size / (pp_size * tp_size)))
+    local dp_size
 
     echo ""
     echo "============================================================"
-    echo "CONFIGURATION ${config_index}: WORLD_SIZE=${world_size}, PP=${pp_size}, TP=${tp_size}, DP=${dp_size}"
+    echo "CONFIGURATION ${config_index}: WORLD_SIZE=${world_size}, PP=${pp_size}, TP=${tp_size}"
     echo "============================================================"
 
     # 验证配置
-    if ! validate_config "$world_size" "$pp_size" "$tp_size" "$dp_size"; then
+    if ! validate_config "${world_size}" "${pp_size}" "${tp_size}"; then
         echo "Skipping invalid configuration ${config_index}"
         return 1
     fi
+
+    # 计算DP大小
+    dp_size=$((world_size / (pp_size * tp_size)))
+    echo "Validated DP=${dp_size}"
 
     # 计算全局批次大小
     local NUM_MICBATCH=$((6 * pp_size))
@@ -174,10 +211,13 @@ execute_single_config() {
 
     # 创建配置特定的日志目录
     local log_name="SIM_GPT_${MODEL_SIZE}_Config${config_index}_WS${world_size}_PP${pp_size}_TP${tp_size}_DP${dp_size}_nMICROB${NUM_MICBATCH}_MICROB_SIZE${MICRO_BATCH_SIZE}_GLOBAL_BATCH${global_batch_size}"
-    local log_dir="${BASE_PATH}/logs/${log_name}"
+    local log_dir="${LOG_ROOT}/${log_name}"
 
     echo "Creating log directory: ${log_dir}"
-    mkdir -p ${log_dir}
+    if ! mkdir -p -- "${log_dir}"; then
+        echo "ERROR: Failed to create log directory: ${log_dir}" >&2
+        return 1
+    fi
 
     # 计算需要运行的特定ranks
     # 根据Megatron rank映射逻辑 (order="tp-cp-ep-dp-pp")
@@ -191,14 +231,15 @@ execute_single_config() {
 
     # 根据rank映射公式计算特定ranks
     local selected_ranks=()
+    local pp_stage
 
     # 计算每个PP stage在TP rank=0, DP rank=0时对应的world rank
-    for pp_stage in $(seq 0 $((pp_size - 1)))
+    for ((pp_stage = 0; pp_stage < pp_size; pp_stage++))
     do
         # 根据Megatron rank映射: global_rank = tp_rank + dp_rank * tp_size + pp_rank * tp_size * dp_size
         # 这里: tp_rank=0, dp_rank=0
         local rank=$((0 + 0 * tp_size + pp_stage * tp_size * dp_size))
-        selected_ranks+=(${rank})
+        selected_ranks+=("${rank}")
         echo "PP stage ${pp_stage} -> world rank ${rank}"
     done
 
@@ -224,7 +265,6 @@ execute_single_config() {
         --max-position-embeddings ${SEQ_LEN} \
         --train-iters ${TRAIN_ITERS} \
         --lr-decay-iters ${TRAIN_ITERS} \
-        --tokenizer-type GPT2BPETokenizer \
         --distributed-backend nccl \
         --lr 0.00015 \
         --lr-decay-style cosine \
@@ -259,22 +299,28 @@ execute_single_config() {
         echo "Running simulation for rank ${current_fake_rank_id}, log: ${rank_log_path}"
 
         # 使用torchrun执行Python脚本，添加fake-current-rank-id参数
-        torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} ${BASE_PATH}/pretrain_llama.py \
+        torchrun --nproc_per_node=${GPUS_PER_NODE} --nnodes=${NNODES} --node-rank ${NODE_RANK} --master-addr ${MASTER_ADDR} --master-port ${MASTER_PORT} "${BASE_PATH}/pretrain_llama.py" \
             $gpt_args \
-            $DATA_ARGS \
+            "${DATA_ARGS[@]}" \
             $OUTPUT_ARGS \
             $sim_args \
             $TRACE_ARGS \
             --fake-current-rank-id ${current_fake_rank_id} \
             --distributed-backend nccl \
             --use-mcore-models \
-            --seed 42 2>&1 | tee ${rank_log_path}
+            --seed 42 2>&1 | tee -- "${rank_log_path}"
 
         # 检查执行状态
-        exit_status=${PIPESTATUS[0]}
-        if [ ${exit_status} -ne 0 ]; then
-            echo "ERROR: Python script failed for rank ${current_fake_rank_id} with status ${exit_status}"
+        local pipeline_status=("${PIPESTATUS[@]}")
+        local torchrun_status=${pipeline_status[0]}
+        local tee_status=${pipeline_status[1]}
+        if [ "${torchrun_status}" -ne 0 ]; then
+            echo "ERROR: Python script failed for rank ${current_fake_rank_id} with status ${torchrun_status}"
             echo "Check log: ${rank_log_path}"
+            return 1
+        fi
+        if [ "${tee_status}" -ne 0 ]; then
+            echo "ERROR: Failed to write log for rank ${current_fake_rank_id} with status ${tee_status}: ${rank_log_path}" >&2
             return 1
         fi
 
@@ -333,8 +379,7 @@ if [ ${#BATCH_CONFIGS[@]} -gt 0 ]; then
     for i in "${!BATCH_CONFIGS[@]}"; do
         config="${BATCH_CONFIGS[$i]}"
         read -r world_size pp_size tp_size <<< "$config"
-        dp_size=$((world_size / (pp_size * tp_size)))
-        echo "  Config $((i+1)): WORLD_SIZE=${world_size}, PP=${pp_size}, TP=${tp_size}, DP=${dp_size}"
+        echo "  Config $((i+1)): WORLD_SIZE=${world_size}, PP=${pp_size}, TP=${tp_size}"
     done
     echo ""
 
@@ -390,6 +435,11 @@ if [ ${#BATCH_CONFIGS[@]} -gt 0 ]; then
             echo "  Config ${config_index}: Failed or skipped"
         fi
     done
+
+    if (( failed_configs > 0 )); then
+        echo "ERROR: ${failed_configs} configuration(s) failed." >&2
+        exit 1
+    fi
 
 else
     # 单一配置模式（向后兼容）

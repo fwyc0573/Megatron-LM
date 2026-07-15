@@ -178,6 +178,11 @@ def _summarize_engine(
             'start_time_ms': float(getattr(backward_op, 'join_time', 0.0)),
             'finish_time_ms': float(getattr(backward_op, 'finish_time', 0.0)),
             'duration_ms': float(getattr(backward_op, 'duration')),
+            'slowdown_kernel_schedules': list(
+                (getattr(backward_op, 'trace_metadata', {}) or {}).get(
+                    'slowdown_kernel_schedules', []
+                )
+            ),
             'ddp_comm_alignment_keys': sorted(ddp_summary),
             'ddp_comm_count': len(ddp_summary),
         },

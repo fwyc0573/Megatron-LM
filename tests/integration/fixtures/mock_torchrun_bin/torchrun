@@ -1,0 +1,21 @@
+#!/bin/bash
+
+{
+    printf 'CUDA_VISIBLE_DEVICES=%s NCCL_DEBUG=%s NCCL_DEBUG_SUBSYS=%s NCCL_SOCKET_IFNAME=%s NCCL_P2P_DISABLE=%s NCCL_IB_DISABLE=%s ARGS=%s ARGC=%d' \
+        "${CUDA_VISIBLE_DEVICES:-}" \
+        "${NCCL_DEBUG:-}" \
+        "${NCCL_DEBUG_SUBSYS:-}" \
+        "${NCCL_SOCKET_IFNAME:-}" \
+        "${NCCL_P2P_DISABLE:-}" \
+        "${NCCL_IB_DISABLE:-}" \
+        "$*" \
+        "$#"
+
+    index=0
+    for argument in "$@"; do
+        printf ' ARGV[%d]=%q' "${index}" "${argument}"
+        index=$((index + 1))
+    done
+    printf '\n'
+} >> "${CAPTURE_FILE}"
+exit "${FAKE_TORCHRUN_EXIT:-0}"
