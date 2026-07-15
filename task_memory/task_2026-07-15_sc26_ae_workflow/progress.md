@@ -31,8 +31,8 @@
 | —     | Grilling session (D1–D23 resolved)          | completed   |
 | —     | Initial docs landed (requirements/plan/notes/issues/progress) | completed |
 | —     | Enhanced plan-doc review                    | completed: Gate A approved 2026-07-16 |
-| P0    | Git preparation (commit + sc26-ae branches) | in progress |
-| P1    | Dry-run 3 tasks (rlaunch + AE image)        | pending     |
+| P0    | Git preparation (commit + sc26-ae branches) | completed   |
+| P1    | Gate B dry-run 3 tasks (rlaunch + AE image) | in progress |
 | P2    | SC26-AE script suite (9 scripts)            | pending     |
 | P3    | sim-engine rank0 reporter                   | pending     |
 | P4    | README + tex change suggestions             | pending     |
@@ -119,3 +119,11 @@
 - **Method**: 核对 branch/HEAD、full status/diff、recursive submodules 和两个 worktree；单独检查 `=10.1` 为 `0` byte 的既有空文件；运行 grouped-gemm shell unit、GPT mock integration 以及 sim-engine 两个 pytest suites。
 - **Result**: 当前 branch=`overlap-tracing`、HEAD=`a5bcd3d9a6053b992da45bcc4ade180c4dd94c73`、worktree count=`2`、recursive submodule status count=`3`。受保护/排除路径均未 stage。Baseline tests PASS：grouped-gemm `30/30`，GPT mock integration `22/22`，sim-engine pytest `16/16`；三个命令 exit code 均为 `0`。未启动 GPU、未修改 feature code。
 - **Next**: 仅按 Task 0.2 D3 path list stage；验证 staged path set 精确相等后创建 Lore baseline commit。
+
+#### Task 0.2–0.4 baseline commit, isolation, and second baseline gate
+- **Motivation**: feature execution 必须从可审计的用户批准 baseline 开始，并与 dirty `overlap-tracing` checkout 及受保护 review worktree 物理隔离。
+- **Expectation**: D3 commit 只能包含批准的 15 个路径；新 worktree/branches 必须从同一 commit 和 pinned submodule commits 创建；隔离 worktree 中同一 baseline tests 必须再次全部通过。
+- **Method**: 精确 `git add -- <D3 paths>` 后用 sorted path diff 和 `git diff --cached --check` 验证；创建 Lore commit；在外部路径 `/data/ycfeng/Megatron-LM-sc26-ae` 创建主仓 `sc26-ae` branch，初始化 recursive submodules，并分别创建 Echo/sim-engine 本地 `sc26-ae` branch。等待同一个 submodule update process 完整退出后验证 commits，再重跑三组 baseline commands。
+- **Result**: baseline commit=`0ad3cb4eda2248f4e09908a80e5693cffa6e0c1e`，staged path count=`15`，protected staged count=`0`。新 worktree branch=`sc26-ae`；Echo=`1390b4416ded08bc1b9cd0620d329d81d4470bf9`，sim-engine=`2044cccc8fff222172b7f91571a617886841001f`，nested collective-sim=`6e06e3f5140cd4e2e7c12a35586ebcdc0f410df0`。隔离 baseline 再次 PASS：`30/30`、`22/22`、`16/16`，全部 exit `0`。
+- **Issue and resolution**: 首次 submodule status 读取发生在 unified exec session 尚未退出时，因而看到半初始化 checkout。根因是 leader 过早读取异步进程，而非 repository/submodule 损坏；等待原 session `32236` 正常完成后 commits 与 recursive status 全部正确，没有执行清理、fallback 或重复 clone。
+- **Next**: Phase 0 完成；读取 GPU/env handbooks，执行 Gate B 的 1-GPU/2-GPU `rlaunch --predict-only` 与现有三任务 runtime reconnaissance。任何接口 blocker 先回写 notes/issues 并停止 feature implementation。

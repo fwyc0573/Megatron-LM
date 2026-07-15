@@ -29,8 +29,8 @@
 | Gate / Phase | Status | Entry condition | Exit condition |
 |--------------|--------|-----------------|----------------|
 | **Gate A — enhanced plan and independent review** | **APPROVED 2026-07-16** | R1–R15 and D1–D23 captured | Author self-review, StepCode Claude review, document validation, and explicit user approval |
-| Phase 0 — safety baseline and isolated worktree | **IN PROGRESS** | Gate A approved | Protected baseline committed and branches/worktree ready |
-| **Gate B — existing Task1/Task2/Task3 runtime reconnaissance** | BLOCKED | Phase 0 complete; no feature edit started | Existing three-task chain executed in the AE image, interfaces/evidence recorded, plan delta reviewed |
+| Phase 0 — safety baseline and isolated worktree | **COMPLETED 2026-07-16** | Gate A approved | Protected baseline committed and branches/worktree ready |
+| **Gate B — existing Task1/Task2/Task3 runtime reconnaissance** | **IN PROGRESS** | Phase 0 complete; no feature edit started | Existing three-task chain executed in the AE image, interfaces/evidence recorded, plan delta reviewed |
 | Phase 1 — shared AE infrastructure | BLOCKED | Gate B complete | Setup, common shell contracts, and manifest helper tested |
 | Phase 2 — Task1 tracing and atomic capture | BLOCKED | Phase 1 complete | Three Task1 entries and provenance outputs verified |
 | Phase 3 — Task2 isolated slowdown workflow | BLOCKED | Phase 1 complete | Shared predictor bundle and numeric evidence verified |
@@ -689,13 +689,17 @@ git add -- \
 
 Verify with `git diff --cached --name-only`; any additional path is a hard failure. Run the existing relevant tests before committing. Use a Lore-formatted commit message that records the baseline purpose, protected branch constraint, confidence, scope risk, tested commands, and remaining GPU gap.
 
+- [x] Staged exactly the 15 D3 paths; protected/excluded staged path count was zero.
+- [x] Ran the relevant baseline tests before commit with `30/30`, `22/22`, and `16/16` passing cases.
+- [x] Created Lore baseline commit `0ad3cb4eda2248f4e09908a80e5693cffa6e0c1e` on `overlap-tracing`.
+
 ### Task 0.3: Create isolated feature branches/worktree
 
-- [ ] Load and follow `using-git-worktrees`.
-- [ ] Create main-repo branch `sc26-ae` from the approved D3 commit in an isolated worktree; do not repurpose the active overlap-review worktree.
-- [ ] In sim-engine, create branch `sc26-ae` from `2044cccc8fff222172b7f91571a617886841001f`.
-- [ ] In Echo-slowdown, create only a local convenience branch from `1390b4416ded08bc1b9cd0620d329d81d4470bf9`; introduce no AE-required commit.
-- [ ] Verify current pinned public reachability and later repeat for the new sim-engine commit.
+- [x] Load and follow `using-git-worktrees`.
+- [x] Create main-repo branch `sc26-ae` from the approved D3 commit in isolated worktree `/data/ycfeng/Megatron-LM-sc26-ae`; do not repurpose the active overlap-review worktree.
+- [x] In sim-engine, create branch `sc26-ae` from `2044cccc8fff222172b7f91571a617886841001f`.
+- [x] In Echo-slowdown, create only a local convenience branch from `1390b4416ded08bc1b9cd0620d329d81d4470bf9`; introduce no AE-required commit.
+- [x] Verify current pinned public reachability; repeat later for the new sim-engine commit.
 
 ### Task 0.4: Baseline test gate
 
@@ -709,6 +713,8 @@ python -m pytest megatron-sim-engine/tests/unit/test_simu_engine_ddp_slowdown.py
 ```
 
 Expected: all commands exit 0. Any failure is diagnosed as baseline/environment/code before feature work; no feature patch is started on a failing baseline.
+
+- [x] Isolated-worktree baseline gate passed: grouped-gemm `30/30`, GPT mock integration `22/22`, and sim-engine pytest `16/16`; all commands exited `0`.
 
 ---
 
