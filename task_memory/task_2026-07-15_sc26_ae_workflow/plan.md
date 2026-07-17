@@ -4,6 +4,28 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-17 | Closed the D27/I33 plan addendum after independent APPROVE and final docs/scope validation; retained the user-directed execution hold |
+| 2026-07-17 | Recorded independent StepCode Claude APPROVE for the D27/I33 addendum; final docs validation remains pending |
+| 2026-07-17 | Captured D27 and selected the probe-only isolated-loader remediation for I33 while keeping live B1 execution paused |
+| 2026-07-17 | Defined the two I33 qualification branches and the probe-only MemoryTracker evidence contract without executing either branch |
+| 2026-07-17 | Expanded the issue disposition matrix to cover all remaining open/WATCH and qualification-scope issues |
+| 2026-07-17 | Added I33 MemoryTracker qualification decision to the issue disposition matrix |
+| 2026-07-17 | Recorded controller-side conda/tool inventory and explicitly separated it from H800-worker runtime qualification |
+| 2026-07-17 | Recorded post-pause Session 15/18 qualification evidence; kept the probe-only remediation decision pending and Phase 1 blocked |
+| 2026-07-17 | Added an enhanced plan-review pause: no new qualification worker/RJob or implementation starts until this docs-only checkpoint is recorded |
+| 2026-07-17 | Resolved I32 from D26: canonical cp39 uses runtime-minimal closure; full Echo pins remain confined to the cp310 Task2 environment |
+| 2026-07-17 | Opened I32 cp39 qualification-scope decision after preserve-policy retry passed pip check but exposed full-manifest assertion conflict |
+| 2026-07-17 | Recorded Session 12 cp39 package-overwrite root cause and added preserve-compatible-package qualification gate |
+| 2026-07-17 | Recorded cp310 official manifest/offline qualification PASS while keeping live H800 and Gate B prerequisites open |
+| 2026-07-16 | Split the runtime contract into Megatron Python 3.9 and Echo Python 3.10 after reproducing the pinned-source incompatibility and applying an independent WATCH review |
+| 2026-07-16 | Recorded independent StepCode Claude APPROVE for D26 and applied its two mechanical plan observations |
+| 2026-07-16 | Captured D26, reopened Gate B B1 for current-container remediation, and removed the unavailable replacement image as a current-execution blocker |
+| 2026-07-16 | Closed the D24/D25 addendum review after independent APPROVE and fresh final plan-document validation |
+| 2026-07-16 | Recorded independent StepCode Claude APPROVE for the D24/D25 addendum and advanced Gate A to final document validation |
+| 2026-07-16 | Captured D25 warmup=3/profile=1 for all Task1 wrappers and bound the explicit values to manifests, tests, and acceptance criteria |
+| 2026-07-16 | Captured D24 replacement-image remediation, added the dependency inventory, and separated current-container provisioning from release-image qualification |
+| 2026-07-16 | Added fail-fast memory prerequisites, effective scaling-iteration review, clean Echo snapshot/metrics evidence, and strict B3 pipeline status propagation |
+| 2026-07-16 | Recorded the Gate B image/toolchain and two-GPU quota blockers; stopped B2-B4 and reopened plan review before implementation |
 | 2026-07-16 | Recorded explicit user approval of Gate A and opened Phase 0 while retaining all downstream gates |
 | 2026-07-15 | Integrated the independent Claude WATCH verdict: resolved I16 without MoE source edits, froze AE model-size labels, added canonical optimizer integration evidence, and guarded analytical 8-GPU topology coupling |
 | 2026-07-15 | Author self-review isolated versioned Task1/Task3 runs, fixed Task3 database binding, hardened prebaked provenance/distribution/publication gates, and replaced assumed CPU RAM with measured qualification |
@@ -20,7 +42,7 @@
 
 **Architecture:** Keep orchestration in the main repository under `SC26-AE/`, reuse the three existing model scripts as Task1 compute/tracing sources, execute Echo-slowdown from an isolated `git archive` snapshot for Task2, and use only the sim-engine built-in scheduler plus simulator for Task3. Task1 and Task3 write immutable versioned runs and expose only verified markers. A portable outer manifest ties every artifact to checksums, producer commits, simulation topology, capture runtime, profile, capture identity, and explicit artifact source; selected-source failures stop immediately rather than switching paths.
 
-**Tech Stack:** Bash with `set -euo pipefail`, Python 3.9, PyTorch/Megatron-LM, Nsight Systems (`nsys`), Nsight Compute (`ncu`), XGBoost, JSON/Markdown reports, pytest, shell integration tests, Git submodules, Docker image `hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef`, and the internal `rlaunch` H800 platform.
+**Tech Stack:** Bash with `set -euo pipefail`; a Megatron/Task1/Task3 environment at `/opt/conda/envs/megatron_env` with Python `3.9.18`, PyTorch `2.1.2`, and CUDA `12.1`; a separate exact Python `3.10.x` conda environment for Echo Task2 with the same PyTorch/CUDA family; NVML through `pynvml`; Nsight Systems (`nsys`); Nsight Compute (`ncu`); XGBoost; JSON/Markdown reports; pytest; shell integration tests; Git submodules; a user-approved immutable AE image; and the internal `rlaunch` H800 platform. The current execution continues in `hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef` by explicitly provisioning only proven gaps. D24 still requires a future immutable replacement image for final release qualification, but D26 makes that future image unavailable and non-blocking for current Gate B execution. `container_dependency_inventory.md` is the single dependency-gap handoff and current-container installation ledger.
 
 ---
 
@@ -28,9 +50,9 @@
 
 | Gate / Phase | Status | Entry condition | Exit condition |
 |--------------|--------|-----------------|----------------|
-| **Gate A — enhanced plan and independent review** | **APPROVED 2026-07-16** | R1–R15 and D1–D23 captured | Author self-review, StepCode Claude review, document validation, and explicit user approval |
+| **Gate A — enhanced plan and independent review** | **D27 ADDENDUM INDEPENDENTLY APPROVED AND VALIDATED 2026-07-17** | R1–R15 and D1–D27 captured | SATISFIED: independent `APPROVE` plus fresh D1–D27 docs/scope validation |
 | Phase 0 — safety baseline and isolated worktree | **COMPLETED 2026-07-16** | Gate A approved | Protected baseline committed and branches/worktree ready |
-| **Gate B — existing Task1/Task2/Task3 runtime reconnaissance** | **IN PROGRESS** | Phase 0 complete; no feature edit started | Existing three-task chain executed in the AE image, interfaces/evidence recorded, plan delta reviewed |
+| **Gate B — existing Task1/Task2/Task3 runtime reconnaissance** | **IN PROGRESS — D27 PROBE-ONLY REMEDIATION SELECTED; USER-DIRECTED EXECUTION HOLD** | Phase 0 complete; D26 authorizes current-container repair; D27 fixes the I33 branch; no feature edit started | After an explicit user stage transition, the selected probe-only B1 qualification may run in a fresh artifact root; B1 must pass before B2/B3/B4 or implementation |
 | Phase 1 — shared AE infrastructure | BLOCKED | Gate B complete | Setup, common shell contracts, and manifest helper tested |
 | Phase 2 — Task1 tracing and atomic capture | BLOCKED | Phase 1 complete | Three Task1 entries and provenance outputs verified |
 | Phase 3 — Task2 isolated slowdown workflow | BLOCKED | Phase 1 complete | Shared predictor bundle and numeric evidence verified |
@@ -41,7 +63,11 @@
 | Phase 8 — GPU dry-run and clean-clone rehearsal | BLOCKED | Phases 1–7 locally verified | Nine entries rehearsed with recorded metrics |
 | Phase 9 — final review, evidence, and archive | BLOCKED | Phase 8 complete | Tests/reviews complete; summary and lessons archived |
 
-**Stop rule for this session:** finish Gate A only. Do not modify implementation files, run GPU jobs, commit, create/check out branches, create worktrees, push, or change submodules.
+**Current execution rule:** D26 explicitly resumes Gate B and requires environment problems to be solved inside the current container. Fresh inventory proved that the image has no `/opt/anaconda` or `myenv_yc`; `/opt/conda/envs/megatron_env` is the fixed Megatron/Task1/Task3 runtime. A live Python `3.9.18` import of pinned Echo `prediction_api.py` proved an independent Python `3.10.x` Task2 environment is required. These are two explicit role-bound runtimes, not automatic fallback candidates: each task invokes its fixed interpreter and fails if it is missing or incompatible. Install only proven missing packages/tools from exact cached sources with an auditable ledger, then complete live qualification. D27 selects the I33 probe-only isolated-loader remediation and does not authorize a product-source edit, MemoryTracker bypass, empty JSON, or controller-only qualification. The unavailable replacement image remains a future Phase 8 release gate, not a current blocker. **The enhanced plan addendum is complete, but the user-directed stage still prohibits creating/submitting a new qualification worker/RJob, running B1 live qualification, running B2/B3/B4, or beginning Phase 1 implementation.** Only an explicit user stage transition opens the D27 branch; it must use a fresh artifact root, and B1 must pass before any downstream gate. Push, Release publication, asset upload, default-branch mutation, and submodule commit/gitlink changes remain prohibited.
+
+**Observed external evidence after the pause (not an authorization):** the already-submitted `sc26-ae-b1-session15-20260717` RJob completed after the pause was recorded. Its dependency, CUDA/NVML, and toolchain gates passed, but the `MEMORY TRACKER CONTRACT` failed in the qualification probe with an existing `megatron.profiler` package-level circular import (`trace_decorator` requested while `megatron.profiler` is partially initialized). This evidence is recorded for plan review only. It does not close B1, does not authorize another RJob, and does not authorize a product-source edit. D27 resolves the branch selection in favor of a probe-only isolated loader; live H800 qualification remains pending and prohibited during the current pause.
+
+**Controller/worker environment distinction (2026-07-17):** a read-only probe from the current CPU controller found `/home/i-fengyicheng/miniconda3/bin/conda`, the already provisioned Python `3.10.20` Echo prefix, no `/opt/conda/envs/megatron_env`, and no `/opt/anaconda/envs/myenv_yc`; controller `nsys` is `2025.6.3.541-256337736014v0` and `ncu` is not on `PATH`. These observations do not invalidate the H800 worker paths already qualified in Session 15/18. Future worker qualification must invoke `/opt/conda/envs/megatron_env/bin/python` and the fixed worker Nsight sources explicitly; no task may infer or switch runtimes from controller-side discovery.
 
 ---
 
@@ -65,7 +91,7 @@
 7. **Echo-slowdown isolation:** do not execute collection/training inside the pinned submodule checkout. Build every run from `git -C Echo-slowdown archive <gitlink_commit>` under `SC26-AE/output/_work/`.
 8. **Submodule policy:** Echo-slowdown remains at its existing upstream URL and pinned commit with no AE-required internal commit. Sim-engine changes live on a public `sc26-ae` branch and the main-repo gitlink must point to its reachable commit.
 9. **Repository safety:** no `rm` or `mv`; no bulk replacement; do not touch worktree branch `task/ddp-overlap-comprehensive-review-20260713`; protect all pre-existing local modifications.
-10. **Environment:** before GPU work, read `/data/ycfeng/stepfun-env-handbook/guidence.md`; use `--charged-group=codesign --private-machine=group --positive-tags=h800 --backoff-limit=1`, and run `--predict-only` before material allocations.
+10. **Environment:** before GPU work, read `/data/ycfeng/stepfun-env-handbook/guidence.md`; use `--charged-group=codesign --private-machine=group --positive-tags=h800 --backoff-limit=1`, and run `--predict-only` before material allocations. Task1 and Task3 use the fixed Megatron Python `3.9.18` interpreter; Task2 uses the fixed Echo Python `3.10.x` interpreter. No task searches for or switches to another interpreter at runtime.
 11. **Setup source:** `GROUPED_GEMM_SOURCE` must be explicitly `vcs` or `archive`. The README recommends `archive` because its two source archives have pinned SHA256 values. A selected-source failure is final.
 12. **Testing:** every logic change starts with an observed failing unit test and ends with targeted tests plus affected integration/e2e regression. Numeric evidence is recorded rather than only asserting file existence.
 13. **Output locality:** runtime output goes under `SC26-AE/output/`; temporary reconnaissance, capture probes, Task2 snapshots, and packaging staging roots go under versioned `SC26-AE/output/_work/` paths; no temporary document is created in the repository root.
@@ -199,7 +225,12 @@ A single-rank timing probe has its own capture ID and is never mixed into the fu
     "megatron_sim_engine": "<40-hex commit>"
   },
   "simulation_topology": {"world_size": 256, "local_size": 8, "pp": 4, "tp": 8, "dp": 8, "exp": 8},
-  "capture_runtime": {"physical_gpu_count": 1, "fake_gpus_per_node": 256},
+  "capture_runtime": {
+    "physical_gpu_count": 1,
+    "fake_gpus_per_node": 256,
+    "scaling_min_warmup_iters": 3,
+    "scaling_profile_iters": 1
+  },
   "profile": "full",
   "precision": "bf16",
   "mock_data": true,
@@ -213,6 +244,8 @@ A single-rank timing probe has its own capture ID and is never mixed into the fu
 Angle-bracket values above describe generated data, not unresolved design choices. Runtime manifests contain concrete values only.
 
 Task1 manifests require `capture_id` and omit `predictor_run_id`. Shared Task2 manifests require `predictor_run_id` and omit `capture_id`. Task3 and complete prebaked model manifests require both fields, thereby preserving the independent origin of trace-specific and predictor-specific inputs.
+
+Every Task1 manifest must record `capture_runtime.scaling_min_warmup_iters=3` and `capture_runtime.scaling_profile_iters=1`. Manifest creation and verification fail fast if either effective value is missing or differs; source-script defaults are not accepted as evidence.
 
 Commit validation is source-aware rather than circular:
 
@@ -448,6 +481,7 @@ Each failure writes `[ERROR]` to stderr and returns nonzero. Paths are quoted; m
 
 ```text
 schema_version = sc26-ae-echo-metrics-v1
+task2_run_all_elapsed_seconds
 dataset_row_count
 validation_mse_by_fold[5]
 average_validation_mse
@@ -464,7 +498,7 @@ prediction_sample.predicted_slowdown_factor
 prediction_sample.predicted_slowdown_factor_clipped
 ```
 
-Acceptance: row count > 0; exactly five finite nonnegative fold MSE values; average equals their arithmetic mean within `1e-12`; test MSE finite and nonnegative; model reload delta is `0.0` within `1e-12`; feature/mean/scale counts are equal and > 0; every scale is nonzero; every prediction field is finite; clipped slowdown is nonnegative.
+Acceptance: Task2 elapsed time is finite and > 0; row count > 0; exactly five finite nonnegative fold MSE values; average equals their arithmetic mean within `1e-12`; test MSE finite and nonnegative; model reload delta is `0.0` within `1e-12`; feature/mean/scale counts are equal and > 0; every scale is nonzero; every prediction field is finite; clipped slowdown is nonnegative. `echo_metrics.py` computes the reload delta numerically from two independently loaded model instances over the deterministic validation sample and writes the actual maximum absolute delta; it does not treat upstream `np.allclose` text as a numeric measurement. The prediction sample is generated by the wrapper-owned metrics tool from the newly generated model/scaler; existing tracked `training_testing/output/prediction/*` files are never accepted as current-run evidence.
 
 ### 7.4 Scheduler CLI contract
 
@@ -565,9 +599,13 @@ Exact operation names are `forward_step`, `backward_step`, and `optimizer_step`;
 - Modify: `task_memory/task_2026-07-15_sc26_ae_workflow/notes.md`
 - Modify: `task_memory/task_2026-07-15_sc26_ae_workflow/issues.md`
 - Modify: `task_memory/task_2026-07-15_sc26_ae_workflow/progress.md`
+- Create: `task_memory/task_2026-07-15_sc26_ae_workflow/container_dependency_inventory.md`
 
-- [x] Capture R1–R15 and D1–D23, with every raw item marked `[Original Request]`.
+- [x] Capture R1–R15 and D1–D27, with every raw item marked `[Original Request]`.
 - [x] Resolve source selection as explicit-only (D23 supersedes D22).
+- [x] Resolve image remediation as a replacement pinned image, with explicit current-container provisioning authorization and a separate dependency inventory (D24).
+- [x] Resolve one common scaling warmup/profile pair through D25 grilling: explicit warmup `3`, profile `1` for all three Task1 wrappers.
+- [x] Resolve I33 through D27: use a qualification-probe-only isolated loader, retain the H800 NVML/CUDA/non-empty JSON contract, and leave the product import path for B2 verification.
 - [x] Record I13 portability, I14 setup source strictness, I15 overlap-mode requirements, and I16 node-topology contract risk.
 
 ### Task A2: Author plan rewrite and self-review
@@ -608,7 +646,15 @@ python - <<'PY'
 import re
 from pathlib import Path
 root = Path("task_memory/task_2026-07-15_sc26_ae_workflow")
-required = ["requirements.md", "notes.md", "issues.md", "progress.md", "plan.md", "review.md"]
+required = [
+    "requirements.md",
+    "notes.md",
+    "issues.md",
+    "progress.md",
+    "plan.md",
+    "review.md",
+    "container_dependency_inventory.md",
+]
 for name in required:
     path = root / name
     assert path.is_file(), path
@@ -621,7 +667,7 @@ for token in ["T" + "BD", "T" + "ODO", "implement" + " later", "appropriate" + "
 for index in range(1, 16):
     assert f"R{index}" in plan
     assert re.search(rf"^## R{index}\\..*\\n\\[Original Request\\]", requirements, re.MULTILINE), f"R{index}"
-for index in range(1, 24):
+for index in range(1, 28):
     assert f"D{index}" in plan
     assert re.search(rf"^### D{index}\\..*\\n\\[Original Request\\]", requirements, re.MULTILINE), f"D{index}"
 for literal in [
@@ -630,6 +676,8 @@ for literal in [
     'DATABASE_DIR="${TRACE_DIR}"',
     'LOCAL_SIZE=8',
     'capture_runtime.fake_gpus_per_node',
+    'capture_runtime.scaling_min_warmup_iters=3',
+    'capture_runtime.scaling_profile_iters=1',
     'simulation_topology.local_size',
     'capture_marker.json',
     'run_marker.json',
@@ -647,14 +695,47 @@ git diff -- task_memory/task_2026-07-15_sc26_ae_workflow
 ```
 
 Expected:
-- Python exit code 0 with the PASS line and nine unique entry paths.
-- This session changed only Markdown files under the active task directory. Because that directory is currently untracked, an empty path-specific `git diff` is expected and is not treated as proof by itself; the full status/diff inventory is compared with the recorded Gate A baseline.
+- Python exit code 0 with the PASS line, seven required documents, 15 tagged requirements, 27 tagged decisions, and nine unique entry paths.
+- Changed-path inventory is limited to the current task documents plus the separately recorded `task_memory/env_handbook.md` environment note; the new dependency inventory remains inside the active task directory.
 - No implementation file, submodule gitlink, branch, or commit changed.
 
-- [x] Fresh Gate A document validation passed after independent WATCH remediation: 6 documents, 15 tagged requirements, 23 tagged decisions, 9 unique public entries, 38 balanced fence pairs, 4 WATCH gates, and 1 advisor artifact; exit code 0.
+- [x] Fresh Gate A document validation passed after independent WATCH remediation and subsequent D24-D26 synchronization: 7 required documents, 15 tagged requirements, 26 tagged decisions, 9 unique public entries, balanced Markdown fences, and the recorded advisor artifacts; exit code 0.
+- [x] Fresh D27 post-review validation passed: 7 core docs and 8 checked docs, 15 requirements, 27 decisions, 43 `[Original Request]` tags, 9 public entries, 33 issue headings, 0 missing matrix rows, 1 I33 row, 8 balanced fences, verified advisor SHA256/bytes, 0 product tracked diffs, 0 staged paths, 0 gitlink diffs, and `git diff --check` exit 0.
 - [x] Safety inventory still reports only the 3 pre-existing tracked diff files and the same 3 recursive submodule status entries; no Gate A implementation or gitlink change was introduced.
 
 **Gate A exit:** satisfied by explicit user approval on 2026-07-16. Phase 0 is now open; Gate B and all implementation phases retain their own entry conditions.
+
+### Task A5: Independent D24/D25 addendum review and fresh validation
+
+This task is additive and does not replace the historical Task A3 review or its `WATCH` dispositions.
+
+Run:
+
+```bash
+omx ask claude "Independently review the D24/D25 addendum for the SC'26 AE workflow in task_memory/task_2026-07-15_sc26_ae_workflow. Read plan.md, requirements.md, notes.md, issues.md, progress.md, review.md, container_dependency_inventory.md, and the referenced source files as needed. Do not implement, install dependencies, run GPU workloads, mutate Git/submodules, or edit files. Return exactly one verdict: APPROVE, WATCH, or BLOCK, followed by concise findings and the smallest plan-only remediations. Verify: (1) D24 keeps current-container provisioning separate from final replacement-image qualification; confirmed-missing items remain distinct from not-yet-qualified items; every allowed current-container install requires exact source/version/command/status/path/live verification and selected-source fail-fast behavior; the final image is internal at hub.stepfun-inc.com and must be identified by immutable tag plus digest; (2) D25 explicitly applies --scaling-min-warmup-iters=3 and --scaling-profile-iters=1 to GPT-175B, Qwen3-A30B, and DeepSeek-V3 wrappers, manifests, tests, and drift gates without inheriting source defaults; (3) memory JSON prerequisites fail fast; duplicate Qwen global-batch-size flags are diagnosed rather than guessed; the Echo snapshot filters and inventories all 11 tracked historical output paths without post-extraction deletion; B3 uses a strict subshell and preserves the producer exit status through tee; (4) exactly nine public entries remain; D23 is explicit_source_only; Gate B stays blocked and B2/B3/B4 remain not run; (5) no implementation, dependency-installation, GPU, publication, or submodule drift entered this addendum. Recheck the historical WATCH gates for rank0 optimizer_step and analytical local_size=8 only for contradictions introduced by D24/D25."
+```
+
+Expected backend contract:
+
+```bash
+stepcode claude --model 'claude-opus-4-6[1m]' --effort max -p -- "<addendum review prompt>"
+```
+
+- [x] Record the generated advisor artifact exact path, SHA256, actual StepCode backend invocation, raw verdict, findings, and remediation in `review.md`. Installed OMX emitted a provider-prefixed `.omx/artifacts/claude-*.md` filename rather than the documented `ask-claude-*` pattern; the original canonical file was retained without rename or duplication.
+- [x] Treat `APPROVE` as permission to run fresh plan-document validation only.
+- [x] Confirm the verdict was not `WATCH`; no additional risk-remediation gate was required.
+- [x] Confirm the verdict was not `BLOCK`; no user adjudication was required.
+- [x] Re-run the expanded document/Git-scope validation after disposition; no implementation phase opens from this task.
+
+### Task A6: Independent D27/I33 addendum review and final docs-only validation
+
+This task is additive to the historical Task A3/A5 reviews and is confined to the user-selected D27 qualification branch.
+
+- [x] Run `omx ask claude` through StepCode Claude `claude-opus-4-6[1m]` with `--effort max`; prohibit file edits, implementation, package installation, GPU/RJob execution, Git/submodule mutation, commit/push, and publication.
+- [x] Record the advisor artifact `.omx/artifacts/claude-independently-review-the-d27-i33-enhanced-plan-addendum-for--2026-07-17T04-14-33-515Z.md`, SHA256 `90a0107324e898616a96f9635f92699032774c0548f4d7ac30004b746e53dc37`, bytes `11,292`, provider exit `0`, and verdict `APPROVE`.
+- [x] Confirm eight requested verification areas passed, with zero WATCH, zero BLOCK, and zero required plan remediations. The raw output's short preface before the verdict token is recorded as a non-substantive format deviation; the sole explicit verdict is unambiguous.
+- [x] Run the final D1–D27 document, issue-matrix, Markdown-fence, whitespace, advisor-artifact, and product-source scope validator after all review evidence is folded into the task documents.
+- [x] Close only the plan-document addendum. Keep the user-directed execution hold active; do not run the selected D27 probe or enter Gate B/implementation from this review task.
 
 ---
 
@@ -725,14 +806,95 @@ Gate B satisfies R9 before any `SC26-AE/` infrastructure, source-script adaptati
 ### Task B1: AE-image environment and baseline interface capture
 
 - [ ] Read `/data/ycfeng/stepfun-env-handbook/guidence.md` and `task_memory/env_handbook.md`; run the documented 1-GPU and 2-GPU `rlaunch --predict-only` checks before live allocation.
-- [ ] Launch the pinned AE image with the repository mounted. Record Python, torch, CUDA, `nsys`, `ncu`, XGBoost, and grouped-gemm versions plus exact executable paths.
-- [ ] Do not exercise the known automatic VCS→archive recovery in `tools/ae/setup_grouped_gemm_v1.sh`. If the image cannot run the existing baseline without that unsafe branch, record the environment blocker in `issues.md` and stop Gate B; Phase 1 remains blocked until the user-approved plan addresses the root cause.
+- [x] Capture D24 and maintain the confirmed/unknown dependency split, current-container installation ledger, and replacement-image acceptance checklist in `container_dependency_inventory.md`.
+- [x] Capture D26: the future replacement image is unavailable and does not block current execution; current-container remediation must continue.
+- [x] Capture D27: use the probe-only isolated-loader branch for I33; do not modify product source, bypass MemoryTracker, accept empty JSON, or treat the controller feasibility import as H800 qualification.
+- [x] Launch the historical image with the repository mounted and inventory both `/opt/anaconda` and `/opt/conda`. Fresh image-wide evidence proves `/opt/anaconda` and `myenv_yc` are absent; the only non-base conda env is `/opt/conda/envs/megatron_env`.
+- [x] Compare the discovered runtime with exact Python/torch/CUDA/package versions and live CUDA evidence. Freeze `/opt/conda/envs/megatron_env` as the Megatron/Task1/Task3 runtime. A concrete pinned-source failure proved Echo Task2 needs a separate Python `3.10.x` env; do not modify or upgrade the Megatron interpreter.
+- [x] Provision the confirmed Echo Python-3.10 package closure from the frozen official payloads. The cp310 manifest has `58` rows and total bytes=`2,986,969,497` (manifest SHA256=`d7743ee81f3bd0f8a900fd551321e5232abbf22b3191cf720130fc3ea659296c`); offline resolver exit=`0`, offline install exit=`0`, and the exact prefix is recorded in `container_dependency_inventory.md`. Remaining Nsight, NVML, grouped-gemm, and H800 live checks are still open.
+- [x] For the cp39 supplemental wheelhouse, inventory the canonical environment with `importlib.metadata` before installation and install only distributions proven absent. Session 15 recorded `install_missing=17`, `preserve_existing=11`, and `excluded=1`; `pip check` passed without downgrading existing packages.
+- [x] Resolve I32 from the already-captured D26 user requirement: canonical Megatron/Task1/Task3 qualification uses a runtime-minimal closure, preserves present compatible packages, and does not enforce the full Echo cp39 manifest. The independent Python-3.10 Task2 environment remains the exact full Echo pin contract. The qualification ledger records preserved versions; the post-contract checks only actual Task1/Task3/sim-engine imports and behavior.
+- [ ] Re-run the full current-container qualification after the enhanced plan-review pause closes. Use a new artifact root and the D27 probe-only isolated loader under the canonical H800 worker interpreter; record Python, torch, CUDA, `pynvml`, XGBoost, pandas, openpyxl, NumPy, sklearn, torchvision, grouped-gemm, and exact executable paths, then prove `MemoryTracker` initializes NVML and writes a nonempty JSON with positive finite samples and memory values. The CPU-controller import feasibility result is not a live qualification. For the Echo/Task2 env, record the exact Python `3.10.x` build, torch/CUDA/torchvision/torchaudio and Echo package versions, import the actual pinned `SlowdownPredictor`, and run a live two-GPU CUDA visibility plus train/save/reload smoke. Record `nsys`, `ncu`, and toolchain versions once at system scope. Package-name presence alone is insufficient; B2 separately verifies the real product import/runtime path.
+- [ ] Before Phase 8/final AE release, repeat the same qualification in a clean container from the new immutable internal image tag/digest supplied by the user. Current-container provisioning evidence cannot satisfy this release-image gate.
+- [x] Do not exercise the known automatic VCS→archive recovery in `tools/ae/setup_grouped_gemm_v1.sh`. The previous environment inventory was incomplete, but the selected-source fail-fast rule remains unchanged; Phase 1 remains blocked until Gate B completes.
+
+**Observed B1 evidence (2026-07-16):**
+
+- The documented 1-GPU predict-only command returned exit `0`, reported `6` candidate H800 nodes, and the largest candidate exposed `8` GPUs.
+- The documented 2-GPU predict-only command used `--gpu=2 --cpu=4 --memory=8192`. Its CLI exit code was `0`, but the authoritative output was `fail to pass quota check: gpu : 129/128; current value + has used value: 129; total value: 128`; therefore this check is a semantic FAIL, not a pass.
+- Live probe `ws-56153d316be61e0f-jlaunch-6t8kl` ran on `gpu-h800-0299.host.platform.shaipower.com`. Default `python` resolved to `/opt/conda/bin/python` (`Python 3.9.18`) and failed `import torch` with `ModuleNotFoundError`; the inner probe command exited `1` before the remaining tool/package checks.
+- Read-only inventory probe `ws-56153d316be61e0f-jlaunch-g8z9r` ran on `gpu-h800-0398.host.platform.shaipower.com` and exited `0`. `/opt/conda/envs/megatron_env/bin/python` is `Python 3.9.18` with torch `2.1.2` and CUDA `12.1`, but the default `/opt/conda/bin/python` still has no torch. `nsys` is absent and `/usr/local/cuda/bin/ncu` is `2023.1.1.0`, below the plan's `nsys >= 2024.4.2` / `ncu >= 2024.3` contract.
+- XGBoost and grouped-gemm remain unqualified because the fail-fast probe stopped before checking them; no inference is made from package names or another conda environment.
+- `megatron/profiler/trace_memory.py` imports `pynvml` optionally and returns from the tracker thread when it is absent, while the caller still prints a data-saved message. Therefore `pynvml`/NVML is a required fail-fast image qualification item; a missing memory JSON cannot be treated as an optional warning.
+- Root cause: the pinned image neither activates the existing `megatron_env` by default nor contains the required Nsight toolchain. Separately, the current `codesign` quota cannot admit the required two-GPU Task2 probe.
+
+**Current D26 evidence superseding the historical B1 bullets above:**
+
+- Fresh 1-GPU and 2-GPU predict-only checks both passed with `10` candidate H800 nodes; the old quota failure is not current.
+- Fresh image-wide inventory proved `/opt/anaconda` and `myenv_yc` are absent. `/opt/conda/envs/megatron_env` is the only qualified Megatron runtime: Python `3.9.18`, torch `2.1.2`, torch CUDA `12.1`, CUDA available, H800, torchvision `0.16.2`, torchaudio `2.1.2`, and Transformer Engine `1.3.0+5b90b7f`.
+- The exact pinned `Echo-slowdown/training_testing/prediction_api.py` fails on Python `3.9.18` at `scaler_path: str | None` with `TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'`. Log SHA256=`0d987466665b72a8c37b26aa50828d3c05a32480c9a17af0224e22f8fc6033a5`. This proves the pinned Echo source and its `python=3.9` environment declaration conflict.
+- Canonical sim-engine sources guard PEP 604 annotations with `from __future__ import annotations`; Task3 remains Python-3.9-safe and uses the Megatron env. Task2 alone receives the separate Python `3.10.x` env. This avoids unnecessary Task2/Task3 dependency coupling and is a fixed routing contract, not a fallback.
+- GPU/CPU workers cannot reach `repo.anaconda.com`, while the CPU master can. Exact official conda/PyPI/NVIDIA/Ubuntu payloads are therefore frozen and hash-verified on the master, then installed offline on workers. A source failure stops; it never changes the selected source or version.
+
+**D26 correction to the prior evidence:** the earlier probes were incomplete because they omitted `/opt/anaconda`; the fresh image-wide inventory now closes that gap and proves the historical `myenv_yc` reports came from another environment. The image does contain a usable Megatron runtime at `/opt/conda/envs/megatron_env`, but it cannot execute pinned Echo `prediction_api.py` because that source requires Python `3.10+`. The validated root cause is a two-part environment contract: retain the qualified Python-3.9 Megatron runtime and provision an exact Python-3.10 Echo runtime, while system Nsight/package gaps are repaired independently.
+
+**D24/D26 remediation decision:** `new_pinned_ae_image` remains the final release path, but the user cannot currently provide it and explicitly states that this is not a current execution blocker. Gate B therefore uses the historical image plus explicit, auditable in-container provisioning. This provisioning is authorized environment preparation, not hidden runtime fallback.
+
+**B1 status:** IN PROGRESS — D27 PROBE-ONLY REMEDIATION SELECTED; LIVE QUALIFICATION DEFERRED BY THE ENHANCED REVIEW PAUSE. Environment-role selection, cp310 official payload integrity, offline resolver/install, `pip check`, and pinned Echo import are complete on the CPU master. Session 15/18 also passed the H800 dependency, CUDA/NVML, Nsight, and grouped-gemm prerequisites before the MemoryTracker import cycle. B1 remains incomplete until a fresh H800 D27 probe produces the required non-empty JSON and the remaining two-GPU Task2 qualification passes. B2/B3/B4 remain `NOT RUN` until B1 passes.
+
+If the fresh two-GPU content check still fails after environment remediation, B3 remains blocked because Task2 requires two physical GPUs; single-GPU substitution is forbidden. The result does not stop one-GPU environment remediation, but any proposal to reorder B2/B4 ahead of B3 is a material Gate B ordering change and requires one-question `grill-me` plus plan review.
+
+### I33 qualification branch (selected by D27; no execution in the current pause)
+
+The user resolved the qualification branch through D27. The decision is complete, but the live B1 evidence is not:
+
+1. **Selected — probe-only isolated loader.** The temporary qualification probe loads `megatron/profiler/trace_memory.py` directly with `importlib.util.spec_from_file_location`, under a probe-only module name, so importing `megatron.profiler.__init__` is not part of the qualification path. The probe then uses the canonical worker interpreter and H800 to instantiate `MemoryTracker`, allocate a CUDA tensor, collect samples, stop the tracker, and assert a non-empty JSON with positive sample count, positive peak/reserved/allocated memory, finite values, and the expected output path. This does not modify or redefine the product import path; B2 must still verify the real product import/runtime path and report any discrepancy.
+2. **Not selected — retain B1 blocker without a new probe.** This branch remains historical decision context only and is not the execution path after D27.
+
+For branch 1, the minimum probe shape is:
+
+```python
+import importlib.util
+import json
+import pathlib
+import time
+
+import torch
+
+module_path = pathlib.Path(repo_root, "megatron/profiler/trace_memory.py").resolve()
+spec = importlib.util.spec_from_file_location("qualification_trace_memory", module_path)
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(module)
+tracker = module.MemoryTracker(
+    rank=0,
+    device_id=0,
+    output_dir=str(memory_root),
+    sampling_interval=0.005,
+    file_name_args="qualification",
+)
+tracker.start()
+tracker.start_tracking(0)
+tensor = torch.ones((4096, 4096), device="cuda", dtype=torch.float32)
+torch.cuda.synchronize()
+time.sleep(0.10)
+tracker.log_peak_memory(0, torch.cuda.max_memory_allocated(0) / (1024 ** 2))
+tracker.pause_tracking()
+tracker.stop_tracking()
+payload = json.loads(output_path.read_text(encoding="utf-8"))
+assert payload["0"]["samples"]
+```
+
+The controller-side feasibility check already confirms the import-only portion (`isolated_loader_status=PASS`, `MemoryTracker` class loaded, `pynvml_available=False` on the CPU controller). That result is not a live B1 pass: the H800 branch must still prove NVML-backed non-empty JSON in a new artifact root. D27 is captured in `requirements.md`, but no worker execution is authorized until the enhanced plan-review pause closes.
 
 ### Task B2: Run existing Task1 and inspect real outputs
+
+**Status:** NOT RUN. B1 fail-fast stopped Gate B before any Task1 workload capture.
 
 On one H800, run the existing Qwen source in a one-rank smoke configuration without any AE wrapper:
 
 ```bash
+set -euo pipefail
 REPO_ROOT=$(git rev-parse --show-toplevel)
 RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)
 CAPTURE_ROOT="${REPO_ROOT}/SC26-AE/output/_work/recon-task1-qwen-${RUN_ID}"
@@ -742,24 +904,38 @@ if [[ -e "${CAPTURE_ROOT}" ]]; then
 fi
 mkdir -p "${CAPTURE_ROOT}"
 cd "${CAPTURE_ROOT}"
+START_SECONDS=$(date +%s)
+set +e
 MODE=scaling \
 MODEL_PROFILE=full \
 FAKE_WORLD_SIZE=256 FAKE_PP=4 FAKE_TP=8 FAKE_DP=8 FAKE_EXP=8 \
 FAKE_RANK_ORDER=0 \
 SCALE_GPU=0 TRACE_MEMORY=1 OVERLAP_GRAD_REDUCE=1 \
 TRAIN_ITERS=3 TRACE_START=2 \
-bash "${REPO_ROOT}/examples/pretrain_qwen3_30b_a3b_moe.sh"
+bash "${REPO_ROOT}/examples/pretrain_qwen3_30b_a3b_moe.sh" \
+  2>&1 | tee "${CAPTURE_ROOT}/run.log"
+RUN_STATUS=${PIPESTATUS[0]}
+set -e
+ELAPSED_SECONDS=$(( $(date +%s) - START_SECONDS ))
+printf 'exit_code=%s\nelapsed_seconds=%s\n' "${RUN_STATUS}" "${ELAPSED_SECONDS}" \
+  | tee -a "${CAPTURE_ROOT}/run.log"
+if (( RUN_STATUS != 0 )); then
+  exit "${RUN_STATUS}"
+fi
 ```
 
-- [ ] Record `RUN_ID` once, exit code, elapsed seconds, peak memory, exact trace directory/file, memory JSON path, op names, comm metadata, DDP-overlap events, and all source-script defaults that were not safely overridable.
+- [ ] Record `RUN_ID` once, exit code, elapsed seconds, peak memory, exact trace directory/file, memory JSON path, op names, comm metadata, DDP-overlap events, effective `global_batch_size`, counts/values of repeated critical CLI flags, effective `scaling_min_warmup_iters`/`scaling_profile_iters`, and all source-script defaults that were not safely overridable.
 - [ ] Confirm every CWD-relative `profiler_log/`, `memory_traces_scaling/`, and replay-cache file is contained by this new `CAPTURE_ROOT`; any output outside it is an interface discrepancy to record before Phase 1.
 - [ ] Confirm this is evidence gathering only. Do not copy, rename, normalize, or patch outputs during Gate B.
 
 ### Task B3: Run existing Task2 from an isolated pinned snapshot
 
+**Status:** NOT RUN. The two-GPU predict-only quota check failed and B1 did not qualify the image.
+
 On exactly two H800 GPUs, create a new versioned reconnaissance snapshot without modifying the Echo submodule:
 
 ```bash
+set -euo pipefail
 REPO_ROOT=$(git rev-parse --show-toplevel)
 RUN_ID=$(date -u +%Y%m%dT%H%M%SZ)
 SNAPSHOT_ROOT="${REPO_ROOT}/SC26-AE/output/_work/recon-task2-${RUN_ID}"
@@ -770,18 +946,42 @@ fi
 mkdir -p "${SNAPSHOT_ROOT}/source"
 ECHO_COMMIT=$(git -C "${REPO_ROOT}" rev-parse HEAD:Echo-slowdown)
 git -C "${REPO_ROOT}/Echo-slowdown" archive "${ECHO_COMMIT}" \
-  | tar -x -C "${SNAPSHOT_ROOT}/source"
+  | tar \
+      --exclude='kernel_metric/output/*' \
+      --exclude='slowdown_collection/output/*' \
+      --exclude='merge/output/*' \
+      --exclude='merge/input/kernel_metric_output.csv' \
+      --exclude='merge/input/slowdown_stats_output_device_0.xlsx' \
+      --exclude='training_testing/input/train_csv/*' \
+      --exclude='training_testing/input/test_csv/*' \
+      --exclude='training_testing/output/*' \
+      -x -C "${SNAPSHOT_ROOT}/source"
 cd "${SNAPSHOT_ROOT}/source"
-CUDA_VISIBLE_DEVICES=0,1 python update_configs.py
-CUDA_VISIBLE_DEVICES=0,1 bash run_all.sh
+START_SECONDS=$(date +%s)
+set +e
+(
+  set -euo pipefail
+  CUDA_VISIBLE_DEVICES=0,1 python update_configs.py
+  CUDA_VISIBLE_DEVICES=0,1 bash run_all.sh
+) 2>&1 | tee "${SNAPSHOT_ROOT}/run_all.log"
+RUN_STATUS=${PIPESTATUS[0]}
+set -e
+ELAPSED_SECONDS=$(( $(date +%s) - START_SECONDS ))
+printf 'exit_code=%s\nelapsed_seconds=%s\n' "${RUN_STATUS}" "${ELAPSED_SECONDS}" \
+  | tee -a "${SNAPSHOT_ROOT}/run_all.log"
+if (( RUN_STATUS != 0 )); then
+  exit "${RUN_STATUS}"
+fi
 ```
 
 `RUN_ID` is generated exactly once in UTC and recorded in `progress.md`; every Task B3 path in that run derives from the same value.
 
-- [ ] Record module-by-module elapsed time, dataset row count, actual output paths, fold/test metrics already emitted, model/scaler reload behavior, NCU CSV schema, and every tracked file the upstream run would have overwritten without snapshot isolation.
+- [ ] Before execution, prove the filtered snapshot contains none of the declared generated/runtime-output paths. Record total elapsed time, module start/completion markers from `run_all.log`, dataset row count, actual output paths, fold/test metrics already emitted, model/scaler reload behavior, NCU CSV schema, and the `11` tracked historical artifact paths excluded from this pinned commit. Do not claim per-module elapsed time because current `run_all.sh` does not emit stage timestamps.
 - [ ] From any current directory, verify `git -C "${REPO_ROOT}/Echo-slowdown" status --short` is byte-for-byte identical before and after the run and `ECHO_COMMIT` equals the main-repository gitlink. Any change or mismatch is a hard failure.
 
 ### Task B4: Run the existing slowdown-enabled Task3 chain
+
+**Status:** NOT RUN. Gate B stopped at B1; no downstream smoke is used to bypass the environment contract.
 
 Using one H800 and the current committed tiny baseline, run:
 
@@ -796,9 +996,9 @@ SLOWDOWN_E2E_SCALE_GPU=0 bash tests/e2e/test_ddp_slowdown_simulate_smoke.sh
 
 ### Task B5: Reconcile evidence before feature work
 
-- [ ] Update `notes.md` with facts, `issues.md` with blockers/root causes, and `progress.md` with exact commands and numeric results.
+- [x] Update `notes.md` with facts, `issues.md` with blockers/root causes, and `progress.md` with commands and numeric results available from B1.
 - [ ] Re-read this plan against the observed interfaces. Apply only plan-document corrections; any newly required critical product-logic or scope decision is grilled one question at a time and reviewed independently.
-- [ ] Gate B exits only when the existing three tasks have run successfully, no unexplained interface gap remains, and any plan delta has user approval when it materially changes scope. No Phase 1 RED test or implementation edit starts earlier.
+- [ ] Gate B exits only when the environment/toolchain decision is user-approved, a fresh one-GPU and two-GPU predict-only qualification passes, the existing three tasks have run successfully, no unexplained interface gap remains, and any plan delta has user approval when it materially changes scope. No Phase 1 RED test or implementation edit starts earlier.
 
 ---
 
@@ -821,7 +1021,7 @@ SLOWDOWN_E2E_SCALE_GPU=0 bash tests/e2e/test_ddp_slowdown_simulate_smoke.sh
 - [ ] Run `bash tests/unit/test_setup_grouped_gemm_v1.sh`; observe the new cases fail against the automatic-recovery implementation.
 - [ ] Replace the recovery branch with an explicit `case "${GROUPED_GEMM_SOURCE:?}" in vcs|archive)` path. Keep current pinned integrity checks and environment validation.
 - [ ] Update the existing `docs/ae/grouped_gemm_v1_setup.md` in place: document both explicit commands, remove automatic-recovery instructions, retain historical measured evidence with a clear pre-change label, and update its modification history.
-- [ ] Implement `SC26-AE/setup.sh` as a thin wrapper that verifies Python, `nsys`, and `ncu`, then invokes the installer with the selected source.
+- [ ] Implement `SC26-AE/setup.sh` as a thin verifier for both fixed interpreters: Megatron/Task1/Task3 Python `3.9.18` with torch/CUDA, `pynvml`, NVML, NumPy/pandas/openpyxl/XGBoost/sklearn/torchvision and grouped-gemm; Echo/Task2 Python `3.10.x` with torch `2.1.2`, CUDA `12.1`, torchvision `0.16.2`, torchaudio `2.1.2`, pinned Echo packages, and the actual `SlowdownPredictor` import. It also verifies `nsys` and `ncu`. Missing or wrong-version prerequisites fail before any task command; the reviewer-facing setup never installs core image dependencies, searches for another interpreter, switches task/runtime bindings, or treats D24's current-validation provisioning exception as the final AE workflow.
 - [ ] Run unit and setup integration tests; expect all cases to pass and no selected-source cross-call in fake command logs.
 
 ### Task 1.2: Common shell contracts
@@ -879,10 +1079,11 @@ Run shell syntax checks, targeted unit/integration tests, `python -m compileall 
 **Interfaces:**
 - Each entry is a three-line public wrapper: strict shell mode, source common/task1 library, call `ae_run_task1 <model_key>`.
 - `ae_run_task1` exports the exact §4 matrix, forces `MODE=scaling`, `TRACE_MEMORY=1`, `TRACE_KERNEL_GROUND_TRUTH=1`, `TRACE_KERNEL_GROUND_TRUTH_PHASE=1`, and `OVERLAP_GRAD_REDUCE=1`.
+- D25 requires the runner to pass `--scaling-min-warmup-iters=3` and `--scaling-profile-iters=1` explicitly for GPT-175B, Qwen3-A30B, and DeepSeek-V3; it never inherits Qwen/GPT defaults or DeepSeek's different source defaults.
 - It generates one `capture_id`, requires a nonexistent `task1/runs/<capture_id>/` root, and invokes the model script from that run's `runtime/` CWD. It publishes `capture_marker.json` only after trace/memory/Nsight inventory and manifest verification succeed.
 - It records the source script's actual `capture_runtime.fake_gpus_per_node` separately from Task3's frozen `simulation_topology.local_size=8`; it does not silently rewrite the MoE value while I16 remains under independent review.
 
-- [ ] Write RED contract tests with fake `torchrun`, `nsys`, and `nsys export`: validate all three resolved configurations, full/QUICK rank sets, one physical GPU, CWD-local trace/memory directories, capture boundary around the whole rank loop, nonexistent-run enforcement, stale sibling-run exclusion, and marker publication only after successful verification.
+- [ ] Write RED contract tests with fake `torchrun`, `nsys`, and `nsys export`: validate all three resolved configurations, exact explicit warmup/profile argv `3/1`, full/QUICK rank sets, one physical GPU, CWD-local trace/memory directories, capture boundary around the whole rank loop, nonexistent-run enforcement, stale sibling-run exclusion, and marker publication only after successful verification.
 - [ ] Run the integration test; observe missing entry/library failures.
 - [ ] Implement the minimal shared runner and entries. Do not call wall-clock scan scripts as runtime sources.
 - [ ] Re-run; expect exactly nine public entry filenames across all tasks and three valid Task1 invocations.
@@ -897,6 +1098,10 @@ selected_rank_ids
 selected_rank_count
 trace_file_count
 memory_json_count
+effective_global_batch_size
+global_batch_size_flag_values
+scaling_min_warmup_iters
+scaling_profile_iters
 capture_runtime_fake_gpus_per_node
 simulation_topology_local_size = 8
 per_rank_peak_allocated_mb
@@ -911,7 +1116,9 @@ nsys_rep_path/sqlite_path when CAPTURE_NSYS=1
 file sizes and SHA256 values
 ```
 
-- [ ] Add RED cases for trace count mismatch, duplicate/missing rank, empty memory data, non-finite/negative memory values, absent `.nsys-rep`/SQLite when requested, mismatched capture ID, wrong marker manifest SHA256, marker traversal, and stale files outside the selected run.
+The two scaling fields must equal `3` and `1`, respectively, in both `logs/summary.log` and `capture_runtime` manifest metadata. Any missing value, duplicate conflicting value, or drift from D25 fails before marker publication.
+
+- [ ] Add RED cases for trace count mismatch, duplicate/missing rank, empty memory data, unavailable `pynvml`/NVML, non-finite/negative memory values, conflicting repeated batch-size flags, unexpected warmup/profile values, absent `.nsys-rep`/SQLite when requested, mismatched capture ID, wrong marker manifest SHA256, marker traversal, and stale files outside the selected run.
 - [ ] Implement summary extraction and call the manifest helper.
 - [ ] Re-run; all invalid fixtures fail and the valid fixture records actual numeric values.
 
@@ -941,9 +1148,9 @@ file sizes and SHA256 values
 - Consumes: main-repo gitlink commit for `Echo-slowdown`, exactly two visible GPU IDs, `REBUILD=0|1`.
 - Produces: a unique `_shared/task2/runs/<predictor_run_id>/` bundle and per-model marker; pinned submodule remains clean.
 
-- [ ] Write RED fake-git tests proving the command is `git -C Echo-slowdown archive <gitlink_commit>`; snapshot is outside the submodule; dirty-before and dirty-after states fail; source commit mismatch fails; an existing verified marker is reused only with `REBUILD=0`; partial/corrupt existing bundle fails; `REBUILD=1` creates a new run ID without deleting the old run.
+- [ ] Write RED fake-git tests proving the source is `git -C Echo-slowdown archive <gitlink_commit>`; extraction is outside the submodule and excludes every declared generated/runtime-output prefix without using `rm` or `mv`; a newly tracked file under those prefixes fails the source-inventory gate until the exclusion contract is reviewed; dirty-before and dirty-after states fail; source commit mismatch fails; an existing verified marker is reused only with `REBUILD=0`; partial/corrupt existing bundle fails; `REBUILD=1` creates a new run ID without deleting the old run.
 - [ ] Run the shell unit test; observe missing library failure.
-- [ ] Implement archive extraction into a new `SC26-AE/output/_work/task2.<predictor_run_id>/source` and validate the extracted files before execution.
+- [ ] Implement filtered archive extraction into a new `SC26-AE/output/_work/task2.<predictor_run_id>/source` and validate both the pinned tracked-source inventory and absence of historical generated/runtime outputs before execution. Preserve the full exclusion inventory in provenance; do not delete files after extraction.
 - [ ] Re-run; expect every isolation and idempotency assertion to pass.
 
 ### Task 3.2: Echo run, canonical bundle, and metrics
@@ -959,18 +1166,18 @@ Canonical archived files:
 training_testing/output/train_dataset.csv
 training_testing/output/xgb_model.json
 training_testing/output/standard_scaler.json
-training_testing/output/prediction/*
 merge/input/kernel_metric_output.csv
 logs/run_all.log
+logs/run_timing.json
 metrics.json
 metrics.md
 artifact_manifest.json
 ```
 
-- [ ] Write RED unit fixtures for all §7.3 metric invariants and negative scaler/model/log cases.
-- [ ] Write RED integration fixtures proving `update_configs.py` and `run_all.sh` execute only inside the snapshot and outputs copy into a unique shared run.
+- [ ] Write RED unit fixtures for all §7.3 metric invariants and negative scaler/model/log cases, including a nonzero reload delta, nonpositive elapsed time, and stale upstream prediction files.
+- [ ] Write RED integration fixtures proving `update_configs.py` and `run_all.sh` execute only inside the filtered snapshot, the `11` pinned historical artifacts are absent before execution, current `predict.py` stdout is captured but does not masquerade as `prediction/*` output, and only newly generated canonical outputs copy into a unique shared run.
 - [ ] Run both tests and observe failures.
-- [ ] Implement metrics extraction/validation, canonical copying, and manifest creation; write the same concrete `predictor_run_id` into the shared manifest and all three model markers.
+- [ ] Implement total run timing, metrics extraction/validation, canonical copying, and manifest creation; derive the structured prediction sample and numeric reload delta in `echo_metrics.py`; write the same concrete `predictor_run_id` into the shared manifest and all three model markers.
 - [ ] Re-run; expect numeric metrics and checksums to pass.
 
 ### Task 3.3: Three public Task2 entries
@@ -1234,6 +1441,8 @@ Before launch, reread `/data/ycfeng/stepfun-env-handbook/guidence.md` and `task_
 One-GPU predict/live templates:
 
 ```bash
+: "${AE_IMAGE_REF:?Set AE_IMAGE_REF to the user-approved new immutable hub.stepfun-inc.com image reference including digest}"
+
 rlaunch --predict-only \
   --charged-group=codesign \
   --private-machine=group \
@@ -1249,7 +1458,7 @@ rlaunch \
   --positive-tags=h800 \
   --gpu=1 --cpu=4 --memory=8192 \
   --backoff-limit=1 \
-  --image hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef \
+  --image "${AE_IMAGE_REF}" \
   --volume /data:/data \
   --workdir /data/ycfeng/Megatron-LM \
   -- bash
@@ -1257,7 +1466,7 @@ rlaunch \
 
 Task2 uses the same single-node recipe with `--gpu=2`; before live allocation, use the matching `--predict-only` command. Record actual CPU/memory needs from the first qualified run and update README evidence; do not guess a smaller requirement.
 
-Inside the image verify exact Python, torch, CUDA, grouped-gemm, `nsys`, and `ncu` versions. Never override platform-injected `NCCL_*` variables.
+Inside a clean container from `AE_IMAGE_REF`, execute the full acceptance checklist in `container_dependency_inventory.md`: fixed Megatron/Task1/Task3 Python `3.9.18`; fixed Echo/Task2 Python `3.10.x`; both torch/CUDA contracts; `pynvml` plus live NVML/nonempty memory JSON; NumPy/pandas/openpyxl/XGBoost/sklearn/torchvision; grouped-gemm; actual Echo and sim-engine predictor imports; `nsys`; `ncu`; and build/runtime commands. Record exact paths/versions and the image digest. Never override platform-injected `NCCL_*` variables and never allow runtime interpreter fallback.
 
 For CPU-only prebaked Task3 qualification, record the host CPU model/count, total available memory, per-model peak RSS, and the explicit memory allocation under which all three runs complete. Report measured values first; publish a README minimum only when that allocation was actually tested successfully. Do not infer the requirement from the earlier unmeasured 32 GiB assumption.
 
@@ -1332,7 +1541,7 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 | I4 DSV3 memory/runtime | Existing smoke profile reused; runtime evidence required | Task 2.4 |
 | I5 scheduler source | Sim-engine built-in only | Task 4.1 |
 | I6 GPT adaptation | Minimal env knobs on existing 175B support | Task 2.1 |
-| I7 `ncu`/`nsys` availability | Setup/environment gate | Task 1.1 and 8.1 |
+| I7 image Python/package/NVML/Nsight qualification | D24 replacement pinned image; separate dependency inventory; explicit current-validation provisioning ledger; clean release-image fail-fast gate | Gate B B1, Task 1.1, and 8.1 |
 | I8 public gitlinks | Current pins verified; new sim-engine pin rechecked | Task 0.3 and 8.3 |
 | I9 report semantics | Timeline span + exact-name sums + diagnostic-only | Task 4.2/4.3 |
 | I10 distribution size | Strict D21 byte gate | Phase 6 |
@@ -1341,10 +1550,25 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 | I13 builder path portability | Outer relative manifest + explicit model/scaler CLI | Tasks 1.3, 5.2, 6.1 |
 | I14 setup automatic recovery | Required explicit `GROUPED_GEMM_SOURCE` | Task 1.1 |
 | I15 overlap auto mode | Explicit `--overlap-mode on` | Tasks 5.2/5.3 |
-| I16 Task3/MoE fake-node-size contract | Task3 fixed to `LOCAL_SIZE=8`; MoE Task1 change only if independent review proves a consumed-field requirement | Gate A review, then Task 2.2/5.2 contract tests |
+| R-I16 Task3/MoE fake-node-size contract | Task3 fixed to `LOCAL_SIZE=8`; no MoE source change because the differing tracer fields are not serialized/consumed | Task 2.2/5.2 contract tests and Gate B consumed-artifact evidence |
 | I17 stale/mixed runtime outputs | Immutable Task1/Task3 run roots plus post-verification markers | Tasks 2.2/2.3 and 5.1/5.2 |
 | I18 prebaked provenance/distribution gap | Internal producer consistency, full metadata byte gate, explicit Release fetch, and separate publication approval | Tasks 5.1, 6.1/6.2, 8.3 |
 | I19 unmeasured Task3 CPU memory | Remove 32 GiB assumption; publish only measured RSS and tested allocation | Tasks 5.3, 7.1, 8.1/8.2 |
+| I25 inconsistent scaling iteration semantics | Resolved by D25: all three wrappers explicitly pass warmup `3` and profile `1`; manifests/tests reject drift and no source default is inherited | Tasks 2.2/2.3 contract and manifest tests |
+| R-I25 inconsistent scaling iteration semantics | Resolved by D25: all three wrappers explicitly pass warmup `3` and profile `1`; manifests/tests reject drift and no source default is inherited | Tasks 2.2/2.3 contract and manifest tests |
+| I26 Echo tracked historical outputs | Filtered git-archive extraction, source-inventory provenance, wrapper-owned prediction/reload metrics | Gate B B3 and Tasks 3.1/3.2 |
+| I20 rank0 `optimizer_step` runtime evidence | Require exact-op presence and positive duration in Gate B; canonical scheduler-generated PP=2 reporter fixture must prove it before Phase 4 commit | Tasks B4, 4.3, and Phase 4 review gate |
+| I21 analytical backend node-size coupling | Enforce `config.local_size == LOCAL_SIZE == GPUS_PER_MACHINE == 8`; mismatch fails fast and no setter auto-alignment is allowed | Task 4.3 invariant and negative test |
+| I23 Task2 two-GPU quota | Re-run the exact 2-GPU content-level predict-only gate; if it fails, keep B3 blocked and do not substitute one GPU | Task B1 and Task B3 entry gate |
+| I28 Echo Python/source contract | Keep Task2 on the exact Python `3.10.x` environment and Task1/Task3 on Python `3.9.18`; no source patch or interpreter fallback | Gate B1 package/source imports and Phase 8 environment qualification |
+| I29 official cp310 wheel transport | Preserve official source URLs and hashes; qualify the frozen 58-wheel manifest, offline resolver/install, and `pip check` without mirror/version fallback | Gate B1 dependency ledger |
+| I30 Nsight APT cache layout | Use the verified `<apt-root>/debs/` layout in a new artifact root and repeat fixed-source dpkg/Nsight gates | Gate B1 fresh worker qualification |
+| I31 cp39 package overwrite | Inventory with `importlib.metadata`, install only absent distributions, preserve existing packages, and fail on conflicts | Gate B1 package-policy and `pip check` gates |
+| I32 canonical cp39 scope | Verify the runtime-minimal Task1/Task3/sim-engine closure; enforce the full Echo pins only in the independent cp310 Task2 environment | Gate B1 narrowed post-contract |
+| I33 MemoryTracker circular import | Resolved by D27: use the probe-only isolated loader, preserve the non-empty MemoryTracker contract, and make no product-source edit or contract bypass | Fresh H800 B1 qualification in a new artifact root; B2 product-path verification |
+| R-I22 scheduler `--model-size` value domain | Pass the direct AE labels `gpt175b|qwen3_a30b|dsv3` and test exact labels without an implicit architecture mapping | Task 4.1 CLI contract tests |
+| R-I24 `rlaunch status` misuse | Query jobs only through the documented read-only `brainctl` commands; never invoke `rlaunch status` as a status API | Gate B operational command review |
+| R-I27 B3 status masking | Run `update_configs.py` and `run_all.sh` in a strict subshell and propagate the subshell status through `PIPESTATUS` | Task B3 shell contract and negative status test |
 
 ---
 
@@ -1370,7 +1594,7 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 | R14 | Setup entry and AE image | Setup integration/environment report |
 | R15 | Safety constraints/Phase 0 | Worktree status evidence |
 
-### Decisions D1–D23
+### Decisions D1–D27
 
 | ID | Covered by | Verification evidence |
 |----|------------|-----------------------|
@@ -1397,6 +1621,10 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 | D21 | Strict size gate then regular Git/Release | Byte-boundary tests + distribution manifest |
 | D22 | Superseded preference retained only in requirements history | No automatic-selection code/path |
 | D23 | Explicit source only | Task3 source negative tests |
+| D24 | Replacement pinned image plus documented dependency gaps; explicit current-container provisioning only for validation | Dependency ledger, fresh B1 requalification, and clean replacement-image qualification |
+| D25 | Explicit warmup `3` and profile `1` for all three Task1 wrappers | Exact argv assertions, summary/manifest checks, and drift-failure tests |
+| D26 | Repair and qualify the current container using a complete conda inventory; do not wait for the future replacement image | `/opt/anaconda` plus `/opt/conda` inventory, canonical-env evidence, dependency ledger, live B1 qualification |
+| D27 | Use a qualification-probe-only isolated loader for I33 without changing product source or weakening the MemoryTracker JSON contract | Fresh H800 NVML/CUDA/non-empty JSON qualification in a new artifact root; B2 product import/runtime evidence |
 
 ---
 
@@ -1420,10 +1648,15 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 16. Prebaked verification accepts a historical producer main-repository commit that differs from consumer `HEAD` only when the distribution/nested manifests and payload hashes are internally consistent; fresh verification still binds to the current producer checkout.
 17. Task3 publishes only versioned verified run markers, records measured CPU peak RSS and tested memory allocation, and never overwrites a fresh run with a prebaked run or vice versa.
 18. No push, default-branch update, Release creation, or asset upload occurs without explicit approval of the exact external target and immutable identifiers.
-19. Root/source code changes remain minimal and traceable to R1–R15 or D1–D23; root legacy scheduler and protected overlap-review branch are untouched.
+19. Root/source code changes remain minimal and traceable to R1–R15 or D1–D27; root legacy scheduler and protected overlap-review branch are untouched.
+20. `container_dependency_inventory.md` distinguishes confirmed gaps from unqualified items, records every current-container install with exact source/version/command/status/path, and cannot be used as proof that the future replacement image is qualified. Final AE rehearsal uses a clean container from the user-supplied immutable internal image tag/digest.
+21. GPT-175B, Qwen3-A30B, and DeepSeek-V3 Task1 invocations explicitly pass `--scaling-min-warmup-iters=3 --scaling-profile-iters=1`; their summaries and manifests record the same effective values, and missing/conflicting/drifted values fail before marker publication.
+22. Current Gate B does not wait for a replacement image: the live worker inventory covers `/opt/anaconda/envs/myenv_yc` and `/opt/conda` candidates, all installed gaps are recorded and verified, and the future immutable image remains a separate final-release qualification.
+23. Task1 and Task3 always invoke the recorded Megatron Python `3.9.18`; Task2 always invokes the recorded Echo Python `3.10.x`. The pinned Echo `SlowdownPredictor` import, two-GPU CUDA count, torch/CUDA companion versions, `pip check`, and deterministic train/save/reload parity pass in the Echo env; the sim-engine predictor import and slowdown smoke pass in the Megatron env. No task probes or switches interpreters at runtime.
+24. The D27 qualification probe uses an isolated loader only in B1, writes a non-empty MemoryTracker JSON with positive finite NVML/CUDA metrics in a new H800 artifact root, and does not edit Megatron/Echo product source or bypass the memory contract. B2 independently validates the real product import/runtime path.
 
 ---
 
 ## 22. Execution Handoff
 
-Gate A ends by delivering this reviewed plan to the user. Implementation remains blocked until the user explicitly approves moving to Phase 0. After approval, the recommended execution mode is low-concurrency `subagent-driven-development` with separate ownership for main-repo orchestration, sim-engine scheduler/reporter, and verification, while final integration and evidence remain serial.
+Gate A and the D27/I33 enhanced plan addendum are complete: independent StepCode Claude verdict=`APPROVE`, final docs/scope validation=`PASS`. D24/D25/D26 remain unchanged; Task3 is Python-3.9-safe, Task2 uses the separate Python-3.10 env, and D26 keeps canonical cp39 qualification runtime-minimal. D27 resolves I33 in favor of the probe-only isolated loader while retaining the live H800 non-empty JSON and B2 product-path gates. **This completion closes only the plan-document stage. The current user-directed execution hold remains active: do not create/submit a qualification worker/RJob, run B1/B2/B3/B4, or begin Phase 1 implementation without an explicit stage transition from the user.** When that transition is given, the first executable step is a fresh H800 D27 probe in a new artifact root, followed by the remaining role-specific B1 qualification; only a complete B1 PASS opens B2/B3/B4, and Phase 1 remains blocked until Gate B completes. The unavailable replacement image is retained only for the future clean-container release rehearsal. Any genuinely ambiguous, material branch discovered after local fact-finding is resolved through one-question `grill-me`.

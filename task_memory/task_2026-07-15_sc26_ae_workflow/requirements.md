@@ -4,6 +4,10 @@
 
 | Date       | Summary of Changes                                       |
 |------------|----------------------------------------------------------|
+| 2026-07-17 | Captured D27 MemoryTracker qualification probe-only remediation selection |
+| 2026-07-16 | Captured D26 current-container environment remediation and execution-continuation directive |
+| 2026-07-16 | Captured D25 common scaling warmup/profile policy |
+| 2026-07-16 | Captured D24 new-image remediation and current-container installation authorization |
 | 2026-07-16 | Recorded explicit Gate A approval and authorization to complete the reviewed plan with team/subagent acceleration |
 | 2026-07-15 | Captured D23, superseding D22 with explicit source selection |
 | 2026-07-15 | Captured enhanced-review grilling decision D22 and rule conflict |
@@ -143,6 +147,18 @@
 
 ### D23. Task3 artifact source 最终选择规则（supersedes D22）
 [Original Request] 改为 `explicit_source_only`：每次运行 Task3 都必须显式指定 `ARTIFACT_SOURCE=fresh|prebaked`；不得自动从 fresh 切换到 prebaked。所选 bundle 缺失、部分生成、checksum/provenance 不匹配时必须 fail fast。
+
+### D24. AE image 依赖补齐与当前验证授权
+[Original Request] 采用 `new_pinned_ae_image`：将容器环境中任何缺失的必要库包和工具依赖单独整理到一个 doc，由用户后续在其他机器上补齐这些依赖并推送新的 image。当前任务执行阶段，允许 agent 在容器中额外下载和安装已确认缺失的依赖，以避免当前 AE 验证任务因旧 image 缺包而阻塞。
+
+### D25. 三模型统一 scaling warmup/profile
+[Original Request] 采用 `warmup3_profile1`：GPT-175B、Qwen3-A30B 和 DeepSeek-V3 三个 Task1 wrapper 都显式传入 `--scaling-min-warmup-iters=3` 与 `--scaling-profile-iters=1`；不得继承各 source script 不一致的默认值。
+
+### D26. 当前容器环境修复与继续执行
+[Original Request] 用户当前无法推送新的容器镜像，并明确该步骤不是当前任务继续推进的阻塞原因。Agent 必须重新检查当前容器中的全部 conda env，重点查找名称类似 `myenv_yc` 且已经提供 Megatron-LM 必要 runtime 的可用环境；对于其余缺失依赖或工具，例如 `nsys`，以及 slowdown module 可能需要的更高版本 Python 或独立 conda env，允许并要求在当前容器中完成配置。Agent 应解决这些基础环境和库包依赖问题并继续任务执行；仅当存在无法通过容器或仓库事实确定的关键信息或决策时，才使用单题 `grill-me` 向用户确认。
+
+### D27. MemoryTracker qualification probe-only remediation
+[Original Request] 用户选择方案 1：仅修复 qualification probe。允许使用 isolated loader 或等价的 probe-only import 方式，在不修改 Megatron/Echo 产品源码、不跳过 MemoryTracker、且仍要求生成非空 memory JSON 的前提下，使用新的 artifact root 重新执行 H800 B1 qualification。CPU controller 的 isolated-loader import 成功只能作为可行性证据，不能代替 H800 NVML/CUDA/non-empty JSON qualification；B2 仍需验证真实产品 import/runtime 路径。
 
 ## A1. Gate A 批准与执行授权
 [Original Request] 批准 Gate A，完成已审查的 plan；允许启用并行 team 模式和 subagents，以尽可能加速当前任务的执行速度。

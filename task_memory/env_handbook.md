@@ -7,6 +7,7 @@
 | 2026-03-05 | Added checklist for shared-GPU OOM during distributed profiling runs |
 | 2026-03-06 | Added `CUDA_DEVICE_MAX_CONNECTIONS=1` prerequisite for Megatron scaling-mode torchrun validation |
 | 2026-03-12 | Added Echo-slowdown shell/Nsight compatibility notes for workflow validation |
+| 2026-07-16 | Added safe `rlaunch`/`brainctl` status handling and predict-only quota-result interpretation |
 
 # Environment Handbook
 
@@ -142,3 +143,37 @@ SKIP_KERNEL_METRIC=1 bash Echo-slowdown/run_all.sh
 ```
 
 This reuses `Echo-slowdown/merge/input/kernel_metric_output.csv` and still exercises the real `slowdown_collection -> merge -> train -> predict` chain.
+
+## Safe RJob Inspection and Predict-Only Result Handling
+
+### Symptoms
+
+- Running `rlaunch status <rjob-id>` unexpectedly creates a new RJob instead of querying an existing one.
+- A `rlaunch --predict-only` command exits `0` even though its output contains `fail to pass quota check`.
+
+### Root Cause
+
+- `rlaunch` does not expose a read-only `status` subcommand; unrecognized positional text is treated as launch payload.
+- The platform CLI may report quota rejection in stdout/stderr without returning a nonzero process status.
+
+### Verified Commands
+
+Use `brainctl` for read-only inspection:
+
+```bash
+brainctl get rjob <rjob-id> -n shai-core -o yaml
+brainctl get replica -n shai-core -l 'rjob.brainpp.cn/rjob-name=<rjob-id>'
+brainctl logs -n shai-core replica/<replica-name>
+```
+
+Delete an accidentally created RJob with:
+
+```bash
+brainctl delete rjob <rjob-id> -n shai-core
+```
+
+After deletion, verify that `brainctl get rjob -n shai-core` no longer lists the exact ID. Also verify that no local `brainctl rjob launch status ...` process remains; a blocked client can outlive its parent shell even after the server-side RJob is deleted. Terminate only the exact erroneous client PID, then repeat both process and RJob checks.
+
+### Acceptance Rule
+
+For `rlaunch --predict-only`, evaluate both the exit code and output text. Any explicit quota failure, including `fail to pass quota check`, is a FAIL even when the CLI exits `0`; do not proceed to live allocation.
