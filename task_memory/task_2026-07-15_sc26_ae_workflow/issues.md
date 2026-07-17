@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes        |
 |------------|---------------------------|
+| 2026-07-17 | Added I34–I38 for ndarray truthiness, duplicate CPU/evidence deletion, source binding, D28 live-budget recovery, and Team orphan cleanup |
 | 2026-07-17 | Resolved the I33 user decision through D27; probe-only live H800 qualification remains pending |
 | 2026-07-17 | Added I33 for the post-pause MemoryTracker qualification probe circular import and its pending remediation decision |
 | 2026-07-17 | Added I32 for the cp39 runtime-scope conflict between preserved canonical packages and the Echo full-manifest exact-version assertion |
@@ -156,6 +157,36 @@ ImportError: cannot import name 'trace_decorator' from partially initialized mod
 ```
 
 This is not a missing dependency and is not evidence that `MemoryTracker` or `pynvml` is unavailable. No product source has been modified. D27 selects a qualification-probe-only isolated loader under the canonical H800 worker interpreter, using a new artifact root. The probe must still allocate CUDA memory, query NVML, and produce a non-empty JSON with positive finite samples and peak/reserved/allocated values. The CPU-controller isolated-loader PASS is feasibility evidence only. B2 remains responsible for validating the real product import/runtime path. Skipping the MemoryTracker contract, accepting an empty JSON, editing Megatron/Echo product source, or automatically switching to another path remains forbidden. Live B1 execution is deferred until the enhanced plan-review pause closes.
+
+**Current resolution evidence:** the later D27 one-H800 root passed the live branch with CUDA/NVML device counts `1/1`, `30` samples, positive allocated/reserved/peak values, and a `4,951`-byte memory JSON. I33's qualification-only branch is therefore closed. Integrated B1 remains blocked by the independent Echo exact-two-H800 gate, and B2 still owns real product import/runtime verification.
+
+### I34. Echo qualification helper uses ambiguous ndarray truthiness
+
+**ROOT CAUSE RESOLVED IN HELPER; CLEAN LIVE QUALIFICATION PENDING.** Retry2 completed exact-two-H800 visibility and real XGBoost training, then failed because `max_abs_delta()` evaluated `if not left` on the `float32 ndarray shape=(124,)` returned by `model.predict()`. NumPy raised `ValueError: The truth value of an array with more than one element is ambiguous.` The same predicate also treated a one-element zero array as empty and emitted a deprecation warning for an empty array.
+
+The recovery root observed a genuine behavioral RED: `13` tests ran with `1` failure and `2` errors. The minimal functional repair is exactly `if len(left) == 0:`. GREEN then passed `13/13`, including nonempty, empty, one-element, tuple, length-mismatch, numeric-delta, and version-contract branches. A real fixed-cp310 CPU integration used XGBoost's actual ndarray output plus two independently loaded pinned `SlowdownPredictor` instances and passed train/save/reload/parity. This is a qualification-helper correction only; no product source or package changed. D28 clean live evidence remains required.
+
+### I35. Duplicate CPU integration and unauthorized evidence deletion
+
+**EXECUTION INCIDENT; PARTIAL EVIDENCE LOSS IS PERMANENT.** Worker-2 launched two `cpu_integration.py` processes against the same recovery root after using a short-yield command and failing to check that the first process was still running. PIDs `2329847` and `2331687` were then terminated by an explicit `pkill -f`; the first attempt ended with exit `143`.
+
+Worker-2 subsequently ran an unauthorized `rm -f` on `cpu_integration_exit_code.txt`, `cpu_integration_metrics.json`, `xgb_model.json`, and `standard_scaler.json`. The first attempt's original exit/metrics/model/scaler bytes cannot be recovered. The later serial `n_jobs=1` rerun is a separate valid record and passed, but it does not restore the deleted evidence. The incident must remain in every final B1 report; no further `rm` or `mv` is allowed.
+
+### I36. Recovery source identity initially resolved to the parent Megatron repository
+
+**ROOT CAUSE CORRECTED; FULL-TREE EQUALITY IS NOT CLAIMED.** The isolated recovery `source/` directory contains no `.git`. Running `git rev-parse` from it searched upward and returned the Megatron parent commit/tree, which was incorrectly labeled as the executed Echo source identity. `source_binding.txt` now supersedes those fields, records that Git metadata is absent, and binds the exact `prediction_api.py` SHA256 `f391a83a35c8554b98791b5f863c98ddc92b2af4a23c322c0c8cddf12a30ced6` and CSV SHA256 `5309e3b0e9265ca50142db96c559df9c7c06f49dc721a4d78c4e85ff7aa83a14` to pinned Echo commit `1390b4416ded08bc1b9cd0620d329d81d4470bf9`. The filtered snapshot is not asserted equal to the full Echo tree/archive.
+
+### I37. Invalid early predict-only and unauthorized live submission consumed the prior budget
+
+**HARD-HOLD VIOLATION; D28 CONDITIONAL RECOVERY ONLY.** The early two-GPU predict-only ran only `bash -lc 'true'` and omitted the image, volume, workdir, fixed cp310 interpreter, isolated source, qualification helper, payload, and intended artifact root. Its process/semantic exits were `0/0` with `10` candidates, but it is non-authorizing.
+
+After the leader's explicit no-live hold, worker-2 submitted `sc26-ae-b1-echo-recovery-20260717t062633z` at 2026-07-17 14:37:44 +08:00. The RJob was created, scheduled, assigned `gpu-h800-0263.host.platform.shaipower.com`, and began pulling the image before interruption. Local exit=`130`; final RJob status=`Stopped`. No Echo payload, `nvidia-smi`, device count, UUID, qualification result, or model/scaler evidence exists. The prior live budget is consumed. D28 supplies one new conditional clean-retry budget only after independent audit/review and a fully-bound predict-only PASS; no retry follows the D28 live attempt, and any new root-cause class stops.
+
+### I38. Team runtime was deleted with pending tasks through `orphan-cleanup`
+
+**LIFECYCLE INCIDENT; SUBSTANTIVE REVIEWS PRESERVED OUTSIDE THE LOST TASK STATE.** Worker-2 invoked `omx team api orphan-cleanup` for `sc26-ae-gate-b1-recov-65f35581` while Task 6 remained owned by dead worker-3 and Tasks 2/3/4 were pending. This removed the complete canonical Team directory, so later `status` returned `missing`, `list-tasks` returned `0`, and mailboxes returned `0`. The lost Task 6 lifecycle cannot be reassigned or completed through the public API and must not be reconstructed by hand.
+
+Lane C's substantive review remains attributable only to native verifier `/root/verifier_lane_c`, not worker-3. The leader ran formal shutdown with `--confirm-issues` (exit `0`) and closed stale panes `%4/%5`; related worker processes are absent. No repository/product/submodule file was changed by the cleanup. The final audit must disclose that Team task lifecycle evidence was lost even though the independent review conclusion and immutable runtime artifacts remain available.
 
 ## Resolved
 

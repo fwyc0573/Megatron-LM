@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes            |
 |------------|-------------------------------|
+| 2026-07-17 | Added D28 Gate B1 split verdict, incident boundaries, conditional clean-retry contract, and Team lifecycle note |
 | 2026-07-17 | Recorded the D27 probe-only MemoryTracker qualification boundary and B2 product-path obligation |
 | 2026-07-17 | Recorded cp310 offline qualification evidence and CPU-master CUDA boundary |
 | 2026-07-16 | Recorded the proven Echo Python 3.9 mismatch, fixed two-runtime task bindings, and offline conda-source constraint |
@@ -128,3 +129,16 @@
   - `training_testing/output/xgb_model.json`
 - `Echo-slowdown/training_testing/predict.py:1-20` 仅加载 model/scaler、执行一次 prediction 并 `print(result)`；它不会生成上述 tracked `training_testing/output/prediction/*`。因此这些历史文件不能作为 current-run evidence。Task2 snapshot 必须从 archive extraction 阶段排除已声明 output prefixes，并在 upstream tracked-source inventory 新增匹配项时 fail fast，而不是运行后 `rm`/`mv`。
 - `Echo-slowdown/run_all.sh:16-41` 只有 module start/completion markers，没有 timestamps。Gate B B3 只能记录 wrapper 测得的 total elapsed seconds 和 log markers；不得声称已有 per-module elapsed data。
+
+## Gate B1 D28 operational notes (2026-07-17)
+
+- Current split verdict is authoritative: D27 one-H800 MemoryTracker=`PASS`; Echo exact-two-H800=`BLOCK`; integrated B1=`BLOCK`.
+- D27 produced one real H800, CUDA/NVML device counts `1/1`, `30` samples, and a non-empty `4,951`-byte memory JSON. This closes only the qualification-only MemoryTracker branch; B2 still owns the real package import/runtime path.
+- Echo Attempt0/Retry1/Retry2 are immutable failed roots. Retry2 proved exact-two-H800 visibility and real training but did not complete numeric parity. The recovery CPU integration passed, but it is not a substitute for final live exact-two-H800 evidence.
+- The recovery incidents are permanent audit facts: duplicate CPU execution, Attempt-1 exit `143`, unauthorized deletion of four Attempt-1 evidence paths, corrected source binding, an invalid early `bash -lc 'true'` predict-only, and an unauthorized live RJob that was created/scheduled and then stopped before its payload.
+- The old at-most-one live budget is consumed. D28 creates a different budget that is conditional and currently unconsumed; it is not a retroactive approval of the interrupted submission.
+- The next execution-stage root must be new and distinct from all prior/recovery roots. The historical pointer `logs/sc26_b1_echo_two_gpu_latest_path.txt` is immutable and must not be rewritten.
+- Before using the D28 live budget, a new predict-only must be fully bound to the exact live image, `/data:/data` mount, workdir, clean root, fixed cp310 interpreter, isolated pinned Echo source, qualification helper/payload, and exact resources. Process and semantic exits must both be `0`, quota markers must be absent, and at least one H800 candidate must expose `available_gpu_count >= 2`.
+- If the fully-bound predict-only passes, exactly one final exact-two-H800 live attempt may run. A new root-cause class, contract drift, missing evidence, or failure stops immediately; no retry, source/version switch, partial pass, or calibration factor is allowed.
+- Team `sc26-ae-gate-b1-recov-65f35581` is now `missing` because worker-2 invoked `orphan-cleanup` while tasks were pending. Do not reconstruct task JSON or attribute native Lane C to dead worker-3. Lane C reviewer identity is `/root/verifier_lane_c`.
+- B2/B3/B4 remain blocked until integrated B1 passes. Phase 1–9 remain blocked until Gate B passes. This plan-review stage must not create the D28 root, run predict-only, submit an RJob, or start product implementation.

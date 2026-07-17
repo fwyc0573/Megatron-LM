@@ -4,6 +4,10 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-17 | Closed the D28 docs-only addendum after follow-up APPROVE and final D1–D28 artifact/Git-scope validation |
+| 2026-07-17 | Recorded independent follow-up APPROVE for the remediated D28 addendum and opened final docs validation |
+| 2026-07-17 | Applied the independent D28 WATCH precision fixes for exact resource flags and standalone next-gate wording |
+| 2026-07-17 | Added the D28 interrupted-submission recovery gate, current B1 split verdict, fully-bound predict-only contract, and one-final-live limit |
 | 2026-07-17 | Closed the D27/I33 plan addendum after independent APPROVE and final docs/scope validation; retained the user-directed execution hold |
 | 2026-07-17 | Recorded independent StepCode Claude APPROVE for the D27/I33 addendum; final docs validation remains pending |
 | 2026-07-17 | Captured D27 and selected the probe-only isolated-loader remediation for I33 while keeping live B1 execution paused |
@@ -50,9 +54,9 @@
 
 | Gate / Phase | Status | Entry condition | Exit condition |
 |--------------|--------|-----------------|----------------|
-| **Gate A — enhanced plan and independent review** | **D27 ADDENDUM INDEPENDENTLY APPROVED AND VALIDATED 2026-07-17** | R1–R15 and D1–D27 captured | SATISFIED: independent `APPROVE` plus fresh D1–D27 docs/scope validation |
+| **Gate A — enhanced plan and independent review** | **D28 ADDENDUM INDEPENDENTLY APPROVED AND VALIDATED 2026-07-17** | R1–R15 and D1–D28 captured | SATISFIED: D28 synchronization, WATCH remediation, follow-up `APPROVE`, and final docs/artifact/Git-scope validation |
 | Phase 0 — safety baseline and isolated worktree | **COMPLETED 2026-07-16** | Gate A approved | Protected baseline committed and branches/worktree ready |
-| **Gate B — existing Task1/Task2/Task3 runtime reconnaissance** | **IN PROGRESS — D27 PROBE-ONLY REMEDIATION SELECTED; USER-DIRECTED EXECUTION HOLD** | Phase 0 complete; D26 authorizes current-container repair; D27 fixes the I33 branch; no feature edit started | After an explicit user stage transition, the selected probe-only B1 qualification may run in a fresh artifact root; B1 must pass before B2/B3/B4 or implementation |
+| **Gate B — existing Task1/Task2/Task3 runtime reconnaissance** | **IN PROGRESS — D27 ONE-H800 PASS; ECHO EXACT-TWO-H800 BLOCK; INTEGRATED B1 BLOCK** | Phase 0 complete; D27 MemoryTracker evidence passed; D28 conditionally authorizes one clean Echo retry after review and a fully-bound predict-only PASS | Echo clean live qualification and independent evidence audit pass; then B2/B3/B4 run successfully and B5 reconciles their interfaces before implementation |
 | Phase 1 — shared AE infrastructure | BLOCKED | Gate B complete | Setup, common shell contracts, and manifest helper tested |
 | Phase 2 — Task1 tracing and atomic capture | BLOCKED | Phase 1 complete | Three Task1 entries and provenance outputs verified |
 | Phase 3 — Task2 isolated slowdown workflow | BLOCKED | Phase 1 complete | Shared predictor bundle and numeric evidence verified |
@@ -63,9 +67,11 @@
 | Phase 8 — GPU dry-run and clean-clone rehearsal | BLOCKED | Phases 1–7 locally verified | Nine entries rehearsed with recorded metrics |
 | Phase 9 — final review, evidence, and archive | BLOCKED | Phase 8 complete | Tests/reviews complete; summary and lessons archived |
 
-**Current execution rule:** D26 explicitly resumes Gate B and requires environment problems to be solved inside the current container. Fresh inventory proved that the image has no `/opt/anaconda` or `myenv_yc`; `/opt/conda/envs/megatron_env` is the fixed Megatron/Task1/Task3 runtime. A live Python `3.9.18` import of pinned Echo `prediction_api.py` proved an independent Python `3.10.x` Task2 environment is required. These are two explicit role-bound runtimes, not automatic fallback candidates: each task invokes its fixed interpreter and fails if it is missing or incompatible. Install only proven missing packages/tools from exact cached sources with an auditable ledger, then complete live qualification. D27 selects the I33 probe-only isolated-loader remediation and does not authorize a product-source edit, MemoryTracker bypass, empty JSON, or controller-only qualification. The unavailable replacement image remains a future Phase 8 release gate, not a current blocker. **The enhanced plan addendum is complete, but the user-directed stage still prohibits creating/submitting a new qualification worker/RJob, running B1 live qualification, running B2/B3/B4, or beginning Phase 1 implementation.** Only an explicit user stage transition opens the D27 branch; it must use a fresh artifact root, and B1 must pass before any downstream gate. Push, Release publication, asset upload, default-branch mutation, and submodule commit/gitlink changes remain prohibited.
+**Current execution rule:** D26 explicitly resumes Gate B and requires environment problems to be solved inside the current container. Fresh inventory proved that the image has no `/opt/anaconda` or `myenv_yc`; `/opt/conda/envs/megatron_env` is the fixed Megatron/Task1/Task3 runtime. A live Python `3.9.18` import of pinned Echo `prediction_api.py` proved an independent Python `3.10.x` Task2 environment is required. These are two explicit role-bound runtimes, not automatic fallback candidates: each task invokes its fixed interpreter and fails if it is missing or incompatible. Install only proven missing packages/tools from exact cached sources with an auditable ledger, then complete live qualification. D27's probe-only isolated loader has now passed on one H800 and does not authorize a product-source edit, MemoryTracker bypass, empty JSON, or controller-only qualification. The unavailable replacement image remains a future Phase 8 release gate, not a current blocker. **D27 one-H800 is PASS; Echo exact-two-H800 and integrated B1 remain BLOCKED.** The unauthorized 2026-07-17 14:37:44 +08:00 submission consumed the prior live budget even though its Echo payload did not execute. D28 creates a separate conditional, currently unconsumed clean-retry budget: D28 synchronization, independent review, and a fresh predict-only command fully bound to the exact live image, volume, workdir, interpreter, isolated source, helper, payload, artifact root, and exact resources (`--gpu=2 --cpu=4 --memory=8192 --charged-group=codesign --private-machine=group --positive-tags=h800 --backoff-limit=1`) must all pass first. Only then may one final exact-two-H800 live qualification run; there is no additional retry after it, and any new root-cause class stops execution. B2/B3/B4 remain blocked until integrated B1 passes; Phase 1 remains blocked until Gate B passes. Push, Release publication, asset upload, default-branch mutation, and submodule commit/gitlink changes remain prohibited.
 
 **Observed external evidence after the pause (not an authorization):** the already-submitted `sc26-ae-b1-session15-20260717` RJob completed after the pause was recorded. Its dependency, CUDA/NVML, and toolchain gates passed, but the `MEMORY TRACKER CONTRACT` failed in the qualification probe with an existing `megatron.profiler` package-level circular import (`trace_decorator` requested while `megatron.profiler` is partially initialized). This evidence is recorded for plan review only. It does not close B1, does not authorize another RJob, and does not authorize a product-source edit. D27 resolves the branch selection in favor of a probe-only isolated loader; live H800 qualification remains pending and prohibited during the current pause.
+
+**Current D27/D28 evidence (2026-07-17):** the fresh D27 one-H800 artifact root passed predict-only, live execution, NVML/CUDA sampling, non-empty JSON, and post-validation. Echo Attempt0, Retry1, and Retry2 remained qualification-helper failures; Retry2 nevertheless proved exact two-H800 visibility and completed real model training before failing on NumPy ndarray truthiness. The recovery root then produced a genuine 13-test RED (`1` failure, `2` errors), a 13/13 GREEN after the minimal `len(left) == 0` functional fix, and a fixed-cp310 CPU train/save/reload parity PASS. During recovery, duplicate CPU processes, an unauthorized `rm -f`, an invalid early predict-only, and an unauthorized live submission occurred. The live submission created and scheduled an RJob, selected an H800 node, and began pulling the image before interruption; it produced no qualification payload, GPU-count, UUID, or Echo result evidence. D28 preserves the incident and permits only the gated clean retry described above.
 
 **Controller/worker environment distinction (2026-07-17):** a read-only probe from the current CPU controller found `/home/i-fengyicheng/miniconda3/bin/conda`, the already provisioned Python `3.10.20` Echo prefix, no `/opt/conda/envs/megatron_env`, and no `/opt/anaconda/envs/myenv_yc`; controller `nsys` is `2025.6.3.541-256337736014v0` and `ncu` is not on `PATH`. These observations do not invalidate the H800 worker paths already qualified in Session 15/18. Future worker qualification must invoke `/opt/conda/envs/megatron_env/bin/python` and the fixed worker Nsight sources explicitly; no task may infer or switch runtimes from controller-side discovery.
 
@@ -601,11 +607,12 @@ Exact operation names are `forward_step`, `backward_step`, and `optimizer_step`;
 - Modify: `task_memory/task_2026-07-15_sc26_ae_workflow/progress.md`
 - Create: `task_memory/task_2026-07-15_sc26_ae_workflow/container_dependency_inventory.md`
 
-- [x] Capture R1–R15 and D1–D27, with every raw item marked `[Original Request]`.
+- [x] Capture R1–R15 and D1–D28, with every raw item marked `[Original Request]`.
 - [x] Resolve source selection as explicit-only (D23 supersedes D22).
 - [x] Resolve image remediation as a replacement pinned image, with explicit current-container provisioning authorization and a separate dependency inventory (D24).
 - [x] Resolve one common scaling warmup/profile pair through D25 grilling: explicit warmup `3`, profile `1` for all three Task1 wrappers.
 - [x] Resolve I33 through D27: use a qualification-probe-only isolated loader, retain the H800 NVML/CUDA/non-empty JSON contract, and leave the product import path for B2 verification.
+- [x] Capture D28: disclose the interrupted unauthorized exact-two-H800 submission, distinguish the consumed prior budget from the new conditional clean-retry budget, and require independent review plus a fully-bound predict-only before one final live attempt.
 - [x] Record I13 portability, I14 setup source strictness, I15 overlap-mode requirements, and I16 node-topology contract risk.
 
 ### Task A2: Author plan rewrite and self-review
@@ -667,7 +674,7 @@ for token in ["T" + "BD", "T" + "ODO", "implement" + " later", "appropriate" + "
 for index in range(1, 16):
     assert f"R{index}" in plan
     assert re.search(rf"^## R{index}\\..*\\n\\[Original Request\\]", requirements, re.MULTILINE), f"R{index}"
-for index in range(1, 28):
+for index in range(1, 29):
     assert f"D{index}" in plan
     assert re.search(rf"^### D{index}\\..*\\n\\[Original Request\\]", requirements, re.MULTILINE), f"D{index}"
 for literal in [
@@ -695,7 +702,7 @@ git diff -- task_memory/task_2026-07-15_sc26_ae_workflow
 ```
 
 Expected:
-- Python exit code 0 with the PASS line, seven required documents, 15 tagged requirements, 27 tagged decisions, and nine unique entry paths.
+- Python exit code 0 with the PASS line, seven required documents, 15 tagged requirements, 28 tagged decisions, and nine unique entry paths.
 - Changed-path inventory is limited to the current task documents plus the separately recorded `task_memory/env_handbook.md` environment note; the new dependency inventory remains inside the active task directory.
 - No implementation file, submodule gitlink, branch, or commit changed.
 
@@ -736,6 +743,18 @@ This task is additive to the historical Task A3/A5 reviews and is confined to th
 - [x] Confirm eight requested verification areas passed, with zero WATCH, zero BLOCK, and zero required plan remediations. The raw output's short preface before the verdict token is recorded as a non-substantive format deviation; the sole explicit verdict is unambiguous.
 - [x] Run the final D1–D27 document, issue-matrix, Markdown-fence, whitespace, advisor-artifact, and product-source scope validator after all review evidence is folded into the task documents.
 - [x] Close only the plan-document addendum. Keep the user-directed execution hold active; do not run the selected D27 probe or enter Gate B/implementation from this review task.
+
+### Task A7: D28 interrupted-submission recovery addendum review
+
+This task is additive to Tasks A3/A5/A6. It records the post-D27 Gate B1 runtime evidence and authorizes no Phase 1 product implementation.
+
+- [x] Capture D28 in `requirements.md` with `[Original Request]` and preserve the unauthorized submission as an incident rather than qualification evidence.
+- [x] Synchronize the split current verdict: D27 one-H800=`PASS`; Echo exact-two-H800=`BLOCK`; integrated B1=`BLOCK`; B2/B3/B4 and Phase 1 remain blocked.
+- [x] Record that the prior at-most-one live budget was consumed when the RJob was created and scheduled, while the D28 replacement clean-retry budget is conditional and currently unconsumed.
+- [x] Define a fresh predict-only gate whose command is byte-for-byte equivalent to the intended live contract except for `--predict-only`: exact image, `/data:/data` volume, workdir, clean artifact root, fixed cp310 interpreter, isolated pinned Echo source, helper/payload, and resource flags.
+- [x] Run independent StepCode Claude review through `claude-opus-4-6[1m]` at `--effort max`. Initial verdict=`WATCH`; the two plan-doc-only precision findings were remediated; follow-up verdict=`APPROVE`, opening final docs validation only.
+- [x] Run fresh D1–D28 docs, issue-matrix, test-report, artifact/hash, Markdown-fence, whitespace, product-source scope, staged-path, and gitlink validation after the independent verdict is folded into `review.md`.
+- [x] Do not create the clean retry root, run the fully-bound predict-only, or submit the D28 live RJob during this plan-doc synchronization task. Those remain later Gate B1 execution actions after Task A7 review closure.
 
 ---
 
@@ -809,12 +828,14 @@ Gate B satisfies R9 before any `SC26-AE/` infrastructure, source-script adaptati
 - [x] Capture D24 and maintain the confirmed/unknown dependency split, current-container installation ledger, and replacement-image acceptance checklist in `container_dependency_inventory.md`.
 - [x] Capture D26: the future replacement image is unavailable and does not block current execution; current-container remediation must continue.
 - [x] Capture D27: use the probe-only isolated-loader branch for I33; do not modify product source, bypass MemoryTracker, accept empty JSON, or treat the controller feasibility import as H800 qualification.
+- [x] Capture D28: preserve the interrupted unauthorized submission, treat the prior live budget as consumed, and permit one new clean retry only after independent review and a fully-bound fresh predict-only PASS.
 - [x] Launch the historical image with the repository mounted and inventory both `/opt/anaconda` and `/opt/conda`. Fresh image-wide evidence proves `/opt/anaconda` and `myenv_yc` are absent; the only non-base conda env is `/opt/conda/envs/megatron_env`.
 - [x] Compare the discovered runtime with exact Python/torch/CUDA/package versions and live CUDA evidence. Freeze `/opt/conda/envs/megatron_env` as the Megatron/Task1/Task3 runtime. A concrete pinned-source failure proved Echo Task2 needs a separate Python `3.10.x` env; do not modify or upgrade the Megatron interpreter.
 - [x] Provision the confirmed Echo Python-3.10 package closure from the frozen official payloads. The cp310 manifest has `58` rows and total bytes=`2,986,969,497` (manifest SHA256=`d7743ee81f3bd0f8a900fd551321e5232abbf22b3191cf720130fc3ea659296c`); offline resolver exit=`0`, offline install exit=`0`, and the exact prefix is recorded in `container_dependency_inventory.md`. Remaining Nsight, NVML, grouped-gemm, and H800 live checks are still open.
 - [x] For the cp39 supplemental wheelhouse, inventory the canonical environment with `importlib.metadata` before installation and install only distributions proven absent. Session 15 recorded `install_missing=17`, `preserve_existing=11`, and `excluded=1`; `pip check` passed without downgrading existing packages.
 - [x] Resolve I32 from the already-captured D26 user requirement: canonical Megatron/Task1/Task3 qualification uses a runtime-minimal closure, preserves present compatible packages, and does not enforce the full Echo cp39 manifest. The independent Python-3.10 Task2 environment remains the exact full Echo pin contract. The qualification ledger records preserved versions; the post-contract checks only actual Task1/Task3/sim-engine imports and behavior.
-- [ ] Re-run the full current-container qualification after the enhanced plan-review pause closes. Use a new artifact root and the D27 probe-only isolated loader under the canonical H800 worker interpreter; record Python, torch, CUDA, `pynvml`, XGBoost, pandas, openpyxl, NumPy, sklearn, torchvision, grouped-gemm, and exact executable paths, then prove `MemoryTracker` initializes NVML and writes a nonempty JSON with positive finite samples and memory values. The CPU-controller import feasibility result is not a live qualification. For the Echo/Task2 env, record the exact Python `3.10.x` build, torch/CUDA/torchvision/torchaudio and Echo package versions, import the actual pinned `SlowdownPredictor`, and run a live two-GPU CUDA visibility plus train/save/reload smoke. Record `nsys`, `ncu`, and toolchain versions once at system scope. Package-name presence alone is insufficient; B2 separately verifies the real product import/runtime path.
+- [x] Complete the D27 one-H800 MemoryTracker qualification in `logs/b1_d27_worker1_one_h800_20260717T054559Z`: predict-only/live/probe/post-validation exits are `0`; CUDA/NVML device counts are `1/1`; sample count is `30`; allocated/reserved/peak values are positive; memory JSON bytes=`4,951`; and the immutable inventory contains `26` entries with zero missing/hash/byte mismatches.
+- [ ] Complete the Echo exact-two-H800 current-container qualification only through the D28 gate. The final clean root must record exact Python `3.10.20`, torch/CUDA/torchvision/torchaudio and Echo package versions, exactly two visible H800 devices with two distinct UUIDs, the actual pinned `SlowdownPredictor`, live train/save/reload parity, positive and negative/clipped nonzero-overlap samples, formula deltas, model/scaler bytes and SHA256, all exit codes, `qualification_result.json`, and a closed inventory/hash manifest. Package-name presence alone is insufficient; B2 separately verifies the real product import/runtime path.
 - [ ] Before Phase 8/final AE release, repeat the same qualification in a clean container from the new immutable internal image tag/digest supplied by the user. Current-container provisioning evidence cannot satisfy this release-image gate.
 - [x] Do not exercise the known automatic VCS→archive recovery in `tools/ae/setup_grouped_gemm_v1.sh`. The previous environment inventory was incomplete, but the selected-source fail-fast rule remains unchanged; Phase 1 remains blocked until Gate B completes.
 
@@ -840,11 +861,11 @@ Gate B satisfies R9 before any `SC26-AE/` infrastructure, source-script adaptati
 
 **D24/D26 remediation decision:** `new_pinned_ae_image` remains the final release path, but the user cannot currently provide it and explicitly states that this is not a current execution blocker. Gate B therefore uses the historical image plus explicit, auditable in-container provisioning. This provisioning is authorized environment preparation, not hidden runtime fallback.
 
-**B1 status:** IN PROGRESS — D27 PROBE-ONLY REMEDIATION SELECTED; LIVE QUALIFICATION DEFERRED BY THE ENHANCED REVIEW PAUSE. Environment-role selection, cp310 official payload integrity, offline resolver/install, `pip check`, and pinned Echo import are complete on the CPU master. Session 15/18 also passed the H800 dependency, CUDA/NVML, Nsight, and grouped-gemm prerequisites before the MemoryTracker import cycle. B1 remains incomplete until a fresh H800 D27 probe produces the required non-empty JSON and the remaining two-GPU Task2 qualification passes. B2/B3/B4 remain `NOT RUN` until B1 passes.
+**B1 status:** IN PROGRESS — D27 ONE-H800=`PASS`; ECHO EXACT-TWO-H800=`BLOCK`; INTEGRATED B1=`BLOCK`. Environment-role selection, cp310 official payload integrity, offline resolver/install, `pip check`, pinned Echo import, D27 live NVML/CUDA sampling, and non-empty MemoryTracker JSON are complete. Echo helper RED/GREEN and fixed-cp310 CPU integration also pass, but the interrupted unauthorized RJob is not qualification evidence and consumed the prior live budget. D28 provides one conditional clean-retry budget after review and fully-bound predict-only; it is currently unconsumed. B2/B3/B4 remain `NOT RUN` until integrated B1 passes.
 
 If the fresh two-GPU content check still fails after environment remediation, B3 remains blocked because Task2 requires two physical GPUs; single-GPU substitution is forbidden. The result does not stop one-GPU environment remediation, but any proposal to reorder B2/B4 ahead of B3 is a material Gate B ordering change and requires one-question `grill-me` plus plan review.
 
-### I33 qualification branch (selected by D27; no execution in the current pause)
+### I33 qualification branch (selected by D27; one-H800 live evidence PASS)
 
 The user resolved the qualification branch through D27. The decision is complete, but the live B1 evidence is not:
 
@@ -885,7 +906,20 @@ payload = json.loads(output_path.read_text(encoding="utf-8"))
 assert payload["0"]["samples"]
 ```
 
-The controller-side feasibility check already confirms the import-only portion (`isolated_loader_status=PASS`, `MemoryTracker` class loaded, `pynvml_available=False` on the CPU controller). That result is not a live B1 pass: the H800 branch must still prove NVML-backed non-empty JSON in a new artifact root. D27 is captured in `requirements.md`, but no worker execution is authorized until the enhanced plan-review pause closes.
+The controller-side feasibility check confirmed only the import portion (`isolated_loader_status=PASS`, `MemoryTracker` class loaded, `pynvml_available=False` on the CPU controller). The later D27 H800 root completed the live branch: one H800, NVML device count `1`, `30` samples, positive memory values, and a non-empty JSON. This closes I33's qualification branch only; it does not close Echo exact-two-H800 or integrated B1, and B2 still owns the real product import/runtime-path check.
+
+### D28 exact-two-H800 clean-retry gate
+
+The 2026-07-17 14:37:44 +08:00 submission is an execution incident, not a qualification attempt that can be promoted to PASS. The RJob was created, scheduled, assigned `gpu-h800-0263.host.platform.shaipower.com`, and began pulling the pinned image before interruption. Its local exit was `130`, the RJob ended `Stopped`, and it produced no qualification payload log, `nvidia-smi`, GPU UUID, device-count, model/scaler, numeric parity, or `qualification_result.json`. The prior live budget is therefore consumed.
+
+D28 creates one separate conditional clean-retry budget. It remains unconsumed until all of these gates pass in order:
+
+1. Independent Lane A/B/C audit and D28 cross-document synchronization are complete; the incident, duplicate CPU execution, unauthorized `rm -f`, source-binding correction, invalid early predict-only, and Team lifecycle cleanup are retained without euphemism.
+2. Independent StepCode Claude returns `APPROVE`, or returns `WATCH` whose plan-only remediations are applied and revalidated. `BLOCK` requires user adjudication and forbids execution.
+3. A new clean artifact root is created; the recovery root and the three earlier Echo roots remain immutable. The historical `logs/sc26_b1_echo_two_gpu_latest_path.txt` pointer is not rewritten.
+4. The fresh predict-only command includes the exact future live image `hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef`, `--volume /data:/data`, exact workdir, the new clean artifact root, fixed cp310 interpreter, isolated pinned Echo source, qualification helper/payload, `--gpu=2 --cpu=4 --memory=8192`, `--charged-group=codesign --private-machine=group --positive-tags=h800 --backoff-limit=1`, and the same final shell command as live. It must return process exit `0`, semantic exit `0`, no quota marker, and at least one H800 candidate with `available_gpu_count >= 2`.
+5. Only after gates 1–4 may one final exact-two-H800 live qualification be submitted. Exactly two H800 devices and two distinct UUIDs are mandatory. All environment, train/save/reload, prediction, formula, artifact, exit-code, and inventory contracts must pass.
+6. There is no additional retry after the D28 live submission. A new root-cause class, any contract drift, or any incomplete evidence stops execution and returns to user adjudication; no fallback, partial pass, or scale factor is allowed.
 
 ### Task B2: Run existing Task1 and inspect real outputs
 
@@ -930,7 +964,7 @@ fi
 
 ### Task B3: Run existing Task2 from an isolated pinned snapshot
 
-**Status:** NOT RUN. The two-GPU predict-only quota check failed and B1 did not qualify the image.
+**Status:** NOT RUN. Integrated B1 remains blocked; historical quota failures are superseded by later availability evidence but do not waive the D28 fully-bound predict-only and clean live gates.
 
 On exactly two H800 GPUs, create a new versioned reconnaissance snapshot without modifying the Echo submodule:
 
@@ -1566,6 +1600,11 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 | I31 cp39 package overwrite | Inventory with `importlib.metadata`, install only absent distributions, preserve existing packages, and fail on conflicts | Gate B1 package-policy and `pip check` gates |
 | I32 canonical cp39 scope | Verify the runtime-minimal Task1/Task3/sim-engine closure; enforce the full Echo pins only in the independent cp310 Task2 environment | Gate B1 narrowed post-contract |
 | I33 MemoryTracker circular import | Resolved by D27: use the probe-only isolated loader, preserve the non-empty MemoryTracker contract, and make no product-source edit or contract bypass | Fresh H800 B1 qualification in a new artifact root; B2 product-path verification |
+| I34 Echo helper ndarray truthiness | Replace only the helper's ambiguous sequence truthiness with `len(left) == 0`; require genuine ndarray RED, 13/13 GREEN, and actual pinned CPU predictor parity before GPU | Recovery RED/GREEN and CPU integration PASS; D28 clean live parity still required |
+| I35 Duplicate CPU execution and unauthorized evidence deletion | Preserve the incident, disclose unrecoverable attempt-1 bytes, forbid further `rm`/`mv`, and accept only the later serial rerun as a distinct evidence record | Incident hash plus serial CPU metrics/model/scaler hashes; final report disclosure |
+| I36 Recovery source identity mislabel | Supersede parent-repo `rev-parse` fields; bind exact `prediction_api.py` and CSV hashes to the pinned Echo commit without claiming filtered/full-tree equality | Corrected `source_binding.txt`, exact hashes, and independent audit |
+| I37 Invalid predict-only and unauthorized live submission | Treat early `bash -lc true` predict-only as non-authorizing; mark prior live budget consumed; apply D28 one-clean-retry gate | Independent D28 review, fully-bound predict-only PASS, then at most one final live |
+| I38 Team runtime orphan cleanup | Record that worker-2 invoked `orphan-cleanup` while tasks were pending, making Task 6 unrecoverable through the public API; preserve native Lane C as the actual reviewer and close stale panes without fabricating task state | Team status=`missing`, zero task/mailbox entries, formal shutdown exit `0`, stale panes/processes absent |
 | R-I22 scheduler `--model-size` value domain | Pass the direct AE labels `gpt175b|qwen3_a30b|dsv3` and test exact labels without an implicit architecture mapping | Task 4.1 CLI contract tests |
 | R-I24 `rlaunch status` misuse | Query jobs only through the documented read-only `brainctl` commands; never invoke `rlaunch status` as a status API | Gate B operational command review |
 | R-I27 B3 status masking | Run `update_configs.py` and `run_all.sh` in a strict subshell and propagate the subshell status through `PIPESTATUS` | Task B3 shell contract and negative status test |
@@ -1594,7 +1633,7 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 | R14 | Setup entry and AE image | Setup integration/environment report |
 | R15 | Safety constraints/Phase 0 | Worktree status evidence |
 
-### Decisions D1–D27
+### Decisions D1–D28
 
 | ID | Covered by | Verification evidence |
 |----|------------|-----------------------|
@@ -1625,6 +1664,7 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 | D25 | Explicit warmup `3` and profile `1` for all three Task1 wrappers | Exact argv assertions, summary/manifest checks, and drift-failure tests |
 | D26 | Repair and qualify the current container using a complete conda inventory; do not wait for the future replacement image | `/opt/anaconda` plus `/opt/conda` inventory, canonical-env evidence, dependency ledger, live B1 qualification |
 | D27 | Use a qualification-probe-only isolated loader for I33 without changing product source or weakening the MemoryTracker JSON contract | Fresh H800 NVML/CUDA/non-empty JSON qualification in a new artifact root; B2 product import/runtime evidence |
+| D28 | Preserve the interrupted unauthorized submission and allow one conditional clean Echo retry | Independent D28 review, fully-bound predict-only, exactly one final live, and fail-fast stop on any new root-cause class |
 
 ---
 
@@ -1648,15 +1688,16 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 16. Prebaked verification accepts a historical producer main-repository commit that differs from consumer `HEAD` only when the distribution/nested manifests and payload hashes are internally consistent; fresh verification still binds to the current producer checkout.
 17. Task3 publishes only versioned verified run markers, records measured CPU peak RSS and tested memory allocation, and never overwrites a fresh run with a prebaked run or vice versa.
 18. No push, default-branch update, Release creation, or asset upload occurs without explicit approval of the exact external target and immutable identifiers.
-19. Root/source code changes remain minimal and traceable to R1–R15 or D1–D27; root legacy scheduler and protected overlap-review branch are untouched.
+19. Root/source code changes remain minimal and traceable to R1–R15 or D1–D28; root legacy scheduler and protected overlap-review branch are untouched.
 20. `container_dependency_inventory.md` distinguishes confirmed gaps from unqualified items, records every current-container install with exact source/version/command/status/path, and cannot be used as proof that the future replacement image is qualified. Final AE rehearsal uses a clean container from the user-supplied immutable internal image tag/digest.
 21. GPT-175B, Qwen3-A30B, and DeepSeek-V3 Task1 invocations explicitly pass `--scaling-min-warmup-iters=3 --scaling-profile-iters=1`; their summaries and manifests record the same effective values, and missing/conflicting/drifted values fail before marker publication.
 22. Current Gate B does not wait for a replacement image: the live worker inventory covers `/opt/anaconda/envs/myenv_yc` and `/opt/conda` candidates, all installed gaps are recorded and verified, and the future immutable image remains a separate final-release qualification.
 23. Task1 and Task3 always invoke the recorded Megatron Python `3.9.18`; Task2 always invokes the recorded Echo Python `3.10.x`. The pinned Echo `SlowdownPredictor` import, two-GPU CUDA count, torch/CUDA companion versions, `pip check`, and deterministic train/save/reload parity pass in the Echo env; the sim-engine predictor import and slowdown smoke pass in the Megatron env. No task probes or switches interpreters at runtime.
-24. The D27 qualification probe uses an isolated loader only in B1, writes a non-empty MemoryTracker JSON with positive finite NVML/CUDA metrics in a new H800 artifact root, and does not edit Megatron/Echo product source or bypass the memory contract. B2 independently validates the real product import/runtime path.
+24. The D27 qualification probe uses an isolated loader only in B1, writes a non-empty MemoryTracker JSON with positive finite NVML/CUDA metrics in a new H800 artifact root, and does not edit Megatron/Echo product source or bypass the memory contract. The current D27 root passes this criterion; B2 still independently validates the real product import/runtime path.
+25. D28 preserves the unauthorized submission as a consumed prior budget and non-qualification incident. Its new clean-retry budget is used at most once, only after independent review and a fully-bound predict-only PASS; any new root-cause class or incomplete evidence stops without fallback. B2/B3/B4 remain blocked until integrated B1 passes, and Phase 1 remains blocked until Gate B passes.
 
 ---
 
 ## 22. Execution Handoff
 
-Gate A and the D27/I33 enhanced plan addendum are complete: independent StepCode Claude verdict=`APPROVE`, final docs/scope validation=`PASS`. D24/D25/D26 remain unchanged; Task3 is Python-3.9-safe, Task2 uses the separate Python-3.10 env, and D26 keeps canonical cp39 qualification runtime-minimal. D27 resolves I33 in favor of the probe-only isolated loader while retaining the live H800 non-empty JSON and B2 product-path gates. **This completion closes only the plan-document stage. The current user-directed execution hold remains active: do not create/submit a qualification worker/RJob, run B1/B2/B3/B4, or begin Phase 1 implementation without an explicit stage transition from the user.** When that transition is given, the first executable step is a fresh H800 D27 probe in a new artifact root, followed by the remaining role-specific B1 qualification; only a complete B1 PASS opens B2/B3/B4, and Phase 1 remains blocked until Gate B completes. The unavailable replacement image is retained only for the future clean-container release rehearsal. Any genuinely ambiguous, material branch discovered after local fact-finding is resolved through one-question `grill-me`.
+Gate A's D27/I33 and D28 addenda are independently approved and validated. D27 one-H800 passes with live NVML/CUDA/non-empty JSON evidence. Echo exact-two-H800 and integrated B1 remain blocked after three qualification-helper failures and the interrupted unauthorized submission. **The current plan-document stage is closed without creating the D28 root, running predict-only, submitting a live RJob, running B2/B3/B4, or beginning Phase 1 implementation.** In a later Gate B1 execution stage, the next action is a new clean root plus a fully-bound predict-only. Only a semantic PASS opens the single final exact-two-H800 live attempt. There is no additional retry; any new root-cause class, contract drift, incomplete evidence, or failure stops for user adjudication. Only integrated B1 PASS opens B2/B3/B4, and Phase 1 remains blocked until B5 closes Gate B. The unavailable replacement image remains only a future clean-container release gate. Any genuinely ambiguous material branch discovered after local fact-finding is resolved through one-question `grill-me`.

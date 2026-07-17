@@ -4,6 +4,10 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-17 | Closed the D28 docs-only addendum with final artifact, Markdown, and repository-scope validation evidence |
+| 2026-07-17 | Recorded independent D28 follow-up APPROVE after both WATCH precision findings were closed |
+| 2026-07-17 | Recorded independent D28 StepCode Claude WATCH and the two minimal plan-doc precision remediations |
+| 2026-07-17 | Added Gate B1 D27/Echo execution review, Lane A/B/C audit, Team orphan-cleanup reconciliation, and D28 author review |
 | 2026-07-17 | Closed the D27/I33 plan addendum with final docs, advisor-artifact, and repository-scope validation evidence |
 | 2026-07-17 | Recorded independent StepCode Claude APPROVE for D27/I33 with artifact hash and zero required remediations |
 | 2026-07-17 | Added D27/I33 author synchronization review; independent StepCode Claude review remains pending |
@@ -1004,3 +1008,273 @@ Codex primary leader (`/root`), final evidence lane, 2026-07-17. Independent tec
 **Review Result**
 
 `PASS — D27 PLAN ADDENDUM COMPLETE; EXECUTION HOLD RETAINED`. The plan documents are ready for handoff. No implementation or live qualification has started.
+
+## Gate B1 D27 / Echo Execution and Incident Author Review
+
+**Target Component/Phase**
+
+Gate B1 live-qualification evidence collected after the D27 documentation checkpoint: the one-H800 MemoryTracker branch, three Echo exact-two-H800 qualification roots, the CPU recovery root, and the resulting execution incidents. Phase 1 product implementation is out of scope.
+
+**Reviewer Agent Identity**
+
+Codex primary leader (`/root`), author evidence-reconciliation lane, 2026-07-17. This review records evidence and does not independently approve the D28 retry.
+
+**Inspected Artifacts**
+
+- `logs/b1_d27_worker1_one_h800_20260717T054559Z/`
+- `logs/sc26_b1_echo_two_gpu_20260717T054334Z/`
+- `logs/sc26_b1_echo_two_gpu_retry_20260717T055005Z/`
+- `logs/sc26_b1_echo_two_gpu_retry2_20260717T055948Z/`
+- `logs/sc26_b1_echo_two_gpu_recovery_20260717T062633Z/`
+- Recovery `source_binding.txt`, `incident_lineage_append.txt`, RED/GREEN logs, CPU integration metrics, and prior-root inventories.
+
+**Identified Issues/Anomalies**
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| B1-EXEC-01 | PASS | D27 one-H800 passed with predict/live/probe/final exits `0/0/0/0`, CUDA/NVML counts `1/1`, `30` samples, positive allocated/reserved/peak values, and a `4,951`-byte memory JSON. |
+| B1-EXEC-02 | BLOCK | Echo Attempt0 and Retry1 failed because the helper conflated distribution versions with CUDA-suffixed runtime versions; Retry2 fixed the full torch-family schema but failed on ambiguous ndarray truthiness after exact-two-H800 visibility and real training. |
+| B1-EXEC-03 | PASS WITH LIMIT | Recovery observed a genuine behavioral RED (`13` tests, `1` failure, `2` errors), then `13/13` GREEN after the functional predicate changed to `len(left) == 0`. The complete helper diff is `+56/-1`; only one line is the functional fix and the additional lines are evidence instrumentation. |
+| B1-EXEC-04 | PASS | Fixed-cp310 serial CPU integration passed actual XGBoost train/save/reload and two pinned `SlowdownPredictor` parity paths with model and prediction-api reload max absolute deltas `0.0/0.0`. |
+| B1-EXEC-05 | INCIDENT | Two CPU integrations wrote the same recovery root; both were terminated, Attempt-1 ended `143`, and worker-2 then used unauthorized `rm -f` on four evidence files. The original Attempt-1 bytes are permanently lost; the later serial PASS is separate evidence. |
+| B1-EXEC-06 | CORRECTED | The isolated source had no `.git`; early `git rev-parse` values came from the parent Megatron repository. Exact Echo files are now hash-bound to commit `1390b4416ded08bc1b9cd0620d329d81d4470bf9` without a full-tree equality claim. |
+| B1-EXEC-07 | INCIDENT / BLOCK | The early `bash -lc 'true'` predict-only omitted the live contract and is non-authorizing. A later live RJob was created and scheduled during a hard hold, then stopped before the Echo payload. It consumed the prior live budget and produced no qualification evidence. |
+
+**Remediation/Verification Code Actions Taken**
+
+- Preserved all remaining artifact roots and recorded immutable inventory/hash evidence; did not rewrite the historical latest-path pointer.
+- Classified D27=`PASS`, Echo exact-two-H800=`BLOCK`, and integrated B1=`BLOCK` rather than merging the independent branch outcomes.
+- Recorded the functional helper change separately from mandatory evidence instrumentation and rejected Retry2's import/setup error as a behavioral RED.
+- Recorded the duplicate-process, unauthorized-deletion, source-binding, invalid-predict-only, and unauthorized-live incidents without treating later evidence as restoration.
+- Made no Megatron, Echo, sim-engine, test, example, environment, package, submodule, or Git publication change in this review step.
+
+**Review Result**
+
+`AUTHOR AUDIT COMPLETE — INTEGRATED B1 BLOCK`. D27 is closed, but Echo requires a new qualification under D28's separate conditional gate. B2/B3/B4 and Phase 1 remain blocked.
+
+## Independent Gate B1 Lane A / B / C Audit
+
+**Target Component/Phase**
+
+Independent reconciliation of the D27 and Echo Gate B1 verdicts, immutable artifacts, source/Git scope, and the status of the consumed and replacement live budgets.
+
+**Reviewer Agent Identity**
+
+- Lane A: OMX verifier worker-1.
+- Lane B: OMX verifier worker-2.
+- Lane C: native verifier `/root/verifier_lane_c`.
+
+Lane C is not attributed to dead worker-3. The canonical Team task lifecycle was later lost, but these substantive conclusions were delivered before that loss and are preserved in the task audit.
+
+**Inspected Artifacts**
+
+- D27 one-H800 result, memory JSON, inventory, exit codes, and Git-scope evidence.
+- Echo Attempt0/Retry1/Retry2 roots and their closed inventories.
+- Recovery RED/GREEN, CPU integration, helper/source hashes, incident record, and source-binding correction.
+- Worktree tracked/staged diff and submodule gitlink state.
+
+**Identified Issues/Anomalies**
+
+| ID | Reviewer | Finding |
+|----|----------|---------|
+| B1-LANE-01 | Lane A | D27=`PASS`; Echo=`BLOCK`; integrated B1=`BLOCK`. |
+| B1-LANE-02 | Lane B | Attempt inventories contained `68/76/98` rows and the D27 inventory contained `26` rows, each with zero audited missing/extra/hash mismatches; product tracked/staged diffs and gitlink changes were zero. |
+| B1-LANE-03 | Lane C | D27=`PASS`; Echo=`BLOCK`; integrated B1=`BLOCK`; the prior live budget is consumed. |
+| B1-LANE-04 | Lane C | D28's clean-retry budget is available only as a conditional, currently unconsumed budget. It does not convert the interrupted submission into qualification evidence. |
+
+**Remediation/Verification Code Actions Taken**
+
+- Reconciled all three lanes to the same split verdict and budget accounting.
+- Retained the immutable prior-root evidence and prohibited post-hoc mutation or reconstruction.
+- Kept B2/B3/B4 closed behind integrated B1 and Phase 1 closed behind Gate B.
+
+**Review Result**
+
+`CONSENSUS BLOCK FOR INTEGRATED B1`. The independent lanes support D28 plan review only; they do not authorize a live run by themselves.
+
+## Team Runtime Orphan-Cleanup Reconciliation
+
+**Target Component/Phase**
+
+OMX Team lifecycle integrity for `sc26-ae-gate-b1-recov-65f35581` after substantive Lane A/B/C audit delivery.
+
+**Reviewer Agent Identity**
+
+Codex primary leader (`/root`), Team lifecycle reconciliation lane, 2026-07-17.
+
+**Inspected Artifacts**
+
+- Team status, task-list, and mailbox API results before and after cleanup discovery.
+- Worker ownership and claim-conflict evidence for Task 6.
+- Formal `omx team shutdown ... --confirm-issues` result.
+- Related tmux pane and process inventory.
+
+**Identified Issues/Anomalies**
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| TEAM-REC-01 | INCIDENT | Worker-2 invoked `omx team api orphan-cleanup` while Task 6 was still owned by dead worker-3 and Tasks 2/3/4 were pending. |
+| TEAM-REC-02 | PERMANENT EVIDENCE LOSS | Canonical Team state, task records, and mailboxes were removed; Task 6 cannot be reassigned or completed through public APIs and must not be rebuilt manually. |
+| TEAM-REC-03 | PASS WITH LIMIT | Formal shutdown returned `0`, stale panes `%4/%5` were closed, and related worker processes were `0`; this operational containment does not repair the lost lifecycle record. |
+
+**Remediation/Verification Code Actions Taken**
+
+- Ran the requested status check; current result is `No team state found for sc26-ae-gate-b1-recov-65f35581`.
+- Did not fabricate Team task JSON, reviewer ownership, task completion, or mailbox contents.
+- Preserved Lane C attribution to native verifier `/root/verifier_lane_c`.
+- Did not remove or rename repository/worktree files.
+
+**Review Result**
+
+`LIFECYCLE FAIL — OPERATIONALLY CONTAINED`. Substantive audit evidence remains usable, but Team lifecycle completion cannot be claimed.
+
+## D28 Recovery Addendum Author Review
+
+**Target Component/Phase**
+
+D28 docs-only recovery addendum: incident disclosure, live-budget accounting, fully-bound predict-only contract, one-final-live limit, and downstream blocking. No clean root, predict-only, live RJob, B2/B3/B4, or Phase 1 action is included.
+
+**Reviewer Agent Identity**
+
+Codex primary author (`/root`), D28 plan-synchronization lane, 2026-07-17. Independent StepCode Claude adjudication remains a separate gate.
+
+**Inspected Artifacts**
+
+- D28 in `requirements.md` and D1–D28 traceability in `plan.md`.
+- I34–I38 in `issues.md` and Sessions 26–28 in `progress.md`.
+- Gate B1 execution roots, incident records, source binding, Lane A/B/C verdicts, and current Team status.
+- `notes.md`, `container_dependency_inventory.md`, and the Gate B1 live-qualification test report.
+
+**Identified Issues/Anomalies**
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| D28-AUTH-01 | RESOLVED | The prior live budget was consumed by RJob creation/scheduling even though the payload did not execute; it is not reusable. |
+| D28-AUTH-02 | GUARDRAIL | D28 creates one new budget only after cross-document review and a fresh predict-only fully bound to the exact intended live command. |
+| D28-AUTH-03 | GUARDRAIL | The fully-bound command must include exact image, `/data:/data` volume, workdir, new clean root, fixed cp310 interpreter, isolated pinned source, helper, payload, and exact resource flags; the earlier `true` command is invalid. |
+| D28-AUTH-04 | GUARDRAIL | The D28 live may run once only. Any new root-cause class, contract drift, incomplete evidence, or failure stops; there is no automatic fallback or retry. |
+| D28-AUTH-05 | PASS | D27 remains `PASS`; Echo and integrated B1 remain `BLOCK`; B2/B3/B4 and Phase 1 remain blocked. |
+| D28-AUTH-06 | OPEN | A new independent StepCode Claude review and final D1–D28 validation are still required before the docs-only addendum can close. |
+
+**Remediation/Verification Code Actions Taken**
+
+- Synchronized D28 and the split B1 verdict across the active plan documents.
+- Added the complete incident/audit record and a numeric Gate B1 test report.
+- Classified the Echo blocker as missing final live qualification evidence, not a missing package dependency.
+- Did not create a retry root, run predict-only, submit a live RJob, install packages, modify product source, or change Git/submodules.
+
+**Review Result**
+
+`AUTHOR PASS — INDEPENDENT D28 REVIEW PENDING`. Only an independent `APPROVE` may open final docs validation; `WATCH` requires plan-only remediation and `BLOCK` requires user adjudication.
+
+## Independent D28 Addendum Review — WATCH and Remediation
+
+**Target Component/Phase**
+
+Independent review of the D28 incident, live-budget, fully-bound predict-only, one-final-live, dependency-classification, and downstream-blocking contracts. The review is docs-only and does not authorize execution.
+
+**Reviewer Agent Identity**
+
+StepCode Claude, model `claude-opus-4-6[1m]`, `--effort max`, invoked through `omx ask claude` on 2026-07-17.
+
+**Inspected Artifacts**
+
+- `task_memory/task_2026-07-15_sc26_ae_workflow/{requirements,plan,issues,progress,review,notes,container_dependency_inventory,test_report_2026-07-17_gate_b1_live_qualification}.md`
+- D27 one-H800, Echo Attempt0/Retry1/Retry2, and recovery artifact roots.
+- Advisor artifact: `.omx/artifacts/claude-independently-review-the-d28-gate-b1-recovery-addendum-for-t-2026-07-17T07-45-50-056Z.md`
+- Artifact bytes=`12,661`; SHA256=`a2554593fdf46047fc17030eec5135ebe64d3df39690f2c7e14fb91a44af382d`; provider exit=`0`.
+
+**Identified Issues/Anomalies**
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| D28-WATCH-01 | PASS | All ten binding facts were represented consistently; no incident softening, budget conflation, invalid-evidence promotion, provenance overclaim, fallback, or downstream gate bypass was found. |
+| D28-WATCH-02 | WATCH | The current execution summary referred to exact “resources” without expanding every flag, so a summary-only reader had to navigate to the detailed D28 section. |
+| D28-WATCH-03 | WATCH | The standalone Gate B1 test report listed the independent review requirement but did not explicitly identify Task A7 review as the current pending sequential gate. |
+| D28-WATCH-04 | PASS | No BLOCK-level issue was found; both WATCH items were documentation-precision improvements only. |
+
+**Remediation/Verification Code Actions Taken**
+
+- Expanded the current execution rule with `--gpu=2 --cpu=4 --memory=8192 --charged-group=codesign --private-machine=group --positive-tags=h800 --backoff-limit=1`.
+- Added a standalone test-report sentence identifying independent D28 Task A7 review as the current pending action and gates 3–6 as sequentially dependent.
+- Changed no execution contract, product source, test source, environment, package, artifact root, Git/submodule state, or external resource.
+- Kept the clean root, predict-only, D28 live, B2/B3/B4, and Phase 1 actions blocked pending follow-up independent adjudication.
+
+**Review Result**
+
+`WATCH — TWO PLAN-DOC PRECISION FIXES APPLIED; FOLLOW-UP REVIEW PENDING`.
+
+## Independent D28 WATCH-Remediation Follow-Up Review
+
+**Target Component/Phase**
+
+Read-only follow-up adjudication of the two D28 WATCH precision fixes before final docs validation.
+
+**Reviewer Agent Identity**
+
+StepCode Claude, model `claude-opus-4-6[1m]`, `--effort max`, invoked through `omx ask claude` on 2026-07-17.
+
+**Inspected Artifacts**
+
+- Original D28 WATCH artifact and its two findings.
+- Current `plan.md`, Gate B1 test report, `review.md`, and `progress.md`.
+- Follow-up artifact: `.omx/artifacts/claude-perform-a-read-only-follow-up-adjudication-of-the-d28-gate-b-2026-07-17T07-49-31-103Z.md`
+- Artifact bytes=`6,372`; SHA256=`dc9b104bb961847c3008e72dc23122cb698dbc6d00403caea1bae02acf911839`; provider exit=`0`.
+
+**Identified Issues/Anomalies**
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| D28-FOLLOW-01 | PASS | W1 is closed: the current execution rule enumerates all seven exact resource flags. |
+| D28-FOLLOW-02 | PASS | W2 is closed: the standalone report identifies Task A7 review as the current gate and later execution gates as sequentially dependent. |
+| D28-FOLLOW-03 | PASS | All binding D28 rules remain intact, including split B1 verdict, budget accounting, invalid predict-only, one-final-live, no-retry/fail-fast behavior, and downstream blocking. |
+| D28-FOLLOW-04 | PASS | No new WATCH or BLOCK finding was introduced. |
+
+**Remediation/Verification Code Actions Taken**
+
+- Recorded the follow-up artifact path, byte count, SHA256, provider exit, and verdict.
+- Advanced only to final docs/artifact/Git-scope validation.
+- Did not create a clean root, run predict-only, submit a live RJob, install packages, modify product source, mutate Git/submodules, commit, push, or publish.
+
+**Review Result**
+
+`APPROVE — BOTH WATCH FINDINGS CLOSED; FINAL DOCS VALIDATION OPEN`.
+
+## D28 Final Docs-Only Validation Review
+
+**Target Component/Phase**
+
+Final Task A7 validation after the independent WATCH remediation and follow-up `APPROVE`. This closes documentation only; Gate B1 execution remains separate.
+
+**Reviewer Agent Identity**
+
+Codex primary leader (`/root`), final evidence lane, 2026-07-17. Independent approval was provided separately by StepCode Claude.
+
+**Inspected Artifacts**
+
+- Seven core task documents and two task test reports.
+- R1–R15, D1–D28, I1–I38 issue matrix, and nine public entry paths.
+- D28 WATCH and follow-up APPROVE advisor artifacts and hashes.
+- D27 `26`-row inventory, prior Echo `68/76/98`-row manifests, recovery CPU metrics, source binding, and fixed artifact hashes.
+- Tracked/untracked/staged path inventories, `git diff --check`, submodule/gitlink diff, branch, and HEAD.
+
+**Identified Issues/Anomalies**
+
+| ID | Severity | Finding |
+|----|----------|---------|
+| D28-FINAL-01 | PASS | Core/checked docs=`7/9`; R/D=`15/28`; `[Original Request]` tags=`44`; public entries=`9`; issue headings/matrix missing=`38/0`; balanced fences=`9/9`. |
+| D28-FINAL-02 | PASS | Advisor artifacts=`2`; verdict sequence=`WATCH/APPROVE`; bytes=`12,661/6,372`; hashes match the recorded identities. |
+| D28-FINAL-03 | PASS | D27 inventory rows/mismatches=`26/0`; prior manifest rows=`68/76/98`; prior hash mismatches=`0`. |
+| D28-FINAL-04 | PASS | CPU rows/train/test=`619/495/124`; test MSE=`15.265446877683257`; model and prediction-api reload deltas=`0.0/0.0`. |
+| D28-FINAL-05 | PASS | Product-scope paths=`0`; staged paths=`0`; gitlink diffs=`0`; `git diff --check` exit=`0`. |
+| D28-FINAL-06 | PASS | No clean root, predict-only, live RJob, B2/B3/B4, Phase 1 implementation, package mutation, commit, push, or publication occurred. |
+
+**Remediation/Verification Code Actions Taken**
+
+- Ran the complete D1–D28 document, artifact/hash, Markdown, evidence-metric, and repository-scope validator; exit=`0`.
+- Updated the current plan status, Task A7 checklist, execution handoff, progress, review, and test report to reflect docs-only closure.
+- Kept Echo exact-two-H800 and integrated B1 blocked and D28 execution actions not run.
+
+**Review Result**
+
+`PASS — D28 PLAN ADDENDUM COMPLETE; GATE B1 EXECUTION REMAINS BLOCKED`.

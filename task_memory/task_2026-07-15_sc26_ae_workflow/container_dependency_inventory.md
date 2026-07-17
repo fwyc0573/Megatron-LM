@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-17 | Reconciled D27 and Echo qualification evidence; confirmed no new missing package and classified D28 as a live-evidence gate |
 | 2026-07-17 | Recorded D27 selection of the probe-only MemoryTracker qualification path and retained the live H800 evidence boundary |
 | 2026-07-17 | Recorded controller-side isolated-loader feasibility evidence for the pending MemoryTracker probe branch |
 | 2026-07-17 | Added a CPU-master conda/path inventory to distinguish controller-side environments from GPU-worker runtime paths |
@@ -174,7 +175,35 @@ memory_tracker_module= qualification_trace_memory
 pynvml_available= False
 ```
 
-This proves only that the class can be loaded without the package-level circular import. The controller has no CUDA device and no `pynvml` in the cp310 prefix, so this is not a MemoryTracker or B1 pass. D27 selects this probe-only branch, but it must still run under the canonical H800 cp39 interpreter in a new artifact root, query NVML, allocate CUDA memory, and assert a non-empty JSON with positive finite metrics. B2 separately validates the real product package import/runtime path. No package, source, or runtime binding changed during this feasibility check.
+This proves only that the class can be loaded without the package-level circular import. The controller has no CUDA device and no `pynvml` in the cp310 prefix, so this controller observation is not a MemoryTracker or B1 pass. D27 later ran under the canonical H800 cp39 interpreter in a new artifact root, queried NVML, allocated CUDA memory, and wrote a non-empty JSON with positive finite metrics. That live result closes the qualification-only D27 branch. B2 separately validates the real product package import/runtime path. No package, source, or runtime binding changed during the controller feasibility check.
+
+### 4.8 Current D27 / Echo dependency disposition (2026-07-17)
+
+No new missing necessary library or tool package was discovered by the D27 or Echo recovery evidence.
+
+| Scope | Observed evidence | Dependency disposition |
+|-------|-------------------|------------------------|
+| D27 one-H800 | Python `3.9.18`, torch `2.1.2`, CUDA `12.1`, `nvidia-ml-py 12.570.172`, CUDA/NVML counts `1/1`, and non-empty MemoryTracker JSON | **Dependency-qualified for the D27 probe.** The earlier circular import was a package initialization-order issue, not a missing dependency, and the isolated qualification loader passed live. |
+| Echo fixed cp310 CPU closure | Python `3.10.20`; NumPy `1.26.4`; pandas `2.2.0`; scikit-learn `1.3.0`; XGBoost `2.1.0`; torch distribution/runtime `2.1.2/2.1.2+cu121`; torchvision `0.16.2/0.16.2+cu121`; torchaudio `2.1.2/2.1.2+cu121`; `pip check` PASS | **Package closure PASS.** Actual pinned train/save/reload and `SlowdownPredictor` CPU parity completed with zero reload/formula deltas. |
+| Echo Retry2 live environment | Exact two H800 devices, full torch-family version schema, preflight, `pip check`, real model/scaler output | **No missing-package failure.** The run stopped in a qualification-helper ndarray truthiness bug after training. |
+| Echo recovery helper | Genuine ndarray RED, `13/13` GREEN after `len(left) == 0`, actual CPU integration PASS | **Helper root cause resolved outside product source.** Final live parity evidence is still absent. |
+| D28 clean retry | Not run | **Live-evidence gate, not a dependency gap.** Independent D28 review and a fully-bound predict-only must pass before the one allowed live qualification. |
+
+Therefore the current integrated B1 blocker must not be reported as “missing package,” “missing conda env,” or “missing Nsight.” It is the absence of a valid, complete Echo exact-two-H800 qualification record after the interrupted unauthorized submission. Future B2/B3/Phase 8 work still has the package/tool acceptance obligations listed elsewhere in this inventory, and the eventual replacement image must include the complete verified dependency/tool closure. Those future-image obligations do not block the current D28 plan review.
+
+The fixed current Echo interpreter remains:
+
+```text
+/data/ycfeng/ae_dependency_cache/sc26_ae/conda_envs/echo_py310_miniconda_26_5_3_1/bin/python
+```
+
+The fixed historical worker image for D28 qualification remains:
+
+```text
+hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef
+```
+
+This old image is usable only for the current qualification contract; it is not the final replacement release image.
 
 Rules:
 

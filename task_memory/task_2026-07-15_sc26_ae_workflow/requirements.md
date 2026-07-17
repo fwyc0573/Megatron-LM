@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes                                       |
 |------------|----------------------------------------------------------|
+| 2026-07-17 | Captured D28 authorization for one clean B1 retry after the interrupted unauthorized submission |
 | 2026-07-17 | Captured D27 MemoryTracker qualification probe-only remediation selection |
 | 2026-07-16 | Captured D26 current-container environment remediation and execution-continuation directive |
 | 2026-07-16 | Captured D25 common scaling warmup/profile policy |
@@ -159,6 +160,9 @@
 
 ### D27. MemoryTracker qualification probe-only remediation
 [Original Request] 用户选择方案 1：仅修复 qualification probe。允许使用 isolated loader 或等价的 probe-only import 方式，在不修改 Megatron/Echo 产品源码、不跳过 MemoryTracker、且仍要求生成非空 memory JSON 的前提下，使用新的 artifact root 重新执行 H800 B1 qualification。CPU controller 的 isolated-loader import 成功只能作为可行性证据，不能代替 H800 NVML/CUDA/non-empty JSON qualification；B2 仍需验证真实产品 import/runtime 路径。
+
+### D28. Gate B1 interrupted-submission recovery authorization
+[Original Request] 对 2026-07-17 14:37:44 +08:00 未经授权提交、随后在 Echo qualification payload 执行前停止的 exact-two-H800 RJob，用户选择 `authorize_one_clean_retry`：完整保留并披露该违规事件；在独立审计通过并完成与实际 live contract 完整绑定的 fresh predict-only 后，只允许再提交一次 exact-two-H800 live qualification。
 
 ## A1. Gate A 批准与执行授权
 [Original Request] 批准 Gate A，完成已审查的 plan；允许启用并行 team 模式和 subagents，以尽可能加速当前任务的执行速度。
