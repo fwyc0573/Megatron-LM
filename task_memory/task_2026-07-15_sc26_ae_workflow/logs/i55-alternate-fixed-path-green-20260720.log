@@ -1,0 +1,48 @@
+ALTERNATE_FIXED_PATH_NEGATIVE=1
+interpreter binding sidecar is missing: /data/ycfeng/tmp/sc26-ae-task2-runtime-binding.HYYrJY/nested-chain-binding/reuse-matrix-run/interpreter_binding.json
+[ERROR] Task2 interpreter binding sidecar verification failed
+REUSE_MODE_MATRIX=valid-real-under-synthetic:pass,missing-sidecar:reject
+interpreter binding sidecar enables automatic fallback
+[ERROR] Task2 interpreter binding sidecar verification failed
+archived interpreter config size mismatch: kernel_metric/input/global_config.json
+[ERROR] Task2 interpreter binding sidecar verification failed
+Task2 provenance does not reference the current interpreter sidecar
+[ERROR] Task2 interpreter binding sidecar verification failed
+Task2 artifact manifest omits interpreter binding artifact: interpreter_binding.json
+[ERROR] Task2 interpreter binding sidecar verification failed
+nested python_path is unsafe: relative/python
+[ERROR] nested Echo interpreter validation failed
+nested interpreter config is not valid JSON: kernel_metric/input/global_config.json (Expecting property name enclosed in double quotes: line 1 column 2 (char 1))
+[ERROR] nested Echo interpreter validation failed
+nested interpreter config must be a JSON object: kernel_metric/input/global_config.json
+[ERROR] nested Echo interpreter validation failed
+nested python_path is unsafe: None
+[ERROR] nested Echo interpreter validation failed
+nested python_path is unsafe: 7
+[ERROR] nested Echo interpreter validation failed
+nested python_path is unsafe: /absolute/fixed/python 
+[ERROR] nested Echo interpreter validation failed
+nested python_path is unsafe: /absolute/fixed/python	
+[ERROR] nested Echo interpreter validation failed
+nested python_path is unsafe: /absolute/fixed/python
+[ERROR] nested Echo interpreter validation failed
+sidecar PATH identity differs from fixed interpreter
+[ERROR] Task2 interpreter binding sidecar verification failed
+archived interpreter config is missing: /data/ycfeng/tmp/sc26-ae-task2-runtime-binding.HYYrJY/nested-chain-binding/archive-shape/provenance/interpreter_configs/kernel_metric.global_config.json
+[ERROR] Task2 interpreter binding sidecar verification failed
+archived interpreter config is not a regular non-symlink file: /data/ycfeng/tmp/sc26-ae-task2-runtime-binding.HYYrJY/nested-chain-binding/archive-shape/provenance/interpreter_configs/kernel_metric.global_config.json
+[ERROR] Task2 interpreter binding sidecar verification failed
+duplicate JSON key: status
+[ERROR] Task2 interpreter binding sidecar verification failed
+duplicate JSON key: python_path
+[ERROR] Task2 interpreter binding sidecar verification failed
+duplicate JSON key: interpreter_binding
+[ERROR] Task2 interpreter binding sidecar verification failed
+Task2 artifact manifest contains duplicate file entries
+[ERROR] Task2 interpreter binding sidecar verification failed
+PARSER_NEGATIVES=11
+DUPLICATE_KEY_NEGATIVES=4
+SIDECAR_TAMPER_NEGATIVES=9
+PASS_COUNT=12
+PASS: Task2 default interpreter=/opt/conda/envs/echo_slowdown/bin/python and real runtime controls fail fast
+Evidence root: /data/ycfeng/tmp/sc26-ae-task2-runtime-binding.HYYrJY

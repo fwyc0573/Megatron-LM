@@ -4,6 +4,9 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-19 | Corrected the current fixed Nsight Compute payload to `2024.3.2.3` and recorded the setup fixed-runtime verifier contract; the earlier `2024.3.2.0` wording was an inventory typo |
+| 2026-07-19 | Bound the Task2 runner to the exact v1.2-ae Echo worker interpreter and separated it from the controller-only cp310 prefix |
+| 2026-07-19 | Declared v1.2-ae as the current qualification target; retained v1.1 worker records as historical evidence only |
 | 2026-07-17 | Reconciled D27 and Echo qualification evidence; confirmed no new missing package and classified D28 as a live-evidence gate |
 | 2026-07-17 | Recorded D27 selection of the probe-only MemoryTracker qualification path and retained the live H800 evidence boundary |
 | 2026-07-17 | Recorded controller-side isolated-loader feasibility evidence for the pending MemoryTracker probe branch |
@@ -21,16 +24,17 @@
 
 This document is the single dependency-gap inventory requested by D24. It serves two distinct contexts:
 
-1. **Replacement AE image:** the user will later use this inventory on another machine to build and push a new immutable internal image. The final image reference and digest are not known yet and must not be invented. D26 states that this future image is unavailable and does not block current execution.
-2. **Current validation container:** the agent is explicitly required to inventory the existing conda environments, use the qualified environment when present, and download/install confirmed missing dependencies so Gate B can proceed. Every such change must record the exact command, package/tool version, source, exit status, and post-install verification. This authorization is explicit provisioning, not an automatic runtime fallback.
+1. **Current/final AE qualification target:** new preflight, predict-only, live qualification, and release rehearsal must use `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae`. Its immutable digest and worker availability must be resolved and recorded before qualification; the tag alone is not evidence. Do not infer a digest or silently substitute another image.
+2. **Historical validation records:** prior D27/D28 worker evidence used `v1.1-image-11c794ef` and remains immutable audit history. It is not a current target and cannot qualify the v1.2-ae release path.
+3. **Current validation container:** the agent may inventory available conda environments, use the explicitly qualified role-bound environment when present, and install confirmed missing dependencies only when the active gate authorizes it. Every such change must record the exact command, package/tool version, source, exit status, and post-install verification. This authorization is explicit provisioning, not an automatic runtime fallback.
 
-The old image remains historical evidence:
+The old image remains historical evidence only:
 
 ```text
 hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef
 ```
 
-It must not be described as a qualified release image. Internal images must be pushed to the approved internal registry, not to `docker.io`. The eventual replacement image must be referenced by an immutable tag and digest before AE release qualification.
+It must not be described as a qualified release image. Internal images must be pushed to the approved internal registry, not to `docker.io`. The current target image must be referenced by an immutable tag and digest before AE release qualification; do not use the historical v1.1 tag for a new run.
 
 ## 2. Qualified Environment Findings
 
@@ -41,9 +45,32 @@ The earlier B1 probes did not inspect `/opt/anaconda/envs/myenv_yc`, but fresh i
 | Megatron / Task1 / Task3 Python | Exact `/opt/conda/envs/megatron_env/bin/python`, Python `3.9.18` | Live H800: torch `2.1.2`, torch CUDA `12.1`, CUDA available, torchvision `0.16.2`, torchaudio `2.1.2`, Transformer Engine `1.3.0+5b90b7f` | **Qualified base runtime.** Do not upgrade Python or torch. Install only missing Python packages from the frozen cp39 wheelhouse. |
 | Echo / Task2 Python | Separate exact Python `3.10.x` conda env, torch `2.1.2`, CUDA `12.1`, torchvision `0.16.2`, torchaudio `2.1.2` | Not present in the image. Pinned Echo `prediction_api.py` fails on Python `3.9.18` with `TypeError` at `str | None` | **Confirmed required gap.** Provision from one explicit official installer plus a frozen cp310 wheelhouse; hash-verify every payload and qualify on two H800 GPUs. |
 | Nsight Systems (`nsys`) | `nsys >= 2024.4.2`, with `profile` and `export` available | Image contains only `2023.1.1.0`; fixed `2024.4.2.133` plus its `56`-package Ubuntu closure passed an offline live smoke | **Confirmed required upgrade.** Final qualification repeats exact-version install, profile, and SQLite export. |
-| Nsight Compute (`ncu`) | `ncu >= 2024.3` | Image contains `2023.1.1.0`; fixed `2024.3.2.0` passed version, section-list, and metric-query smoke | **Confirmed required upgrade.** Final qualification repeats the exact version and Task2 query checks. |
+| Nsight Compute (`ncu`) | `ncu >= 2024.3`; frozen worker payload `2024.3.2.3` | Image contains `2023.1.1.0`; fixed `2024.3.2.3` passed version, section-list, and metric-query smoke | **Confirmed required upgrade.** Final qualification repeats the exact version and Task2 query checks. |
 | `grouped_gemm` | Upstream tag `v1.0`, commit `7a7f0189797889e926a30b3487512f9539161060`, distribution `0.0.1`; import `grouped_gemm` and `grouped_gemm_backend` | The base image historically did not contain it; the repository setup path can install it, but B1 did not qualify it in the default environment | Include and verify it in the replacement image, or run the explicitly selected pinned setup source during current validation. Do not use automatic VCS-to-archive fallback. |
 | `absl-py` | Exactly `2.3.1` for the pinned `grouped_gemm` build | Installed only as part of the supplemental grouped-gemm setup contract | Include/verify exactly `2.3.1`; a mismatched live version is fatal. |
+
+### 2.1 Current v1.2-ae Task2 worker binding
+
+The D42/D43 Retry-1 worker evidence for
+`hub.i.basemind.com/mg-echo/megatron-h800@sha256:b7072775e8a4dd7bd21ef5efe73b398875923968274ef001fa807985d9e101e4`
+records the exact Echo runtime below:
+
+| Field | Observed value |
+|-------|----------------|
+| Interpreter | `/opt/conda/envs/echo_slowdown/bin/python` |
+| Python | `3.10.20` |
+| torch | `2.1.2+cu121` |
+| CUDA | `12.1` |
+| Visible H800 devices | `2` |
+| `pip check` | PASS |
+
+This exact path is the one-click Task2 default. The controller-only provisioning
+prefix under `/data/ycfeng/ae_dependency_cache/.../echo_py310...` remains valid
+package-closure evidence, but it is not the v1.2-ae worker runtime path. The
+runner must not dynamically search between these locations. This correction
+closes only the control-plane binding mismatch; D42/D43 remains narrow functional
+evidence with source-provenance WATCH, not final three-model-by-three-task AE
+qualification.
 
 ## 3. Required but Not Yet Qualified
 
@@ -191,28 +218,32 @@ No new missing necessary library or tool package was discovered by the D27 or Ec
 
 Therefore the current integrated B1 blocker must not be reported as “missing package,” “missing conda env,” or “missing Nsight.” It is the absence of a valid, complete Echo exact-two-H800 qualification record after the interrupted unauthorized submission. Future B2/B3/Phase 8 work still has the package/tool acceptance obligations listed elsewhere in this inventory, and the eventual replacement image must include the complete verified dependency/tool closure. Those future-image obligations do not block the current D28 plan review.
 
-The fixed current Echo interpreter remains:
+The fixed current v1.2-ae worker Echo interpreter is:
 
 ```text
-/data/ycfeng/ae_dependency_cache/sc26_ae/conda_envs/echo_py310_miniconda_26_5_3_1/bin/python
+/opt/conda/envs/echo_slowdown/bin/python
 ```
 
-The fixed historical worker image for D28 qualification remains:
+The `/data/ycfeng/ae_dependency_cache/.../echo_py310...` prefix documented in
+§4.1 and §4.6 is controller-side provisioning evidence only; it is not a runtime
+fallback candidate.
+
+The fixed historical worker image used by the prior D28 evidence remains recorded for audit:
 
 ```text
 hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef
 ```
 
-This old image is usable only for the current qualification contract; it is not the final replacement release image.
+This old image is not usable as the current qualification target and is not the final release image. New D28 recovery preflight/live commands must use `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae` and record its digest.
 
 Rules:
 
-1. Inventory is complete. Use exactly two role-bound interpreters: Megatron/Task1/Task3 at `/opt/conda/envs/megatron_env/bin/python`; Echo/Task2 at the exact Python-3.10 path recorded after provisioning. These bindings are mandatory and are not fallback candidates.
+1. Inventory is complete. Use exactly two role-bound worker interpreters: Megatron/Task1/Task3 at `/opt/conda/envs/megatron_env/bin/python`; Echo/Task2 at `/opt/conda/envs/echo_slowdown/bin/python`. These bindings are mandatory and are not fallback candidates.
 2. Use exact versions or immutable sources. A selected source failure is fatal; do not switch source/version automatically.
 3. Do not lower `nsys`/`ncu` version gates to match the old image.
 4. Do not override platform-injected `NCCL_*` variables.
 5. Do not treat a successful package install as qualification. Run the acceptance checks in §5.
-6. Current-container changes do not qualify the replacement release image; the replacement image must be independently probed from a clean container instance.
+6. Current-container changes do not qualify `v1.2-ae`; the current target must be independently probed from a clean container instance with the resolved digest.
 7. The concrete pinned-source failure has proved Python `3.10+` necessary for Echo. Provision exactly one Python-3.10 Echo env; do not broaden the version range, patch the source, or route Task3 through it.
 
 ## 5. Replacement-Image Acceptance Checklist

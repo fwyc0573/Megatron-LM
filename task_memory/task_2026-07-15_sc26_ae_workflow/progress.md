@@ -4,6 +4,48 @@
 
 | Date       | Summary of Changes                                  |
 |------------|------------------------------------------------------|
+| 2026-07-20 | Session 56: passed the penultimate tracked-snapshot V21 replay and closed I59 locally; final identity, exact-log restaging, Lore commit, and committed-clone replay remain |
+| 2026-07-20 | Session 56: reproduced and fixed the V21 runtime-output scope defect with TDD, passed a tracked-snapshot replay, and received independent `APPROVE` for the I59 remediation |
+| 2026-07-20 | Session 56: accepted D31/D32, removed reviewer-generated nested `.omc/`, and began exact V21 clean-clone log provenance reconciliation |
+| 2026-07-20 | Corrected stale V21 verifier v3/v4 current-identity wording; v2/v3/v4 are historical and the sole current identity is maintained in summary.md |
+| 2026-07-20 | Session 55: fixed stale final-v2/current and old-transcript wording found by independent review; the final-v5 affected regression and marker-complete alternate-manifest v3 evidence remain current; V21 verifier v3 is historical |
+| 2026-07-20 | Session 55: corrected the durable alternate-manifest marker evidence and recorded the final-v5 affected regression; I55 and all qualification boundaries remain unchanged |
+| 2026-07-20 | Session 55 evidence-quality correction: complete generic-manifest alternate-path integration, independent audit identity, and final-v2 regression preparation; qualification boundary unchanged |
+| 2026-07-20 | Session 55: fixed synthetic real-evidence requested-path binding with RED→GREEN alternate-path coverage, refreshed the 12-case Task2 regression, and retained all qualification/release blockers |
+| 2026-07-20 | Session 54: completed the D16 preflight contract GREEN rerun (`49/49` unit, `38/38` integration, `281` fake torchrun calls), updated stale count consumers, and kept all real qualification gates closed |
+| 2026-07-20 | Session 51: resolved the V21 historical-52/current-53 scope drift, reran the shell verifier, and kept the synthetic-only/release boundary unchanged |
+| 2026-07-20 | Session 51: applied the I53/D16 model-aware timing contract, completed RED→GREEN unit/integration/e2e regression, and kept preflight/qualification gates open |
+| 2026-07-20 | Session 50: completed I55 wrapper-only semantic hardening, persisted the final regression/report, and kept qualification and release blockers unchanged |
+| 2026-07-20 | Session 49: reproduced I55 nested interpreter escape durably, recorded the pending wrapper-only design, and kept implementation/qualification gates closed |
+| 2026-07-20 | Session 48: repaired the Task2 canonical qualified-evidence predicate split-brain with RED→GREEN evidence, recorded the I55 nested-interpreter audit, and retained all qualification/release blocks |
+| 2026-07-19 | Session 47: completed the I52 MoE full-rank promotion gate RED→GREEN cycle, added inventory/sealer/GPT regression coverage, and retained all external qualification blocks |
+| 2026-07-19 | Session 46: diagnosed and preserved a V20 verifier-only RED, then corrected fail-fast propagation and log-digest accounting without changing product behavior |
+| 2026-07-19 | Reconciled post-implementation reviewer WATCH findings and recorded the final affected docs/Task2 verification boundary |
+| 2026-07-19 | Session 46: independently reran the I56 containment integration/smoke/chains and full local matrix; evidence remains controller-only and I56 remains PARTIAL |
+| 2026-07-19 | Session 46: added the approved narrow Task2 canonical-containment guard with valid symlink-escape RED/GREEN evidence; I56 remains partial and qualification gates remain blocked |
+| 2026-07-19 | Session 46: reproduced I56/F10-09 Task2 symlink escape and I54/F10-05 qualified-evidence contradiction; recorded read-only evidence and kept release gates blocked |
+| 2026-07-19 | Independently reconciled post-handoff v14-v17 evidence, captured StepCode Claude APPROVE-with-WATCH review, and ran a fresh 73-test/20-shell/e2e current-state matrix without changing qualification boundaries |
+| 2026-07-19 | Closed the clean-clone stale Task1 count assertion with a narrow I57 portability repair; current SC26-AE matrix is green while qualification gates remain blocked |
+| 2026-07-19 | Preserved verifier v11's transcription-only RED and prepared a parser-based v12 rerun; qualification gates remain blocked |
+| 2026-07-19 | Added Task1 memory-artifact negative coverage under D30; focused integration and synthetic e2e remain GREEN while real/release gates stay blocked |
+| 2026-07-19 | Reconciled bounded Task1 trace, Task3 marker-identity, and package-summary validator repairs with current 68-test regression; qualification gates remain blocked |
+| 2026-07-19 | Reconciled the overwritten Session 45 verifier with immutable v3 RED/GREEN logs and refreshed document hashes; qualification gates remain blocked |
+| 2026-07-19 | Session 45: reproduced the Task2 checksum-alias RED, recorded the minimal GREEN repair, and completed a read-only Task1/Task2/Task3 control-plane audit |
+| 2026-07-19 | Session 44: archived the post-closure I49 verifier EXIT=0 evidence and current document/marker hashes; real release gates remain unchanged |
+| 2026-07-19 | Session 44: verified the documentation reconciliation with semantic status probing, full local regression, and static checks; retained a verifier-predicate RED as harness evidence |
+| 2026-07-19 | Session 44: reconciled stale future I39 wording and removed an accidental duplicate plan sentence; qualification status remains unchanged |
+| 2026-07-19 | Session 43: closed I48 local documentation/static verifier with status-aware rg handling, corrected file scope, and fresh EXIT=0 evidence |
+| 2026-07-19 | Session 43: corrected a final-verifier harness quoting typo exposed after the last docs check; rerun required |
+| 2026-07-19 | Session 43: reconciled stale Phase 7/9 audit rows with the canonical report and latest final regression; external qualification status unchanged |
+| 2026-07-19 | Session 42: repaired hard-coded /tmp test roots under D30 and completed local/e2e/static regression with numeric evidence |
+| 2026-07-19 | Closed the bounded Task3 fresh/prebaked portability and schema audit with 10/10 focused cases and full local affected regression |
+| 2026-07-19 | Session 41: corrected stale D26 current-quota wording after D45 semantic quota failure; preserved historical evidence and retained the external B1 block |
+| 2026-07-19 | Session 40: repaired the Task2 shared predictor `verified=true` producer/consumer contract under D30 and passed fresh-chain regression |
+| 2026-07-19 | Session 39: confirmed the D30 autonomous test-repair gate and reconciled the stale current provenance snapshot with the verified clean producer |
+| 2026-07-19 | Session 37: applied D30 latest-user gate; all test/validation/rehearsal-exposed AE defects may be self-repaired while acceptance and real-release evidence gates remain strict |
+| 2026-07-19 | Session 36: corrected the Task2 v1.2-ae fixed interpreter binding with deterministic RED→GREEN and affected regression evidence |
+| 2026-07-19 | Session 35: reconciled D42/D43 Retry-1 as narrow two-H800 functional evidence with source-provenance WATCH and retained the final 3x3 pre-dataset block |
+| 2026-07-19 | Session 33: synchronized D29 test-issue autonomy, current v1.2-ae image targeting, and preserved real qualification/pre-dataset hard blocks |
 | 2026-07-17 | Session 32: reran the complete validator after closure-status edits and confirmed the docs-only stop state |
 | 2026-07-17 | Session 31: passed final D1–D28 docs/artifact/Git-scope validation and closed only the plan-review stage |
 | 2026-07-17 | Session 30: received independent D28 follow-up APPROVE and opened final docs/artifact/Git-scope validation |
@@ -565,3 +607,2560 @@
 - **Expectation:** Preserve D27=`PASS`, Echo/integrated B1=`BLOCK`, D28 predict-only/live=`NOT RUN`, B2/B3/B4=`BLOCKED`, and Phase 1–9=`BLOCKED`.
 - **Method:** Re-read the current status table, Task A7 checklist, execution handoff, Gate B1 report, tracked/untracked inventories, historical pointer scope, staged paths, and submodule/gitlink diff. Rechecked OMX Team status through the public command; canonical state remains absent and was not reconstructed.
 - **Result:** Plan-review stage remains closed only at the documentation boundary. No clean D28 root, predict-only, live RJob, package install, B2/B3/B4 execution, Phase 1 implementation, Git/submodule mutation, commit, push, or publication occurred.
+
+### 2026-07-19 Session 33 — D29 test-issue autonomy overlay
+
+#### Gate synchronization
+
+- **Motivation:** The user authorized autonomous handling of test-type errors so the agent can keep the one-click AE scripts and reusable pre-dataset workflow moving without treating local contract defects as external blockers.
+- **Expectation:** Test/audit/schema/validator/documentation/control-plane defects may be diagnosed and repaired without another approval handoff, but every repair must preserve acceptance criteria, checksums, provenance, real-vs-synthetic separation, no-fallback behavior, and pre-dataset quality. Real GPU/image/quota/scheduler/product/workload/qualification failures remain hard blocks.
+- **Method:** Added D29 to the active plan's modification history, status/constraints, A1/A3 gate language, Task A8 checklist, decision traceability, acceptance criteria, and execution handoff. No Task3 code, product source, submodule, GPU state, external resource, or pre-dataset was changed.
+- **Result:** D29 overlay synchronized in the plan; `requirements.md` already records both raw D29 `[Original Request]` items. Fresh docs validator and `git diff --check` evidence are pending immediately after this edit. Current real qualification state remains explicit: D27 one-H800=`PASS`; Echo exact-two-H800=`BLOCK`; integrated B1=`BLOCK`; fresh pre-dataset=`NOT QUALIFIED`.
+
+#### Current image-target reconciliation
+
+- **Motivation:** The user named `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae` as the current AE image. Active handoff text still contained v1.1 wording that could cause a new qualification run to use historical evidence.
+- **Expectation:** Plan, operational notes, dependency inventory, Gate B1 handoff report, and evaluator README identify v1.2-ae as the only current target, require digest/preflight evidence, and label every v1.1 reference as historical without rewriting immutable records.
+- **Method:** Added explicit current-target paragraphs and table rows; changed only active D28/preflight wording to v1.2-ae; preserved raw historical requirements, historical commands, and v1.1 artifact references unchanged.
+- **Result:** Active references now resolve to v1.2-ae; no digest, worker availability, fresh qualification, or pre-dataset PASS is claimed. v1.1 remains historical evidence only. Fresh cross-file target scan and `git diff --check` evidence are pending.
+
+### 2026-07-19 Session 34 — Required artifact creation and stale-status reconciliation
+
+#### Motivation
+
+The task directory was missing the five AGENTS-required artifacts `summary.md`, `lessons.md`,
+`harness.md`, `design.md`, and `future.md`. Session 33 also left historical wording that called
+the active-document validator and `git diff --check` evidence pending, although the later Task3
+local report had already produced fresh results. The current handoff needed a single, explicit
+record that distinguishes local synthetic progress from the still-blocked real AE release.
+
+#### Expectation
+
+Create the five artifacts without copying a sibling worktree, preserve the `INCOMPLETE` status,
+record D29's autonomous test/control-plane boundary, preserve the dirty-submodule provenance
+block and real H800/pre-dataset hard blocks, and append (rather than rewrite) the current status
+reconciliation. The documentation validator must check all eleven required artifacts and report
+numeric counts, hashes, Markdown-fence balance, whitespace, and exit codes.
+
+#### Method
+
+Added only these task documents:
+
+- `task_memory/task_2026-07-15_sc26_ae_workflow/summary.md`
+- `task_memory/task_2026-07-15_sc26_ae_workflow/lessons.md`
+- `task_memory/task_2026-07-15_sc26_ae_workflow/harness.md`
+- `task_memory/task_2026-07-15_sc26_ae_workflow/design.md`
+- `task_memory/task_2026-07-15_sc26_ae_workflow/future.md`
+
+Appended this Session 34 record and a corresponding author-review entry to `review.md`. No
+production source, test, submodule, package, GPU/RJob, commit, push, or publication action was
+performed. A temporary validator was used from `/tmp` only.
+
+#### Observed RED and root cause
+
+The first temporary validator run exited nonzero with `PROVENANCE_BOUNDARY_MISSING`. The validator
+assertion itself checked for the word `dirty` in `harness.md`, while the harness intentionally
+expressed that invariant as `clean-submodule`/`provenance`; this was a validator defect, not a
+task-document defect. Separately, the initial historical validator shape checked only eight
+documents and would have missed the five required artifacts.
+
+#### Minimal root-cause fix
+
+Corrected only the temporary validator predicate to check `provenance` in `harness.md` and `dirty`
+in `design.md`, and expanded its required-document list to all eleven artifacts. No repository
+assertion or acceptance threshold was weakened.
+
+#### GREEN evidence
+
+The corrected validator and repository whitespace check both passed:
+
+```text
+REQUIRED_DOCS 11 PRESENT 11
+D29_ORIGINAL_REQUEST_TAGS 46
+GOVERNANCE_DOCS_SYNCED 6 /6
+ACTIVE_IMAGE_TARGET_DOCS 5 /5
+MARKDOWN_FENCE_LINES 92
+TRAILING_WHITESPACE_LINES 0
+VALIDATOR_EXIT 0
+GIT_DIFF_CHECK_EXIT 0
+```
+
+The refreshed Task3 report remains green with the following independent local evidence:
+
+| Check | Result | Numeric evidence | Exit |
+|-------|--------|------------------|------|
+| Task3 shell syntax | PASS | `8` paths | `0` |
+| Task3 unit | PASS | `6/6` | `0` |
+| Task3 integration | PASS | `6/6` | `0` |
+| Prebaked CPU e2e | PASS | `3/3` models | `0` |
+| Fresh Task1→Task2→Task3 chain | PASS | `1/1`; Task2 test MSE `0.5`; reload delta `0.0` | `0` |
+| Sim-engine unit/integration | PASS | `45/45` in `10.82 s` | `0` |
+
+#### Affected regression and status reconciliation
+
+`git diff --check` was rerun after all document additions and returned exit `0`. The submodule
+probe still reports:
+
+```text
+outer gitlink: 2044cccc8fff222172b7f91571a617886841001f-dirty
+submodule: M simu_main.py; M src/scheduler/mg_scheduling/mg_scheduling_plan.py;
+           M src/scheduler/mg_scheduling/mg_test.py; 3 untracked AE test files
+```
+
+Therefore the current status remains: D27 one-H800=`PASS`; Echo exact-two-H800=`BLOCK`; integrated
+B1=`BLOCK`; fresh real pre-dataset=`NOT QUALIFIED`; Phase 1–9=`BLOCKED`. The local synthetic
+workflow is usable for continued test/control-plane repair under D29, but it is not a qualified
+real pre-dataset and does not authorize an `AE-ready` claim. Session 33's “validator pending” text
+is retained as historical evidence; this Session 34 entry is the superseding verification record.
+
+### 2026-07-19 Session 35 — D42/D43 Retry-1 evidence-scope reconciliation
+
+#### Motivation
+
+The sealed D42/D43 Retry-1 root contains stronger functional evidence than the earlier D27/D28
+history, but its scope must not be broadened into a clean-source Gate B PASS or a reusable AE
+pre-dataset. The current handoff therefore needed an append-only reconciliation that separates the
+executed Retry-1 identity, the old D28 budget, narrow image functionality, and final 3x3 release
+qualification.
+
+#### Expectation
+
+Record the exact two-H800, Qwen rank-0 smoke, Echo standalone pipeline, and sealed-inventory facts;
+retain the `13`-dirty-path source-provenance WATCH; state that this evidence is not D28 consumption;
+and keep the complete three-model-by-three-task pre-dataset blocked. D29 continues to authorize
+autonomous repair of test/control-plane defects, but it cannot waive source provenance, real data,
+atomic task-chain, or release-quality requirements.
+
+#### Method
+
+Consumed the independent read-only report:
+
+```text
+task_memory/task_2026-07-15_sc26_ae_workflow/test_report_2026-07-19_d42_retry1_evidence_audit.md
+```
+
+Report bytes=`25,346`, lines=`549`, SHA256=
+`4f1f3a43c79fc1b6ec9c4798d3f6e1cd822e3d89bb096242e17c25b754994524`; report-structure
+validation=`22/22`, balanced fence lines=`28`, trailing-whitespace lines=`0`, tab lines=`0`. The
+sealed sibling evidence root was audited read-only. No RJob, package, product/test code, submodule,
+artifact, commit, push, or publication was changed.
+
+#### Narrow functional evidence
+
+| Evidence | Result | Numeric facts |
+|----------|--------|---------------|
+| Exact resource gate | PASS | predict/live normalized argv=`16/16`, equal=`true`; predict/live/worker exits=`0/0/0`; requested/visible H800=`2/2`; distinct UUIDs=`2` |
+| Qwen rank-0 Scaling smoke | PASS | fake world=`8`, executed rank order=`[0]`, PP/TP/EP/DP=`4/1/2/2`, forward/backward/optimizer counts=`1/1/1`, durations=`11.95/7.93/2.99 ms`, elapsed=`27 s` |
+| Echo standalone pipeline | PASS | update/run exits=`0/0`, elapsed=`2/991 s`, rows=`727`, features=`[727,8]`, validation/test MSE=`0.0031091272501499075/0.0033649328512874955`, reload match=`true` |
+| Sealed inventory | PASS | listed files/bytes=`2,184/419,329,007`; missing/size/hash/unexpected/symlink/special=`0/0/0/0/0/0` |
+
+Qwen produced one real trace file (`4,248` bytes) plus three replay `.pt` files (`525,622` bytes
+each); the replay files are not additional rank traces. Qwen memory/SQLite/NCU/Nsight evidence is
+`0/0/0/0`. The Qwen smoke and Echo pipeline are separate functional probes, not one atomically
+linked Task1→Task2→Task3 chain.
+
+#### Provenance WATCH and budget disposition
+
+- `D42 Retry-1 identity=CONSUMED_TERMINAL_NO_REUSE`: that live identity ran and cannot be
+  resubmitted.
+- The sealed root contains no D28 budget attribution. Under the sibling D33 decision audited by
+  the report, `old D28 replacement budget=UNCONSUMED_SUPERSEDED_NOT_NEEDED`; this does not create
+  an available retry slot. Any new live execution requires new explicit authority.
+- `D42/D43 narrow functional image qualification=PASS_WITH_SOURCE_PROVENANCE_WATCH`: the executed
+  Megatron controller tree had `13` dirty paths with no bound dirty diff, and the Echo source tar
+  has no producer commit in `qualification_result.json`. The byte-sealed root therefore proves
+  executed bytes, not clean-commit equivalence.
+- The D42 controller's `13` dirty paths are distinct from the active worktree's current
+  `megatron-sim-engine` dirty state (`3` modified source files plus `3` untracked AE tests); neither
+  fact may be used to mask the other.
+
+#### Current block and task relationship
+
+`Final AE / complete 3x3 pre-dataset=BLOCK`. GPT-175B and DeepSeek-V3 three-task chains are absent;
+Qwen ranks `1–7`, atomic profiler alignment, same-source Task2 assets, Task3 scheduler/simulator
+outputs, portable manifests, producer/consumer compatibility, distribution/size gates, nine-shell
+real-container matrix, and final checksum/provenance/data-quality/clean-clone qualification are
+also absent. This block directly protects the task's core deliverable: one-click shells plus a
+reusable, trustworthy pre-dataset for AE reviewers. It does not prevent continued local script,
+test, schema, validator, or control-plane repair under D29; it prevents only promotion to final
+`AE-ready` or reusable pre-dataset status until the missing real evidence is collected.
+
+#### Post-reconciliation validation
+
+- **Motivation:** Prove that the append-only D42/D43 status overlay is present in every required
+  task artifact and did not introduce Markdown, whitespace, hash-binding, or D29-governance drift.
+- **Expectation:** `6/6` reconciled governance docs and `11/11` required task artifacts pass; the
+  D42 audit report remains exactly `25,346` bytes and `549` lines with its recorded SHA256; all
+  recorded non-self document hashes match; Markdown fences are balanced; trailing whitespace and
+  `git diff --check` failures are zero.
+- **Method:** Ran `/tmp/sc26_ae_docs_validator_20260719.py`, a dedicated inline D42 synchronization
+  validator, `sha256sum` over the reconciled documents/report, and `git diff --check` from the
+  active worktree. No runtime/GPU command was involved.
+- **Result:** PASS. Original validator: required docs=`11/11`, D29 tags=`46`, governance docs=`6/6`,
+  active-image docs=`5/5`, Markdown fence lines=`98`, trailing-whitespace lines=`0`, exit=`0`.
+  D42 validator: synchronized docs=`6/6`, required artifacts=`11/11`, report bytes/lines=
+  `25,346/549`, hash-bound docs=`5/5`, trailing whitespace=`0`, odd-fence docs=`0`, exit=`0`.
+  `git diff --check` exit=`0`.
+
+#### Final-validator predicate RED→GREEN
+
+- **Motivation:** Re-run the dedicated validator after recording its results in the task documents.
+- **Expectation:** Validate the semantic D42 status text and final hashes without requiring a
+  command-output label to be copied literally into a governance document.
+- **Observed RED:** The first follow-up inline validator exited nonzero because it required the
+  literal token `D42_SYNC_VALIDATOR_EXIT` inside `progress.md`; the document records the same result
+  as natural-language `D42 validator ... exit=0` instead.
+- **Root cause:** Temporary validator predicate defect. It confused a stdout label with a required
+  document contract; no D42/D43 status, hash, or repository assertion was missing.
+- **Minimal fix:** Changed only the temporary predicate to check the actual semantic status string
+  `D42 validator: synchronized docs=6/6` plus `git diff --check exit=0`. No repository content or
+  acceptance condition was weakened to satisfy the failed probe.
+- **GREEN and regression:** Corrected validator exit=`0`: D42 sync docs=`6/6`, required artifacts=
+  `11/11`, report bytes/lines=`25,346/549`, report SHA256=
+  `4f1f3a43c79fc1b6ec9c4798d3f6e1cd822e3d89bb096242e17c25b754994524`, hash-bound docs=`5/5`,
+  trailing whitespace=`0`, odd-fence docs=`0`, and `git diff --check` exit=`0`.
+
+### 2026-07-19 Session 36 — Task2 v1.2-ae fixed interpreter contract
+
+#### Motivation
+
+The public Task2 runner defaulted to `/opt/conda/envs/echo_py310/bin/python`, while the sealed
+v1.2-ae Retry-1 evidence, worker entry, Echo environment inventory, and generated Echo configs all
+bind the runtime to `/opt/conda/envs/echo_slowdown/bin/python`. Because synthetic tests explicitly
+override `TASK2_PYTHON=python3`, the incorrect reviewer-facing default had not been exercised.
+
+#### Expectation
+
+Bind all one-click Task2 entries to the exact v1.2-ae worker interpreter by default, add no
+filesystem search or runtime fallback, preserve explicit synthetic fixtures, and keep the real
+pre-dataset/AE-ready status unchanged.
+
+#### Method
+
+Added `tests/unit/test_sc26_ae_task2_interpreter_contract.sh` before modifying the runner. The test
+evaluates the single default assignment and requires the exact worker path. It first observed RED:
+
+```text
+Task2 default interpreter mismatch: expected=/opt/conda/envs/echo_slowdown/bin/python actual=/opt/conda/envs/echo_py310/bin/python
+RED_EXIT_CODE=1
+```
+
+Root cause was a controller provisioning env name copied into the worker default. Changed only the
+default path in `SC26-AE/lib/task2_echo.sh`; no discovery, fallback, retry, source switch, GPU
+behavior, or acceptance condition was added. Updated `SC26-AE/README.md` and
+`container_dependency_inventory.md` to distinguish the worker runtime from the controller-only
+cp310 prefix. No GPU/RJob, package, historical evidence, commit, push, or publication action ran.
+
+#### Result
+
+GREEN fixed-path contract:
+
+```text
+PASS: Task2 default interpreter=/opt/conda/envs/echo_slowdown/bin/python
+interpreter_contract_EXIT_CODE=0
+```
+
+Affected regression results:
+
+| Suite | Result | Numeric evidence | Exit |
+|-------|--------|------------------|------|
+| Shell syntax | PASS | `9` paths | `0` |
+| Task2 interpreter unit | PASS | expected/actual path matches=`1/1` | `0` |
+| Task2 snapshot unit | PASS | builds=`2`; manifest files=`12`; negative branches=`2/2` | `0` |
+| Echo metrics unit | PASS | `5/5` in `0.77 s` | `0` |
+| Task2 integration | PASS | model attachments=`3/3`; manifest files=`13` | `0` |
+| Task2 public-entry e2e | PASS | entries=`3/3` | `0` |
+| Fresh Task1→Task2→Task3 chain | PASS | `1/1`; Task2 rows=`2`, validation/test MSE=`3.0/0.5`, reload delta=`0.0` | `0` |
+
+Fresh-chain Task3 regression metrics were rank0 step=`22.5 ms`, forward/backward/optimizer=
+`6.0/11.0/2.5 ms`, simulator load/execution/wall=`0.125/0.375/0.5 s`, measured process wall=
+`0.894594 s`, and peak RSS=`51,232 KiB`. Evidence remains
+`local_synthetic_not_gpu_qualification`.
+
+The complete report is
+`test_report_2026-07-19_task2_interpreter_contract.md`, bytes=`8,683`, lines=`223`, SHA256=
+`9777ff24dfac42c9fb0cfbf0307d01ed771c9825eede185ea803d2fa2bce94ad`, balanced fence lines=
+`16`, trailing-whitespace lines=`0`. This closes only the Task2 default-path control-plane defect;
+real pre-dataset=`NOT QUALIFIED`, `AE-ready=NO`, task=`INCOMPLETE`.
+
+#### Final aggregate verification-command RED→GREEN
+
+- **Motivation:** Complete a fresh post-documentation verification before reporting the lane done.
+- **Expectation:** All repository suites, four documentation paths, and `git diff --check` return
+  exit `0` without changing acceptance criteria.
+- **Observed RED:** After all repository suites passed, the first aggregate command's inline Python
+  documentation validator failed with `SyntaxError` at `+from pathlib import Path`.
+- **Root cause:** The temporary command heredoc accidentally retained patch-style leading `+`
+  characters. This was a validation-command transcription defect, not a repository defect.
+- **Minimal fix:** Removed only the erroneous command characters; no repository code, test
+  assertion, schema, provenance check, or evidence label was weakened.
+- **GREEN/result:** Reran the complete affected suite. All suite exits were `0`; documentation
+  paths=`4`, trailing-whitespace findings=`0`, odd-fence files=`0`, documentation contract exit=`0`,
+  and `git diff --check` exit=`0`. Corrected log:
+  `/tmp/sc26-task2-path-fix-final2-20260719.log`.
+
+### 2026-07-19 Session 37 — D30 latest test-failure autonomy gate
+
+#### Motivation
+
+The latest user instruction broadened the existing D29 gate. The D29 wording allowed autonomous
+repair only when a failure was confined to a test/control-plane surface, which could still create an
+unnecessary approval stop when a test exposed a task-scoped shell, runtime-control, or implementation
+defect required by the AE deliverables.
+
+#### Expectation
+
+Any error or problem exposed by a test, validation, rehearsal, audit, or qualification check may be
+diagnosed, decided, and repaired autonomously when it directly serves the one-click AE shell entries
+or reusable pre-dataset. The original acceptance thresholds, provenance/checksum/data-quality
+requirements, real-vs-synthetic evidence classes, and no-fallback rules must remain unchanged; a
+failed check must be repaired and rerun before the gate can be promoted.
+
+#### Method
+
+Added D30 as the current interpretation (superseding D29's narrow scope interpretation) to:
+
+- `requirements.md` as a new `[Original Request]` item;
+- `harness.md` as the active gate and stop/handoff contract;
+- `plan.md` status, constraints, Task A9 checklist, decisions, acceptance criteria, and handoff;
+- `issues.md` root-cause/resolution ledger and current I39/I40 remediation boundary;
+- `notes.md`, `design.md`, `lessons.md`, and `summary.md` current operational/design/archive text;
+- this progress record and `review.md` audit record.
+
+No test assertion, production source, submodule, package, GPU/RJob, checksum, provenance record,
+commit, push, or external publication was changed. Historical D29 records remain append-only; D30
+is the active broader gate.
+
+#### Result and verification evidence
+
+The existing document validator passed after the D30 edits:
+
+```text
+REQUIRED_DOCS=11 PRESENT=11
+D29_ORIGINAL_REQUEST_TAGS=47
+GOVERNANCE_DOCS_SYNCED=6/6
+ACTIVE_IMAGE_TARGET_DOCS=5/5
+MARKDOWN_FENCE_LINES=102
+TRAILING_WHITESPACE_LINES=0
+VALIDATOR_EXIT=0
+GIT_DIFF_CHECK_EXIT=0
+```
+
+The validator also confirmed `INCOMPLETE`, `local_synthetic_not_gpu_qualification`, and
+provenance/dirty-source boundaries remain present. Current qualification status is unchanged:
+D27 one-H800=`PASS`; Echo exact-two-H800=`BLOCK`; integrated B1=`BLOCK`; fresh real
+pre-dataset=`NOT QUALIFIED`; `AE-ready=NO`. The local synthetic workflow remains usable for
+continued D30 repair, but no local PASS is promoted to a real qualification or release dataset.
+
+#### D30 validator RED→GREEN correction record
+
+- **Motivation:** The D30-specific validator needed semantic checks for the broader gate, not only
+  the historical D29 token count.
+- **Expectation:** The validator should accept the actual document wording while enforcing D30
+  synchronization, RED/GREEN duties, provenance/checksum/fallback boundaries, evidence-class limits,
+  Markdown structure, and `git diff --check`.
+- **Observed RED:** The first temporary predicate used a case-sensitive heading; the second required
+  a phrase split by a Markdown line break; the third required the literal `no-fallback` token even
+  though `notes.md` expresses the same invariant as `No Fallbacks`/`fallback` source switching.
+- **Root cause:** Three temporary validator predicates were stricter than the repository's valid
+  prose representation. No task document or acceptance condition was missing.
+- **Minimal fix:** Normalized whitespace/case for the heading and phrase checks and mapped the
+  semantic `no-fallback` requirement to the documented `fallback` token. The repository documents,
+  assertions, evidence labels, and release gates were not changed to satisfy the faulty predicates.
+- **GREEN:** `/tmp/sc26_ae_d30_gate_validator_20260719.py` passed with required docs=`11/11`,
+  `[Original Request]` tags=`47`, D30 sync=`6/6`, Markdown fence lines=`104`, trailing whitespace
+  lines=`0`, and `git diff --check` exit=`0`.
+
+#### Affected sim-engine regression
+
+The D30 change is documentation/control-plane-only, but the affected production/test surface was
+rerun with the exact six-file command:
+
+```text
+PYTHONDONTWRITEBYTECODE=1 python3 -B -m pytest -q \
+  megatron-sim-engine/tests/unit/test_rank0_report.py \
+  megatron-sim-engine/tests/unit/test_mg_scheduling_ae_contract.py \
+  megatron-sim-engine/tests/integration/test_rank0_report_integration.py \
+  megatron-sim-engine/tests/unit/test_build_ddp_slowdown_assets.py \
+  megatron-sim-engine/tests/unit/test_simu_engine_ddp_slowdown.py \
+  megatron-sim-engine/tests/integration/test_simu_engine_ddp_slowdown_integration.py
+```
+
+Result: `45 passed in 13.44s`, exit=`0`. No source, test assertion, submodule, package, or
+qualification state changed during this regression.
+
+### 2026-07-19 Session 38 — setup runtime verifier closure and provenance reconciliation
+
+#### Motivation
+
+The latest setup integration assertions were expanded to require that the installer receives the fixed
+Megatron interpreter and that successful setup emits `SC26_AE_SETUP_STATUS=verified`. The setup
+runtime verifier also needed a fresh affected-regression run. In parallel, the outer
+`megatron-sim-engine` gitlink was updated to the clean producer commit and the old I39 dirty
+provenance status required an explicit current-status reconciliation.
+
+#### Expectation
+
+- Setup syntax, unit, integration, and downstream AE contract checks pass without discovering a
+  host interpreter/tool or executing a real installer.
+- Any test-only failure is repaired at its root under D30 and recorded as RED→GREEN.
+- The clean nested producer and matching outer gitlink are recorded accurately.
+- Synthetic setup/chain evidence remains synthetic; exact-two-H800 and complete real 3×3
+  qualification remain closed.
+
+#### Method
+
+1. Re-ran the latest setup integration test and fixed-runtime verifier test.
+2. Re-ran common, Task1, Task2, Task3, grouped-gemm, interpreter, manifest, provenance, e2e, and
+   fresh-chain regressions.
+3. When the grouped-gemm unit test returned RED, inspected its stderr and shell trace, isolated the
+   missing verifier seam, and made the smallest test-only boundary repair.
+4. Checked `git ls-tree HEAD megatron-sim-engine`, nested `git status --porcelain`, and both
+   producer SHAs.
+5. Captured the complete run in
+   `/tmp/sc26_ae_setup_runtime_final_20260719.log` and archived the report at
+   `task_memory/task_2026-07-15_sc26_ae_workflow/test_report_2026-07-19_setup_runtime_verifier.md`.
+
+#### Result
+
+The first grouped-gemm regression was RED with `exit=1`: the old fixture reached the fixed
+`/opt/conda/envs/megatron_env/bin/python` before it could exercise setup forwarding. The root cause
+was a test seam that did not stub the now-mandatory fixed-runtime verifier and did not model the
+installer process boundary. The test-only repair sources setup through `/usr/bin/bash -c`, stubs
+the dedicated verifier functions, and uses an absolute-shebang fake installer for the forwarding
+case. No production setup contract changed.
+
+GREEN evidence:
+
+- setup integration: `6/6`, `REAL_INSTALLER_EXECUTION_COUNT=0`;
+- fixed runtime verifier: `21/21`;
+- grouped-gemm installer unit: `37/37`;
+- common helpers: `7/7`;
+- Task1 contracts: `9/9`;
+- Task3 integration/unit/provenance: `6/6`, `6/6`, `PASS`;
+- Python artifact/metrics tests: `27 passed` in `1.81 s`;
+- Task3 prebaked CPU e2e: `3/3`;
+- fresh synthetic chain: `CHAIN_PASS_COUNT=1`;
+- `git diff --check`: exit `0`.
+
+The nested producer is clean at `39755169f73f6c748e8d7376c3a2158c6569436b`; outer commit
+`c217ce93156e7c37e065da2989c1a482f12ecebc` records that same gitlink. I39 is therefore
+`CLOSED/RESOLVED`; the previous dirty-source block must not be carried forward as current status.
+
+#### Current status and handoff
+
+The setup control-plane/test block is `CLOSED_LOCALLY_WITH_SYNTHETIC_CONTRACT_EVIDENCE`. D30
+continues to permit autonomous repair of test/validation/rehearsal defects serving the AE scripts or
+reusable pre-dataset. The actual remaining block is external/real qualification and data completeness:
+Echo exact-two-H800 plus integrated B1, complete real 3-model×3-task atomic chains, portable
+manifests/checksums/data-quality, and clean-clone replay. Thus `real pre-dataset=NOT QUALIFIED`,
+`AE-ready=NO`, and no release promotion is implied.
+
+### 2026-07-19 Session 39 — D30 gate activation confirmation and stale snapshot repair
+
+- **Motivation:** The latest user instruction requires test-type failures to be self-repairable when
+  the repair serves the one-click AE scripts or reusable pre-dataset. During gate verification, the
+  current `harness.md` snapshot still reported the already-closed `megatron-sim-engine` provenance
+  issue as a live BLOCK, which could incorrectly stop the AE execution lane.
+- **Expectation:** D30 remains active without weakening any release criterion, and the current gate
+  snapshot reports only evidence-backed current blockers. Historical dirty-source findings remain
+  auditable but are not presented as current status.
+- **Method:** Ran an inline RED assertion against the current provenance row, verified the outer
+  gitlink, nested HEAD, and nested worktree cleanliness, then changed only the stale snapshot row and
+  its modification-history record. No production code, test assertion, acceptance threshold,
+  submodule content, GPU/RJob state, checksum, qualification label, commit, push, or publication was
+  changed.
+- **Result:** The RED assertion exited `1` because the snapshot said `BLOCKED until clean/recorded`.
+  Provenance evidence was outer gitlink=`39755169f73f6c748e8d7376c3a2158c6569436b`, nested
+  HEAD=`39755169f73f6c748e8d7376c3a2158c6569436b`, and nested status lines=`0`. The snapshot now reports
+  `CLOSED/RESOLVED`; fresh D30 document and whitespace checks are run immediately after this record.
+  The real remaining gates are unchanged: Echo exact-two-H800, integrated B1, complete real 3x3
+  chains, portable checksum/data-quality manifests, and clean-clone replay.
+- **Validation:** The post-fix gate validator passed documents=`10/10` and assertions=`18/18`;
+  `gate_status=ACTIVE`, AE-scoped test user-approval blocking=`DISABLED`, and release acceptance
+  thresholds=`UNCHANGED`. `git diff --check` exited `0`; the outer/nested producer SHAs still match
+  and nested status lines remain `0`.
+
+### 2026-07-19 Session 40 — Task2 shared predictor verification marker repair
+
+#### Motivation
+
+The stricter Task3 source resolver now correctly rejects an unverified shared Task2 predictor
+pointer. The fresh-chain regression exposed that Task2's shared-pointer producer omitted the
+verification field even though the model-level Task2 marker already included it. This was a
+producer/consumer contract defect directly blocking the one-click AE chain.
+
+#### Expectation
+
+The shared pointer emitted by Task2 must contain `verified=true`, and Task3 must continue to fail
+fast for an unverified, checksum-inconsistent, or wrong-provenance pointer. No assertion,
+acceptance threshold, checksum/provenance rule, source-selection rule, fallback behavior, or
+evidence class may be weakened.
+
+#### Observed RED and root cause
+
+The first fresh-chain rerun exited `1` with:
+
+```text
+[ERROR] Task2 shared predictor marker is not verified
+```
+
+`SC26-AE/lib/task2_echo.sh::task2_write_shared_pointer()` serialized the predictor identity and
+checksums but did not serialize the semantic `verified` flag. Task3's fail-fast validation was
+working as designed; the producer schema was incomplete.
+
+#### Minimal method
+
+Added only `"verified": True` to the JSON payload generated by
+`task2_write_shared_pointer()`. Added the exact shared-pointer assertion to the Task2 contract
+fixture and recorded the focused report at
+`task_memory/task_2026-07-15_sc26_ae_workflow/test_report_2026-07-19_task2_shared_pointer_verified.md`.
+
+#### GREEN and affected regression
+
+The focused and chain regressions both passed:
+
+| Suite | Result | Numeric evidence | Exit |
+|-------|--------|------------------|------|
+| Task2 contract | PASS | model attachments=`3/3`; manifest files=`13`; verified pointer=`1` | `0` |
+| Fresh Task1→Task2→Task3 chain | PASS | chain=`1/1`; Task1 traces/memory=`4/4`; Task2 rows=`2`; MSE validation/test=`3.0/0.5`; reload delta=`0.0` | `0` |
+
+Fresh-chain Task3 rank0 step=`22.5 ms`, forward/backward/optimizer=`6.0/11.0/2.5 ms`,
+simulator load/execution/wall=`0.125/0.375/0.5 s`, process wall=`1.106935 s`, and peak RSS=
+`51,292 KiB`. Evidence class remains `local_synthetic_not_gpu_qualification`.
+
+#### Result and boundary
+
+The local Task2 producer/Task3 consumer marker contract is GREEN. D30 remains active for further
+test/validation/rehearsal defects serving the AE scripts or reusable pre-dataset. This repair does
+not close Echo exact-two-H800, integrated Gate B1, the complete real 3-model×3-task chain, portable
+provenance/checksum/data-quality validation, or clean-clone nine-entry qualification. The task
+remains `INCOMPLETE`, real pre-dataset remains `NOT QUALIFIED`, and `AE-ready=NO`.
+
+#### Session 40 full affected regression
+
+The post-repair aggregate regression was rerun after the focused GREEN result. All commands exited
+`0`: fixed-runtime verifier=`21/21`, setup integration=`6/6`, Python artifact/sim-engine suites=
+`74 passed in 41.86 s`, Task1 contract=`9/9`, Task2 contract=`3/3` model attachments, Task3
+contract=`6/6`, Task3 portability=`10/10`, Task1 smoke=`1/1`, Task2 smoke=`1/1`, prebaked Task3=
+`3/3`, fresh chain=`1/1`, shell syntax PASS, and `git diff --check` PASS. The reproducible log is
+`task_memory/task_2026-07-15_sc26_ae_workflow/logs/local-regression-20260719-d30-task2-pointer.log`.
+Fresh-chain metrics from this aggregate run were Task2 validation/test MSE=`3.0/0.5`, reload
+delta=`0.0`, Task3 rank0 step=`22.5 ms`, simulator wall=`0.5 s`, process wall=`1.093753 s`, and
+peak RSS=`51,444 KiB`. Evidence class remains `local_synthetic_not_gpu_qualification`.
+
+The append-only D30 document/gate validator also passed: required docs=`11/11`, `[Original
+Request]` tags=`47`, D30 sync=`6/6`, Markdown fence lines=`112`, trailing whitespace=`0`, and
+`git diff --check` exit=`0`. Its log is
+`task_memory/task_2026-07-15_sc26_ae_workflow/logs/d30-task2-pointer-doc-validator.log`.
+
+### 2026-07-19 Session 41 — stale D26 quota-status wording correction
+
+#### Motivation
+
+The latest status audit found a stale sentence in `plan.md` that presented the historical D26
+1-GPU/2-GPU predict-only result as the current authority and said the old quota failure was no
+longer current. The latest D45 v1.2-ae check instead showed a 2-GPU semantic quota failure, so the
+wording could cause an AE operator to mistake CLI exit `0` for a valid two-GPU gate.
+
+#### Expectation
+
+Historical D26 facts must remain auditable, but the active plan must identify D45 as the current
+quota-status authority, preserve semantic-output checking, and keep Echo exact-two-H800 and
+integrated B1 closed. No external resource request or acceptance threshold is changed.
+
+#### Observed RED and root cause
+
+The focused stale-status assertion failed with exit=`1`:
+
+```text
+AssertionError: stale D26 current-status sentence still present
+```
+
+The root cause was a documentation supersession error: the D26 paragraph retained a
+"superseding current evidence" heading after newer D45 evidence existed.
+
+#### Minimal method
+
+Preserved D26 as explicitly historical, changed the heading/wording to state that D45 supersedes
+its current quota interpretation, and added the exact D45 semantic output (`gpu : 129/128`) plus the
+no-live-RJob boundary. No test threshold, resource size, quota group, image, or external state was
+modified.
+
+#### GREEN and current result
+
+The stale-status assertion passed after the patch. D45 remains an external semantic FAIL despite
+CLI exit=`0`; therefore Echo exact-two-H800=`BLOCK` and integrated B1=`BLOCK`. The D30 document
+validator and full local regression are required again after this append-only documentation repair.
+
+#### Session 41 verification result
+
+The stale-status guard passed. The final aggregate log
+`task_memory/task_2026-07-15_sc26_ae_workflow/logs/local-regression-20260719-d30-final.log`
+(`SHA256=ed2f22d4301d7612ffc3d006ae3cb842294da2a1b8d0e7b1bb82cd681f0f7962`, bytes=`9,215`)
+shows all commands exit `0`: D30 docs=`11/11`, runtime=`21/21`, setup=`6/6`, Python=`74 passed in
+35.25 s`, Task1=`9/9`, Task2=`3/3`, Task3=`6/6`, portability=`10/10`, Task1/Task2 smoke=`1/1`
+each, prebaked Task3=`3/3`, fresh chain=`1/1`, shell syntax PASS, and `git diff --check` PASS.
+Final fresh-chain metrics were MSE validation/test=`3.0/0.5`, reload delta=`0.0`, rank0 step=
+`22.5 ms`, simulator wall=`0.5 s`, process wall=`0.999560 s`, and peak RSS=`51,452 KiB`.
+The D45 external semantic quota block remains unchanged.
+
+### 2026-07-19 Task3 fresh/prebaked portability and provenance audit closure
+
+- **Motivation:** Audit whether the one-click Task3 fresh/prebaked resolvers and output layout remain
+  trustworthy after relocation and clean-clone-style path changes. The audit must prevent a
+  checksum-valid but unverified, source-mismatched, overlap-disabled, type-confused, or path-escaped
+  bundle from being promoted toward the reusable AE pre-dataset.
+- **Expectation:** Selected sources remain explicit and fail-fast; every fresh producer is verified;
+  every manifest path is relative and contained; report rank identity is type-safe; prebaked
+  profile/bf16/DDP-overlap semantics are frozen; relocated bundles pass without path rewriting.
+- **Method:** Preserved five independent RED probes and added a `10`-case portability suite covering
+  unverified Task1/Task2 markers, parent and dangling symlinks, non-directory components, prebaked
+  source/overlap semantics, boolean rank identity, absolute paths, and successful relocation. Added
+  the minimum resolver/schema checks and the Task1/Task2 terminal marker fields; no fallback,
+  threshold, checksum, provenance, or evidence-class rule was relaxed.
+- **Result:** Task3 unit/integration/portability passed `6/6`, `6/6`, and `10/10`; provenance passed;
+  prebaked public entries passed `3/3`; fresh Task1→Task2→Task3 passed `1/1`; Task1 contracts passed
+  `9/9`; manifest/metrics pytest passed `29` tests in `0.98 s`. Fresh-chain Task1 trace/memory counts
+  were `4/4`, Task2 rows/MSE/reload delta were `2`, `3.0/0.5`, and `0.0`, and Task3 rank0
+  step/forward/backward/optimizer were `22.5/6.0/11.0/2.5 ms`. Detailed evidence is in
+  `test_report_2026-07-19_task3_portability_provenance.md`. The evidence remains
+  `local_synthetic_not_gpu_qualification`; real pre-dataset=`NOT QUALIFIED`, `AE-ready=NO`, and the
+  task remains `INCOMPLETE`.
+### 2026-07-19 Session 42 — D30 temporary-root portability repair and continuation regression
+
+#### Motivation
+
+The current controller has no free /tmp inodes (IUse=100%). The first continuation run of an
+AE integration fixture failed before test logic executed. This directly affected the AE one-click
+test/rehearsal surface and prevented reproducible local validation even though the task already
+documents a writable project temporary root.
+
+#### Expectation
+
+Every AE-facing unit, integration, e2e, and grouped-gemm setup fixture must honor the explicit
+SC26_AE_TMP_ROOT/TMPDIR contract. The repair must not change assertions, thresholds, source
+selection, checksum/provenance rules, evidence classes, or real qualification requirements.
+
+#### Observed RED and root cause
+
+The first probe was:
+
+    export SC26_AE_TMP_ROOT=/data/ycfeng/sc26-ae-test-tmp
+    export TMPDIR=/data/ycfeng/sc26-ae-test-tmp
+    bash tests/integration/test_sc26_ae_setup.sh
+
+It failed before entering the fixture:
+
+    mktemp: failed to create directory via template '/tmp/sc26-ae-setup-integration.XXXXXX': No space left on device
+    exit=1
+
+The root cause was hard-coded /tmp mktemp templates in nine SC26-AE test/e2e fixtures and
+37 grouped-gemm setup unit cases. The environment override could not reach those templates.
+
+#### Minimal method
+
+Added a local TMP_PARENT selection to the affected test fixtures and changed only their mktemp
+templates to use that directory. The grouped-gemm unit received the same change for all 37 cases.
+No production runtime or qualification code was changed.
+
+A mechanical quote omission was exposed immediately by bash -n after the grouped-gemm edit:
+unexpected EOF while looking for a matching quote. The 37 generated templates were corrected,
+then syntax was rerun before any functional claim.
+
+#### GREEN and affected regression
+
+The focused setup integration then passed 6/6 with REAL_INSTALLER_EXECUTION_COUNT=0. The full
+continuation regression passed:
+
+- local contracts and Python suites: 60 passed in 76.24 seconds;
+- fixed-runtime verifier: 21/21;
+- grouped-gemm setup unit: 37/37;
+- GPT example integration: 22/22;
+- Task1/Task2/Task3 public smoke: 1/1, 1/1, 3/3;
+- fresh chain: CHAIN_PASS_COUNT=1;
+- clean-clone replay: public entries 3/3/3, setup cases 6, fresh chain 1, all four clone
+  statuses clean;
+- shell syntax: 33 scripts;
+- Python AST syntax: 27 files;
+- git diff --check: PASS;
+- no hard-coded SC26-AE/grouped-gemm temporary-root templates remain: 0.
+
+Exact logs:
+
+- logs/local-regression-20260719-continuation.log
+- logs/e2e-regression-20260719-continuation.log
+- logs/grouped-gemm-unit-20260719-continuation.log
+- logs/gpt-example-mock-20260719-continuation.log
+- logs/static-shell-python-20260719-continuation.log
+
+#### Numeric evidence and boundary
+
+Task2 synthetic chain rows/MSE/reload delta were 2 / 3.0 / 0.5 / 0.0. Task3 prebaked CPU
+rank0 step values were GPT-175B=18.5 ms, Qwen3-A30B=22.5 ms, DeepSeek-V3=24.5 ms; the
+corresponding forward/backward/optimizer values were 5.0/9.0/2.0, 6.0/11.0/2.5, and
+6.5/12.0/3.0 ms. Peak RSS values were 51,344, 51,340, and 51,316 KiB under a tested 32 MiB
+host allocation. These are local synthetic workflow metrics only.
+
+The current external D45 semantic quota failure remains gpu 129/128 despite CLI exit 0.
+Echo exact-two-H800 and integrated B1 remain BLOCK; real_pre_dataset and release_pre_dataset
+remain NOT QUALIFIED; AE-ready remains NO.
+## 2026-07-19 — Task3 evidence-promotion audit resumed
+
+**Status:** IN_PROGRESS; no production-code change made in this checkpoint.
+
+**Motivation:** An independent local-contract audit reported that Task3's
+`execution_evidence` is not emitted into its own manifest/marker and that the
+prebaked packager may derive model-bundle evidence from Task1 alone. This is a
+potential real/synthetic evidence-separation violation and must be reproduced
+before any fix.
+
+**Investigation method:** Read the current Task3 producer, packager, sealer,
+fixture, and package unit tests. The current producer metadata payload has no
+`execution_evidence`; `_source_manifest_and_run()` does not require Task3
+evidence; `_build_model_bundle()` copies Task1 evidence into the model bundle.
+The next step is a focused RED test using the existing synthetic fixture,
+without changing production code first.
+
+**Expected RED:** A package build containing a Task3 manifest with missing or
+synthetic evidence must fail at the Task3 consumer boundary rather than infer
+Task1's evidence.
+
+**Evidence class:** local_contract_investigation_only; no GPU/RJob or release
+qualification claim.
+
+### 2026-07-19 Session 43 — Task3 evidence-promotion audit closure and final local regression
+
+**Status:** LOCAL CONTROL-PLANE AUDIT CLOSED; RELEASE QUALIFICATION INCOMPLETE.
+
+#### Motivation
+
+The preceding Task3 evidence-promotion audit was left with an obsolete `IN_PROGRESS` status after
+the producer/consumer fixes had already landed. The continuation also needed to verify every
+Task1/Task3 marker fixture against the stricter dual-checksum contract and to ensure the repaired
+real-mode boundaries did not regress the public synthetic workflow.
+
+#### Expectation
+
+All Task1/Task2/Task3 local producers and consumers must agree on execution evidence, fixed real
+interpreters, tracked source bytes, marker checksum aliases, and package-copy integrity. Every
+public synthetic entry and relocation rehearsal must pass without fallback or stale-output reuse.
+The result must remain explicitly `local_synthetic_not_gpu_qualification`; no local check may
+promote a real qualification label.
+
+#### Method
+
+1. Audited every `manifest_sha256`/`artifact_manifest_sha256` occurrence in `SC26-AE/` and the
+   Task1/Task3 fixtures; all actual capture/run markers now publish both equal aliases. Distribution
+   bundle entries intentionally retain their schema-defined single digest field.
+2. Reran focused Task1 provenance, Task2 evidence-mode, Task3 interpreter/provenance/contract/
+   portability, Task1/Task2 integration, and package tests.
+3. Reran fresh-chain, prebaked CPU, and clean-clone-style e2e tests with the project temporary root.
+4. Reran the complete local control-plane matrix, shell/Python syntax, `git diff --check`, and the
+   hard-coded temporary-template scan.
+5. Kept the known controller `grouped_gemm` import gap and D45 external quota result as blockers;
+   no RJob, quota request, image change, or issuer-authentication implementation was attempted.
+
+#### Result
+
+Focused GREEN evidence:
+
+- Task1 source provenance=`2/2`;
+- Task2 evidence mode=`4/4`;
+- Task3 interpreter=`3/3`, provenance=`10/10`, integration=`10/10`, portability=`17/17`;
+- package pytest=`11 passed`.
+
+Fresh e2e GREEN evidence:
+
+- fresh chain=`1/1`, Task1 traces/memory=`4/4`, Task2 rows=`2`, validation/test MSE=`3.0/0.5`,
+  reload delta=`0.0`, Task3 rank0 step=`22.5 ms`, forward/backward/optimizer=`6.0/11.0/2.5 ms`;
+- prebaked CPU=`3/3` models with rank0 step=`18.5/22.5/24.5 ms` for GPT-175B/Qwen3-A30B/DeepSeek-V3;
+- clean-clone replay public entries=`3/3/3`, setup cases=`6`, fresh chain=`1`, clone statuses=`4`
+  clean.
+
+Static GREEN evidence:
+
+- shell syntax=`52` scripts;
+- Python syntax=`35` files;
+- hard-coded temporary templates=`0`;
+- `git diff --check` exit=`0`.
+
+The grouped-gemm runtime pytest remains **BLOCKED at collection** because the controller has no
+`grouped_gemm` module (`ModuleNotFoundError`). This is an environment prerequisite gap, not a
+qualification result. The fixed-runtime verifier and grouped-gemm installer unit still pass
+(`21/21` and `37/37`).
+
+#### Current boundary
+
+The audit is no longer `IN_PROGRESS`; the local producer/consumer contract is closed with
+synthetic evidence. The external D45 semantic quota remains `gpu : 129/128` despite CLI exit `0`.
+Therefore `Gate B1=BLOCKED`, `real_pre_dataset=NOT QUALIFIED`,
+`release_pre_dataset=NOT QUALIFIED`, and `AE-ready=NO` remain unchanged.
+
+#### Required follow-up
+
+1. Run grouped-gemm runtime tests only in the designated fixed-interpreter H800 environment.
+2. Obtain authorized external issuer-authenticated exact-two-H800 evidence before any real-label
+   promotion.
+3. Complete the real three-model × three-task chain and release/clean-clone qualification.
+
+#### Marker audit probe correction (same session)
+
+**Motivation:** A broad post-run scan was used to check that published markers carry both checksum
+aliases.
+
+**Expectation:** Every successfully published Task1/Task2/Task3 marker from the current run should
+contain equal `manifest_sha256` and `artifact_manifest_sha256` fields.
+
+**Observed RED and root cause:** The first scan found `546` missing aliases among `1,100` marker
+files. The scan covered the accumulated project temporary root, which intentionally retains old
+negative-test fixtures (`unverified-*`, `existing-output`, and malformed-marker cases) and older
+pre-alias run outputs. It therefore treated deliberate rejection fixtures and historical artifacts
+as current successful producer output; this was a test-scope error, not a producer regression.
+
+**Minimal method:** Restricted the audit to the current successful fresh/prebaked e2e roots and the
+producer/consumer contract tests, rather than mutating or deleting the accumulated temporary root.
+The latest fresh and prebaked markers both contain the two equal aliases, and the focused/e2e
+regressions remain GREEN. No code or acceptance rule was changed.
+
+**Result:** The broad probe is recorded as a corrected audit attempt. Its failure does not alter the
+release status or evidence class; intentional negative fixtures remain necessary for fail-fast
+coverage.
+
+The corrected current-success-root probe checked `4` published markers and found alias mismatch
+count=`0`.
+
+#### Final marker-gate assertion correction (same session)
+
+**Motivation:** The final documentation gate included a compact assertion for the number of
+successful markers in the newest fresh and prebaked roots.
+
+**Expectation:** The assertion must count all successful markers across both roots: four fresh
+markers (Task1 model marker, Task2 model marker, Task2 shared pointer, Task3 marker) plus three
+prebaked Task3 markers.
+
+**Observed RED and root cause:** The first inline gate expected `4` after accidentally reusing a
+loop variable that filtered the fresh root to `run_marker` only. The actual successful count was
+`7`; no marker alias mismatch occurred.
+
+**Minimal method:** Corrected only the inline assertion expectation to `7` and reran the marker
+probe; no repository producer, consumer, fixture, or acceptance rule was changed.
+
+**Result:** The corrected gate checks `7` current successful markers with alias mismatch count `0`.
+### Session 43 documentation regression: EOF whitespace correction
+
+- **Motivation:** The first post-reconciliation static pass printed three `git diff --check`
+  warnings for an extra blank line at EOF, even though the command exit code was `0`.
+- **Expectation:** Documentation changes must be warning-free, not merely exit-code clean.
+- **Method:** Normalized the EOF of `plan.md`, `issues.md`, and `review.md` to exactly one newline;
+  no content, acceptance rule, evidence boundary, or source contract changed.
+- **Result:** A fresh `git diff --check` returned exit `0` with no diagnostics. The full regression
+  remains to be rerun after this formatting repair.
+### Session 43 final verification closure
+
+- **Motivation:** Close the documentation reconciliation and EOF-whitespace repair with fresh
+  evidence rather than relying on the first post-repair partial run.
+- **Expectation:** The complete local control-plane/e2e matrix, static syntax checks, inventory
+  hashes, and current-success marker aliases pass with no diagnostics; real qualification labels
+  remain blocked.
+- **Method:** Reran the affected unit/integration/e2e matrix using
+  `SC26_AE_TMP_ROOT=/data/ycfeng/sc26-ae-test-tmp/session43-doc-reconcile-final`, then ran the
+  final documentation/static gate including 52 shell files, 35 Python files, summary inventory,
+  seven current-success markers, and hard-coded temporary-root scan.
+- **Result:** Full regression exit=`0`; pytest=`65 passed` in `5.25 s`; setup/runtime=`21/21` and
+  `6/6`; grouped-gemm setup=`37/37`; GPT mock=`22/22`; Task1/Task2/Task3 smoke and clean-clone
+  entries passed; fresh-chain traces/memory=`4/4`, MSE=`3.0/0.5`, reload delta=`0.0`, rank0 step
+  `22.5 ms`, peak RSS=`51,416 KiB`; prebaked models=`3/3`; static gate exit=`0`, inventory=`20`,
+  marker aliases=`0`, and `git diff --check` had no diagnostics.
+- **Boundary:** D45 semantic quota remains `gpu : 129/128` (CLI exit `0`, semantic `FAIL`), so
+  Gate B1 is `BLOCKED`, real/release pre-dataset is `NOT QUALIFIED`, and `AE-ready=NO`.
+
+### I48 transient final-verifier harness failure — 2026-07-19
+
+**Motivation:** A final, reproducible documentation verifier was needed after the Session 43
+append-only reconciliation and EOF repair.
+
+**Expectation:** The verifier must exit cleanly and report the documentation contract, current
+summary inventory/hash rows, syntax counts, and `git diff --check` result without introducing a
+new product or qualification claim.
+
+**Method:** Ran the intended shell gate from the fixed Session 43 temporary root. The command's
+last `printf` used an unmatched single quote. Preserved the resulting transcript as a harness RED
+record and prepared the balanced `printf '%s\\n' 'FINAL_DOC_VERIFICATION=PASS'` form for the
+corrected rerun. No source, fixture, acceptance, provenance, or release file was changed by the
+failed command.
+
+**Result:** The shell exited `2` with `unexpected EOF while looking for matching \`'\`` before its
+final marker. Root cause is confined to the verifier harness; repository logic and the previously
+recorded local regression results are unaffected. I48 remains open until the corrected verifier is
+executed and its output/hash are archived.
+
+### I48 corrected-rerun attempt 1: pipefail/no-match handling — 2026-07-19
+
+**Motivation:** Execute the balanced verifier prepared for I48 and obtain the final static gate
+evidence.
+
+**Expectation:** A clean repository with no hard-coded temporary template should produce a numeric
+zero and continue to the final marker under `set -euo pipefail`.
+
+**Method:** Ran the corrected verifier. Documentation, summary inventory, final document hashes,
+syntax, diff, and marker checks all completed first. The temporary-root scan used `count=$(rg ... |
+wc -l)` without an explicit no-match branch.
+
+**Result:** The command exited `1` immediately after `>>> temporary-root scan`; the log contains no
+count or final marker. Root cause is `rg`'s expected no-match status `1` being promoted to a
+pipeline failure by `pipefail`. This is a verifier-harness defect. The next rerun will use an
+explicit status-aware conditional; no product, test fixture, acceptance, provenance, or release
+status changed.
+
+### I48 final status-aware GREEN and local closure — 2026-07-19
+
+**Motivation:** Close the outstanding I48 verifier harness issue with fresh, complete evidence
+while retaining every transient RED event and preserving the real-vs-synthetic release boundary.
+
+**Expectation:** The verifier must use the established Session 43 static file scopes, treat only rg
+status 1 as the expected zero-match condition, propagate all other search errors, verify the
+current 20-row inventory and seven-document baseline, and finish with EXIT=0.
+
+**Method:** Preserved the 550-byte pipefail/no-match RED log. The first status-aware attempt then
+exposed a separate scope mismatch: recursive discovery over all of tests found 69 shell files
+instead of the established 52. Preserved that 148-byte RED log
+(SHA256=7f43991e021af9fdd006b40e7427cb8a7d92462a4ab2af869b49c01d35c778d8), compared the
+discovered paths with the prior Session 43 gate, and restricted discovery to the same explicit
+shell and Python roots. Reran the complete docs, syntax, diff, inventory, marker, and temporary
+template checks with an explicit rg status branch.
+
+**Result:** GREEN log logs/final-doc-verification-20260719-session43-i48-status-aware-v2.log has
+bytes=628 and SHA256=32878844222ac152d41b770f5fae3a78c5dbe4883c681bf56006c80fe7be1786.
+Observed values were docs=PASS, public entries=9, paper suggestions=10, shell=52, Python=35, git
+diff check=PASS, inventory hashes=20, final document hashes=7, current-success markers=7
+(fresh=4, prebaked=3), marker alias mismatch=0, hard-coded temporary templates=0, TMP root
+scan=PASS, FINAL_DOC_VERIFICATION=PASS, and EXIT=0. I48 is CLOSED/RESOLVED for the local
+documentation/static harness.
+
+**Boundary:** The result remains local_synthetic_not_gpu_qualification. No GPU job or product logic
+changed. D45 semantic quota remains gpu : 129/128 with CLI exit 0 and semantic FAIL; Gate B1
+remains BLOCKED; real_pre_dataset and release_pre_dataset remain NOT QUALIFIED; AE-ready remains
+NO.
+
+### Session 44 — Documentation consistency reconciliation — 2026-07-19
+
+**Motivation:** The continuation audit found two local documentation defects: `plan.md` contained
+one accidental adjacent duplicate sentence, and `future.md` still described I39's already-resolved
+dirty sim-engine producer as a current future repair.
+
+**Expectation:** The plan must contain no accidental adjacent duplicate lines, and the future-work
+document must identify I39 as closed while retaining only future revalidation of newly captured
+release bundles. Historical issue evidence and the real/release gate boundary must remain intact.
+
+**RED evidence:** The pre-repair consistency probe reported
+`PLAN_ADJACENT_DUPLICATE_LINES=[1835]`,
+`FUTURE_CURRENT_PROVENANCE_CORRECTION=False`, and exited `1`. The probe was a documentation
+diagnostic; no product or qualification command failed.
+
+**Root cause:** The duplicate was an append-only continuation sentence accidentally emitted twice.
+The future item was not superseded when the later I39 closure addendum updated `issues.md`,
+`harness.md`, and the current plan status.
+
+**Method:** Removed only the duplicate plan line, rewrote the future item in place as
+`Revalidate clean sim-engine provenance (I39 resolved)`, retained the original dirty-worktree
+wording as historical context in that file, and added the required modification-history rows.
+No source code, test acceptance rule, checksum, provenance rule, fallback, GPU/RJob, or release
+state was changed.
+
+**Result:** A fresh GREEN consistency probe, docs contract, syntax checks, and affected local
+regression are required after the edits. The global status remains `INCOMPLETE`; Gate B1 remains
+`BLOCKED`; `real_pre_dataset` and `release_pre_dataset` remain `NOT QUALIFIED`; `AE-ready` remains
+`NO`.
+
+### Session 44 — Verifier predicate correction and documentation closure — 2026-07-19
+
+**Motivation:** Complete the RED→GREEN evidence for the plan/future consistency repair and verify
+that the document-only change did not disturb the local AE control plane.
+
+**Expectation:** The semantic consistency probe must report duplicate lines=`0`, an I39
+`CLOSED/RESOLVED` status, and a revalidation-only future scope. The focused/full local regressions,
+static syntax scopes, temporary-root scan, and diff check must pass; the known controller
+`grouped_gemm` prerequisite must remain explicitly blocked rather than hidden.
+
+**Verifier-only RED:** The first post-repair probe used the literal predicate
+`'I39 is CLOSED/RESOLVED'` and returned exit=`1` even though the document had the equivalent bold
+status wording. Its log is
+`logs/session44-doc-consistency-green.log` (bytes=`116`, SHA256=`b479a416b26c583928485cfb6204a6f2942b0a8df7e71ff75a57325200453e0`).
+The original pre-repair observation is retained at
+`logs/session44-doc-consistency-initial-red.log` (bytes=`142`, SHA256=`292fe3c2f84019e30d5599e6f001523b13b4fe72a3db6d3ba877db6291122605`).
+
+**Root cause:** The assertion was stricter than the documented format; no repository defect was
+present after the minimal edit.
+
+**Method:** Changed only the probe predicate to require the semantic I39/status tokens and the
+revalidation wording. Reran the probe, targeted static gate, focused regression, full local
+control-plane matrix, and the separate grouped-gemm runtime probe. No product source, fixture,
+acceptance rule, fallback, provenance rule, GPU/RJob, or release state changed.
+
+**GREEN evidence:**
+
+- semantic probe: duplicate=`0`, I39 closed=`True`, revalidation=`True`, exit=`0`; log
+  `logs/session44-doc-consistency-green-v2.log`, bytes=`129`, SHA256=`cbc5d3b76ad5b4bb3e123bf4a1dd9899b75e20b69dd3beac2197e0938e90f1cf`;
+- targeted static gate: shell=`52`, Python=`35`, hard-coded templates=`0`, diff check=`PASS`,
+  exit=`0`; log bytes=`291`, SHA256=`2f00d89e3ae0d468c4e43378bd12d317ea04565f7ee9171b570b371bd68137e4`;
+- focused regression: all listed contracts/e2e pass, fresh chain=`1/1`, prebaked=`3/3`, clone
+  entries=`3/3/3`, exit=`0`; log bytes=`9,085`, SHA256=`a18057e88199095871830e45af9c64a03aa46f89c906894ce5e536ea008a2641`;
+- full local matrix: pytest=`65 passed in 3.10 s`, setup=`21/21`, grouped-gemm setup=`37/37`,
+  GPT mock=`22/22`, public smoke/chain/clone pass, exit=`0`; log bytes=`17,147`, SHA256=`108e9bd41fa73d1032f78e605b05b613644cef2e846f1e1c2135c29f1e584275`;
+- grouped-gemm runtime probe: collection `ModuleNotFoundError: grouped_gemm`, exit=`2`; log
+  bytes=`857`, SHA256=`ebf048b581e9a2be2d8cb3a2cfda5cd83a44a2fcf0449f0cd5c482a3577802ef`.
+
+**Result:** I49 is CLOSED/RESOLVED for local documentation/static control-plane evidence. The
+global task remains `INCOMPLETE`; Gate B1 is `BLOCKED`; `real_pre_dataset` and
+`release_pre_dataset` are `NOT QUALIFIED`; `AE-ready` is `NO`.
+
+### Session 44 — Post-closure document verifier — 2026-07-19
+
+**Motivation:** Verify the final summary addendum and changed-document hash table after I49 closure,
+without relying on a previous Session 43 verifier snapshot.
+
+**Expectation:** The latest summary section must match seven non-self-referential document sizes and
+SHA256 values; the fixed shell/Python scopes, current successful marker aliases, duplicate/future
+status checks, temporary-root scan, and diff check must all pass.
+
+**Method:** Ran the status-aware verifier against the latest `session44-doc-full` fresh and
+prebaked synthetic roots. The first attempt was preserved after it correctly reached the summary
+status assertion but found no literal I49 phrase; the summary then gained an explicit
+`I49 is CLOSED/RESOLVED` sentence. No acceptance or release rule was relaxed.
+
+**Result:** Final verifier log
+`logs/final-doc-verification-20260719-session44-i49-final.log` is bytes=`659`,
+SHA256=`97acda6299ac7ed3fddc13a521505d7a732ced564df425e2b2f7e3f191a9c3fe`, exit=`0`. Observed
+values: docs=`9/10`, shell=`52`, Python=`35`, final document hashes=`7`, markers=`7` (`fresh=4`,
+`prebaked=3`), alias mismatch=`0`, hard-coded temporary templates=`0`, and `git diff --check`=`PASS`.
+The failed verifier-only attempt is retained at
+`logs/final-doc-verification-20260719-session44-i49-attempt1.log` (bytes=`283`,
+SHA256=`447c882b3b825e49b8bd7d753e8e223a845ce3fc5596a73fd38bdf4d8bb1e997`).
+
+**Boundary:** I49 remains closed only for local documentation/static evidence. Gate B1 remains
+`BLOCKED`; `real_pre_dataset`/`release_pre_dataset` remain `NOT QUALIFIED`; `AE-ready` remains `NO`.
+
+### Session 45 — Task2 checksum-alias repair and control-plane audit — 2026-07-19
+
+**Motivation:** The shared Task2 pointer consumer had a concrete integrity gap: it parsed and
+compared `manifest_sha256` but did not compare the producer's second alias
+`artifact_manifest_sha256`. The continuation audit also needed a fresh, source-grounded record of
+remaining Task1/Task2/Task3 qualification-handoff risks before any further implementation choice.
+
+**Expectation:** A negative test that changes only `artifact_manifest_sha256` must fail before model
+attachment or marker publication. The repaired consumer must accept only two equal aliases, and a
+read-only audit must identify the remaining blockers without changing evidence classes or starting
+external work.
+
+**Observed RED:**
+
+- `logs/task2-pointer-alias-red-session45.log` recorded exit/status `1` and
+  `tampered shared Task2 artifact_manifest_sha256 alias was unexpectedly accepted`.
+- The source audit found the current outer `HEAD` (`c217ce93156e7c37e065da2989c1a482f12ecebc`)
+  does not contain the six load-bearing `SC26-AE` Task1 producer/helper/tool paths used by the
+  working tree.
+
+**Root cause:** The shared-pointer parser emitted only one checksum alias to its shell consumer,
+so the second alias was not part of the verification predicate. Separately, the existing producer
+provenance contract records a repository commit but does not bind every executed AE control-plane
+byte to that commit.
+
+**Minimal method:** Updated only `SC26-AE/lib/task2_echo.sh` and
+`tests/integration/test_sc26_ae_task2_contract.sh` for the alias contract. The consumer now parses
+both aliases, compares both to the verified manifest digest, and the integration test mutates only
+the second alias as a negative case before restoring the pointer. No threshold, fallback,
+source-selection, evidence label, or release rule changed.
+
+**GREEN and affected regression:**
+
+- `logs/task2-pointer-alias-green-session45-final.log` records exit/status `0`, including
+  `PASS: Task2 rejects a shared pointer with a mismatched artifact_manifest_sha256 alias`.
+- `logs/task2-pointer-affected-session45.log` records the affected Task2 integration/evidence,
+  snapshot, interpreter, and prebaked-package regression as PASS; the relevant Python package
+  suite reports `11 passed`.
+- The raw read-only audit is
+  `logs/session45-control-plane-audit-raw.log` (`119279` bytes, `1271` lines,
+  SHA256=`14342fc38a909854712de101518ccc7c39828e7a149b1d0fa8637a0a05d6c40a`).
+
+**Result and boundary:** I50 is closed for the local Task2 alias contract only. The audit opened
+or confirmed release-level findings F10-01 through F10-12 in
+`phase10_control_plane_audit_2026-07-19.md`: incomplete producer source pinning, missing MoE
+full-rank promotion gate, weak standalone trace/SQLite semantics, missing D16 timing fields,
+qualified Task2 lifecycle contradiction, missing qualified shared-pointer publication, incomplete
+nested interpreter binding, Task2 producer provenance gap, trusted-path/provenance gaps, Task3
+root/snapshot TOCTOU risks, package/schema summary gaps, and issuer authentication. These are not
+fixed by synthetic evidence. Gate B1 remains BLOCKED; real/release pre-datasets remain NOT
+QUALIFIED; AE-ready remains NO.
+
+### Session 45 final documentation/static verification — 2026-07-19
+
+**Motivation:** The post-audit regression passed before the final audit/report/hash addenda were
+written. A fresh final verifier was required so the completion evidence covers the final document
+bytes rather than an earlier snapshot.
+
+**Expectation:** The final verifier must pass the public documentation contract, semantic plan/future
+checks, I50-I58 issue headings, fixed shell/Python syntax scopes, temporary-root scan, and
+`git diff --check`, while retaining the blocked real/release disposition.
+
+**Method:** Reran the verifier with `SC26_AE_TMP_ROOT=/data/ycfeng/sc26-ae-test-tmp/session45-final`
+and `TMPDIR` set to the same writable root. It checked documentation `9/10`, adjacent duplicates,
+I39 revalidation wording, issue headings `I50..I58`, phase10/report hashes, shell `52`, Python `35`,
+zero hard-coded `/tmp` templates, and diff hygiene.
+
+**Result:** `logs/session45-final-verification.log` exited `0`, has `631` bytes and `16` lines, and
+SHA256 `c129643dab177c398331b1be4f9fe057b73feae5de5ecf8f5b40e97ad0e9fe07`. The final verifier
+reported `SESSION45_FINAL_VERIFICATION=PASS`. This closes the local Session45 documentation/static
+checkpoint only; Gate B1 remains BLOCKED, real/release pre-datasets remain NOT QUALIFIED, and
+AE-ready remains NO.
+
+### Session 45 verifier-log reconciliation — 2026-07-19
+
+**Motivation:** The original `logs/session45-final-verification.log` was overwritten during a
+rerun, so the hash recorded in earlier Session 45 paragraphs (`c129643...`) no longer identifies
+the bytes currently on disk. The continuation therefore retains a new immutable verifier artifact
+and a fresh document-hash inventory instead of rewriting the historical paragraph.
+
+**Verifier-only RED:** The first immutable replacement,
+`logs/session45-final-verification-v3.log`, is preserved at bytes=`236`, lines=`7`,
+SHA256=`7bbe56d8e43591cf30adfd2b4de59b15454d9b965b0fca9e6d5b84126049150c`, exit=`1`. It passed
+the documentation, duplicate-line, and I39 checks, then stopped at the issue-heading probe.
+Root cause was a verifier regex with one extra escape level (`\\.`), which searched for a literal
+backslash instead of the period in `### I50.`. This was a harness defect, not a repository or
+qualification failure.
+
+**GREEN remediation:** The regex was corrected without changing any product or acceptance rule,
+and a new immutable log was created rather than overwriting the RED artifact:
+
+- `logs/session45-final-verification-v3-green.log`, bytes=`1,934`,
+  SHA256=`aefb43b93d1e6da860970599ca08ceeefaf6a4170c9b5e9c0362775f2594f5cd`, exit=`0`;
+- documentation=`9/10`, adjacent duplicates=`0`, I39 revalidation=`PASS`, issue headings
+  `I50..I58`=`PASS`, status boundary=`PASS`;
+- document hash scope=`9`, shell syntax=`52`, Python syntax=`35`, hard-coded temporary templates
+  `0`, and `git diff --check`=`PASS`.
+
+The v3-green log is the stable Session 45 verifier reference for this reconciliation. The older
+overwritten-log paragraph remains historical evidence; it is superseded, not deleted. No GPU,
+RJob, Docker, publication, commit, push, reset, `rm`, `mv`, or submodule mutation was performed.
+Gate B1 remains `BLOCKED`, `real_pre_dataset`/`release_pre_dataset` remain `NOT QUALIFIED`, and
+`AE-ready` remains `NO`.
+
+### Session 45 bounded validator repairs and current regression — 2026-07-19
+
+**Motivation:** The continuation exposed three narrow producer/consumer contract defects: Task1
+could publish a marker for traces that Task3 would reject, the package consumer accepted split
+Task3 marker/manifest identities, and the distribution summary counted the manifest before its
+final self-referential fields were written.
+
+**Expectation:** Existing consumer semantics must be enforced before marker/publication; final
+`total_size_bytes` and `distribution_medium` must describe the bytes actually staged; and a
+non-convergent self-referential summary must fail fast. No evidence label, threshold, source
+selection, fallback, or qualification state may change.
+
+**Method:** Applied the bounded semantic/identity checks and a finite fixed-point summary writer,
+then ran RED→GREEN targeted tests and a fresh affected matrix in
+`logs/session45-bounded-repairs-regression.log`. The first package RED observed declared
+`51,138` bytes versus final staged `51,207` bytes (delta `69`); the repaired targeted test passed.
+
+**Result:** Current regression exit is `0`: artifact/package/sealer pytest `68 passed`; Task1
+`PASS_COUNT=21`; Task3 contract `10/10`; Task3 portability `17/17`; provenance PASS; shell syntax
+`73`; Python syntax `160`; `git diff --check` PASS. The log is `5,871` bytes with SHA256
+`4f730106c05864f21e98d2fc1a5d10008654c2cc44b9d284fec7b06e057fc4a2`.
+
+**Boundary:** These are local synthetic/controller validator results only. I53/F10-03 is only
+partially hardened (SQLite/Nsight semantics and D16 timing remain open), I57/F10-10/F10-11 remain
+open for frozen-root/snapshot/schema design, and I51/I52/I54-I56/I58 remain open. Gate B1 is still
+`BLOCKED`; real/release pre-datasets remain `NOT QUALIFIED`; AE-ready remains `NO`.
+
+### Session 45 Task1 memory-artifact negative coverage — 2026-07-19
+
+**Motivation:** The Session 45 control-plane audit identified a regression-test gap: the existing
+Task1 integration fixture exercised one valid memory JSON but did not exercise the validator's
+empty, non-finite, negative-value, all-zero, or rank-inventory failure branches. D30 permits this
+test-only repair because it directly serves the one-click AE workflow and does not change the
+acceptance target.
+
+**Expectation:** Each malformed memory fixture must fail before `capture_marker.json` publication,
+with the production validator's specific error, while valid Task1 paths and the fresh synthetic
+chain remain green.
+
+**Observed RED and root cause:** The first run after adding the ten assertions stopped at
+`empty-payload memory semantics were unexpectedly accepted`. The fake `torchrun` fixture always
+emitted the valid payload and ignored `FAKE_MEMORY_MODE`; production code was not reached with the
+intended malformed input.
+
+**Method:** Added fixture-only `FAKE_MEMORY_MODE` cases for empty payload/samples, NaN/Infinity/zero
+peaks, negative reserved/allocated values, all-zero samples, missing rank, and duplicate rank.
+Assertions require non-zero exit, the expected validator message, and no marker. No fallback,
+threshold, checksum, provenance, evidence label, or release rule was changed.
+
+**GREEN result and numeric evidence:**
+
+- `bash -n tests/integration/test_sc26_ae_task1_contracts.sh`: exit `0`;
+- focused Task1 integration: `PASS_COUNT=31`, exit `0`;
+- ten new memory negative cases rejected before marker publication;
+- public Task1 smoke: `SMOKE_PASS_COUNT=1`, `REAL_GPU_WORKLOAD_COUNT=0`, exit `0`;
+- fresh synthetic chain: `CHAIN_PASS_COUNT=1`, Task1 trace/memory files `4/4`, Task2 MSE
+  `3.0`/`0.5`, reload delta `0.0`, rank0 step `22.5 ms`, simulator wall-clock `0.5 s`, peak RSS
+  `51,536 KiB`, exit `0`.
+
+The focused transcript is `logs/session45-task1-memory-negative-coverage.log` (bytes `2,168`,
+SHA256 `accaa663b58e0a3e0f9108eb3edba090adbee417b6d30b1c991672c576c6dc0d`). The detailed report is
+`test_report_2026-07-19_task1_memory_negative_coverage.md`.
+
+The affected local matrix subsequently ran `20` SC26-AE shell contract/integration/e2e scripts and
+the four Python unit modules: `73 passed in 5.22 s`, `MATRIX_STATUS=PASS`, exit `0`. Its log is
+`logs/session45-task1-memory-affected-matrix.log` (bytes `17,303`, SHA256
+`cc02a5fada02efd207dcd3dce8b30b9eb3f1d8d39759f04ee03a0c7bedbf5d3f`).
+
+**Resulting evidence class:** `local_synthetic_not_gpu_qualification`. This closes only the local
+memory negative-test coverage gap; I53 remains open for real SQLite/NVTX semantics, canonical
+`nsys` identity, D16 timing fields, and complete producer provenance. Gate B1 remains `BLOCKED`,
+real/release pre-datasets remain `NOT QUALIFIED`, and `AE-ready` remains `NO`.
+
+### Session 45 verifier v8 harness RED — 2026-07-19
+
+**Motivation:** After the memory-coverage matrix, a fresh immutable documentation/static verifier
+was required because the preceding v7 hash inventory predates the new report and test records.
+
+**Observed RED:** `logs/session45-final-verification-v8.log` stopped at
+`DOCUMENT_HASH_MISMATCH future.md`; the verifier expected a transposed historical digest while the
+measured file was unchanged and correct. The outer harness also used a status-capture wrapper that
+continued printing a PASS marker after the inner verifier failed.
+
+**Root cause:** This was a verifier-input transcription error plus non-fail-fast verifier harness
+control flow, not a repository, test acceptance, provenance, or qualification defect. The v8 log
+is preserved as immutable RED evidence (bytes `1,432`, SHA256
+`5f6586e6df574d5771c0a05c6e999af96c434dc57b647a6a9a04dffecc2748b9`).
+
+**Remediation plan:** Correct only the expected digest literal to the measured
+`0d775ccfadd3a0c6ac72d23931a90ea88d91fe74ef2802ec3dd57a6bfb7a3641`, run the verifier inside a
+fail-fast subshell, and retain v8 without overwriting it. No product or acceptance change is
+authorized or required. Until the corrected rerun is read, the documentation checkpoint is
+`IN_PROGRESS`; Gate B1, real/release pre-datasets, and AE-ready remain blocked/unqualified.
+
+### Session 45 regression supersession after Task1 memory-negative coverage — 2026-07-19
+
+**Motivation:** A concurrent D30 test-only lane added ten Task1 memory-artifact negative cases after
+the first bounded-repair matrix. The earlier `21/21` Task1 count therefore no longer described the
+current test bytes.
+
+**Expectation:** Re-run the complete affected matrix against the current working tree, retain the
+older transcript as historical evidence, and use a new immutable log for the final local result.
+
+**Method:** Re-ran artifact/package/sealer, Task1, Task2, Task3, shell syntax, Python syntax, and
+diff checks with a fresh temporary root. No production acceptance, evidence label, or qualification
+state was changed.
+
+**Result:** The superseding log `logs/session45-bounded-repairs-regression-v2.log` exits `0` and
+reports pytest `68 passed`, Task1 `PASS_COUNT=31`, Task3 contract `10/10`, Task3 portability
+`17/17`, provenance PASS, shell syntax `73`, Python syntax `160`, and `git diff --check` PASS. It
+is `6,558` bytes with SHA256
+`3ea96feba83eb0cc22b40239a7945a3f9b0a10bcdd9f6f9b05ca7cf2b42fa75c`.
+
+**Boundary:** This supersession only strengthens local negative coverage. I53/I57 and I51-I58/CR-01
+remain open; Gate B1 is `BLOCKED`, real/release pre-datasets are `NOT QUALIFIED`, and AE-ready is
+`NO`.
+
+### Session 45 verifier v9 GREEN closure — 2026-07-19
+
+**Motivation:** Close the verifier-only v8 RED with the measured `future.md` digest and a
+fail-fast wrapper, while preserving v8 as immutable evidence.
+
+**Expectation:** The corrected verifier must stop on any mismatch, report no PASS marker after a
+failure, and pass the documentation contract, current ten-document hash inventory, fixed shell and
+Python syntax scopes, temporary-template scan, and `git diff --check`.
+
+**Method:** Corrected only the verifier's expected digest literal and ran the checks inside a
+fail-fast subshell. No repository producer, acceptance rule, threshold, fallback, provenance
+contract, or evidence label was changed.
+
+**GREEN result:** `logs/session45-final-verification-v9.log` reports
+`SESSION45_FINAL_VERIFICATION_V9=PASS`, documentation `9/10`, hash scope `10`, shell `52`, Python
+`35`, hard-coded temporary templates `0`, and `git diff --check=PASS`; process exit `0`. The log is
+`2,254` bytes with SHA256
+`09b183f7b5c1c63d5c4b2d0379647b4de214eec1a6afe36e9a6b8f9978672a42`.
+
+**Resulting boundary:** v9 closes only the local documentation/static verifier checkpoint. I51-I58
+and CR-01 remain open; Gate B1 remains `BLOCKED`, real/release pre-datasets remain `NOT QUALIFIED`,
+and `AE-ready` remains `NO`.
+
+### Session 45 verifier v11 harness RED — 2026-07-19
+
+**Motivation:** An independent final verification was rerun after the existing v10 artifact was
+observed, so the current worktree needed a fresh fail-fast check rather than reliance on another
+lane's transcript.
+
+**Observed RED:** `logs/session45-final-verification-v11.log` exited `1` at the current
+ten-document hash scope. The verifier expected a manually transcribed `notes.md` digest with the
+`...f64eb6f...` nibble order, while the measured file digest is
+`...f64be6f...`. The log is preserved at bytes `1,332`, SHA256
+`de5b31f43a82c4f86e891a9317054ca004cea42c187310dd2c9e797935933b70`.
+
+**Root cause:** This is a verifier-harness literal transcription error, not a repository,
+production validator, acceptance, provenance, or qualification defect. The document bytes are
+unchanged and match the measured inventory already recorded in the append-only summary.
+
+**Remediation:** Keep v11 immutable, avoid editing the document under test, and make v12 parse the
+unique current inventory table from `summary.md` before comparing bytes/SHA256. This removes the
+manual digest-copy seam while retaining fail-fast behavior. No threshold, checksum rule,
+evidence label, fallback, source-selection, GPU gate, or release state changes.
+
+**Pending verification:** The corrected v12 run must pass the documentation contract, current
+inventory, supplemental Task1 memory report, affected local regression, fixed syntax scopes, and
+`git diff --check`; the global boundary remains `INCOMPLETE`, Gate B1 `BLOCKED`, real/release
+pre-datasets `NOT QUALIFIED`, and `AE-ready` `NO`.
+
+### Session 45 I57 narrow trusted-root repair and clean-clone regression — 2026-07-19
+
+**Motivation:** The first post-repair clean-clone replay executed every public setup/Task1/Task2/Task3
+case successfully but exited non-zero after its final assertion. The harness still expected the
+pre-memory-negative-coverage Task1 count (`PASS_COUNT=11`) even though the current contract has
+31 cases. Separately, the Task3 portability audit had already reproduced an intermediate
+`<model>/task1` symlink escape that could resolve fresh inputs outside `AE_OUTPUT_ROOT`.
+
+**Expectation:** The Task3 validator must reject intermediate Task1-root and Task1-runs symlinks
+before resolving fresh inputs, and the clean-clone harness must assert the current contract count
+without weakening any producer, checksum, evidence, or qualification rule. All public synthetic
+entries must then pass from an isolated clone and an outside working directory.
+
+**Method:** Preserved the first clean-clone RED transcript, changed only the stale harness literal
+in `tests/e2e/test_sc26_ae_clean_clone_replay.sh` from `PASS_COUNT=11` to `PASS_COUNT=31`, and kept
+the earlier production/test I57 repair in `SC26-AE/lib/task3_simulation.sh` and
+`tests/integration/test_sc26_ae_task3_portability.sh`. No fallback, threshold, evidence relabel,
+source substitution, `rm`, `mv`, reset, clean, GPU launch, publication, or commit was used.
+
+**Observed RED and root cause:**
+
+- `logs/task3-clean-clone-followup-20260719.log` exited with `CLEAN_CLONE_RC=1` after all five
+  internal cases printed `[PASS]`; the stale final grep was the only failing predicate.
+- The isolated fresh-chain log showed `PASS_COUNT=31`, proving the failure was a harness expectation
+  mismatch rather than a Task1 workflow failure.
+- The original I57 path-escape RED remains
+  `logs/task3-intermediate-task1-symlink-red-20260719.log` (exit `1`, SHA256
+  `cd0d30fbc0deacaa5fd595dfab73f57ae33e584691a42b69efbd64ea730d488e`).
+
+**GREEN result:**
+
+- `logs/task3-clean-clone-followup-green-20260719.log`: exit `0`, clean outer/Echo/sim-engine/
+  nested collective-sim statuses, public entries `3/3/3`, setup cases `6`, fresh chain `1`, and
+  `EVIDENCE_CLASS=local_synthetic_not_gpu_qualification` (1,385 bytes,
+  SHA256 `1a19a88e525ca602fa888892295908cea56a85cc31929e564272cb061e9cde9c`).
+- Standalone fresh chain: `CHAIN_PASS_COUNT=1`, Task1 trace/memory `4/4`, Task2 rows `2`, MSE
+  `3.0/0.5`, reload delta `0.0`, Task3 rank0 `22.5 ms`, simulator wall `0.5 s`, peak RSS
+  `51,432 KiB` (exit `0`; log SHA256 `14f6fa3aa559d5c5707f3ebe0daeab30f35a56675d8063901e792bce55e47cc1`).
+- Task1 smoke: `SMOKE_PASS_COUNT=1`, `REAL_GPU_WORKLOAD_COUNT=0`, Task1 `PASS_COUNT=31` (exit `0`;
+  log SHA256 `316856600f7cffb9010c27e24cbb3e1492e2b4e2682b44b0c53282984076eb79`).
+- Task2 smoke: all three public entries and identity/snapshot checks PASS (exit `0`; log SHA256
+  `24d0b395d0409822f399758e97f37365ef88f9c89daf78312e1bf342bd59ece9`).
+- Task3 prebaked CPU: models `3/3`; rank0 step values GPT-175B/Qwen3-A30B/DeepSeek-V3
+  `18.5/22.5/24.5 ms`; forward/backward/optimizer values
+  `5.0/9.0/2.0`, `6.0/11.0/2.5`, and `6.5/12.0/3.0 ms`; manifests `22/18/18` files; exit `0`
+  (log SHA256 `a73c9f8a415e147d2d15ee8de81bf2ad53aaaf840a4ebada354b476978fc7755`).
+
+**Affected SC26-AE matrix:** `logs/session45-task3-symlink-affected-regression-v2-20260719.log`
+exited `0` (19,632 bytes, SHA256 `5a58a47013efabb7e17aa9a92c906c39f4e2196b8f66da2c10e7f009a726bd00`).
+It records Python unit `73 passed in 5.18 s`, ten SC26-AE unit shell scripts, five integration
+scripts, and five e2e scripts. Key contract values are Task1 `PASS_COUNT=31`, Task3 contract
+`PASS_COUNT=10`, Task3 portability `PASS_COUNT=18`, and Task3 provenance
+`PROVENANCE_TEST_STATUS=PASS`.
+
+**Static validation:** `logs/session45-task3-symlink-static-validation-20260719.log` exited `0`
+(183 bytes, SHA256 `f545a96bbac62907b325a4d5c00dc85bda0a87420731c4313bda70a7d22dcb3c`) with shell
+syntax `73`, Python syntax `160`, hard-coded temporary-root scan `PASS`, and `git diff --check=PASS`.
+
+**Independent affected dependency check:** `logs/session45-grouped-gemm-affected-regression-20260719.log`
+(4,276 bytes, SHA256 `6484172a9d9931f917a85d73177ecc677618bc3ca31ea562ff08511eb7259c12`) records grouped-gemm
+setup `37/37` and GPT example integration `22/22` as PASS. The grouped-gemm runtime test failed at
+collection with `ModuleNotFoundError: grouped_gemm`; this is an environment prerequisite gap, not a
+SC26-AE validator failure. No package installation or GPU workaround was attempted. The result is
+`GROUPED_GEMM_AFFECTED_RC=2` and remains a documented controller limitation.
+
+**Resulting boundary:** This is a narrow, reversible I57 validator/contract repair and local
+synthetic portability evidence only. I57 remains **OPEN / HIGH** for a design-approved frozen-input
+snapshot and complete trusted-root seam; I51-I58/CR-01 remain open where not explicitly narrowed.
+Gate B1 remains `BLOCKED`, `real_pre_dataset` and `release_pre_dataset` remain `NOT QUALIFIED`, and
+`AE-ready` remains `NO`.
+
+### Session 45 post-handoff current-state reconciliation — 2026-07-19
+
+**Motivation:** The handoff snapshot ended before later immutable verifier logs were written. A
+read-only resumption found `session45-final-verification-v14.log` through `v17.log`, while the
+handoff still described v13 as the latest trusted checkpoint. Those later files therefore had to
+be treated as untrusted inputs and independently reconciled before any current-state claim.
+
+**Expectation:** Confirm that the I57 repair remains narrow, that the ten-document inventory still
+matches current bytes, that v14 is preserved as RED rather than relabeled, and that a fresh local
+matrix passes without promoting synthetic/controller evidence. The controller must continue to
+report a missing `grouped_gemm` runtime dependency rather than inventing a fallback.
+
+**Method:**
+
+1. Re-read the latest I57 progress/issues/review entries, bounded-validator and clean-clone reports,
+   the relevant Task3 trusted-root implementation, the portability negative case, the clean-clone
+   count assertion, and the complete grouped-gemm affected log.
+2. Independently measured the v14-v17 logs and the current ten non-self-referential document
+   identities. Verified that v14 is a parser-only RED (`expected 7 v14 artifact rows, got 5`), v15
+   and v16 are GREEN, and v17 is a later GREEN sanity log that was not yet recorded in `summary.md`.
+3. Ran the required independent StepCode Claude review. The raw artifact is
+   `.omx/artifacts/claude-you-are-an-independent-review-lane-for-an-sc-26-artifact-eva-2026-07-19T14-52-09-639Z.md`,
+   7,443 bytes, SHA256
+   `211c2c11c851238f3caf291fb3a8085cded7bfcd1faec9a5d19402ac995c21e3`. The verdict is
+   `APPROVE with WATCH`: accept v15/v16, preserve v14 RED, and document the otherwise-undocumented
+   v17 sanity check without changing release status.
+4. Ran a fresh current-state matrix under `/usr/bin/python3` 3.12.3 and pytest 9.1.1 with
+   `SC26_AE_TMP_ROOT`/`TMPDIR` set to a writable task-specific root. The run covered four Python
+   unit files, ten unit-shell files, five integration scripts, five e2e scripts, grouped-gemm setup,
+   GPT mock integration, and a fail-fast controller dependency probe.
+5. Ran a fresh broad static pass over 73 shell and 160 Python files, the hard-coded temporary-root
+   scan, and `git diff --check`.
+
+**Harness incidents and root-cause resolution:**
+
+- The first read-only audit command exited `141` because `set -o pipefail` exposed the expected
+  SIGPIPE from `find | sort | head`. No project test ran and no file changed. Replacing `head` with
+  `sed -n` removed the premature consumer close and the audit completed.
+- The first tool-wrapper attempt to launch the fresh matrix was rejected before shell execution by
+  JavaScript template parsing of unescaped shell `${...}` syntax. No log was created. Escaping the
+  two template expressions allowed the exact shell command to run; this was orchestration syntax,
+  not a repository failure.
+- The first inventory-measurement wrapper was likewise rejected before command execution because
+  Markdown backticks inside the JavaScript template terminated the wrapper string. The measurement
+  was rerun with delimiter-only output and completed; no repository command or file write occurred
+  in the rejected attempt.
+
+**Result:**
+
+- Fresh regression log:
+  `logs/session45-final-current-state-regression-v18-20260719.log`, 23,288 bytes, SHA256
+  `d1bbd254759fb2efb2cbc9ce0f1a9b8efaeecc9702b22287b98b81e59b435098`, exit `0`.
+- Python unit result: `73 passed in 4.55 s`.
+- Current Task1/Task3 contracts: Task1 `31`, Task3 contract `10`, portability `18`, provenance
+  `PROVENANCE_TEST_STATUS=PASS`.
+- Clean-clone/e2e: public entries `3/3/3`, setup `6`, fresh chain `1`, Task3 models `3/3`, and all
+  four isolated repository statuses `clean`.
+- Fresh-chain numeric values: trace/memory files `4/4`, Task2 rows `2`, validation/test MSE
+  `3.0/0.5`, reload delta `0.0`, rank0 step `22.5 ms`, forward/backward/optimizer
+  `6.0/11.0/2.5 ms`, simulator wall `0.5 s`, and peak RSS `51,704 KiB`.
+- Grouped-gemm setup/GPT mock: `37/37` and `22/22`; controller probe:
+  `CUDA_AVAILABLE=False`, device count `0`, module available `False`, runtime qualification
+  `NOT_RUN_MISSING_DEPENDENCY`.
+- Static log: `logs/session45-final-current-state-static-v18-20260719.log`, 251 bytes, SHA256
+  `653ca2bbab392d034c723f205a2b2f02a424853dd51f50236d41ec70c1ae2e3c`, exit `0`; shell `73`,
+  Python `160`, temporary-root scan PASS, and `git diff --check` PASS.
+
+This fresh evidence is still `local_synthetic_not_gpu_qualification`. I51-I58 and CR-01 remain
+open, Gate B1 remains `BLOCKED`, both real/release pre-datasets remain `NOT QUALIFIED`, and
+`AE-ready` remains `NO`.
+
+### Session 46 read-only control-plane probes — 2026-07-19
+
+**Motivation:** Resume the active workflow without starting a prohibited GPU/RJob run or changing
+the open I51–I58 contracts. The existing audit described two high-impact Task2 findings; a
+behavior-level reproduction was needed before requesting design authority.
+
+**Expectation:** A shared Task2 pointer must be trusted before any pointed-to bytes are opened, and
+the qualified evidence class must survive every reuse/verifier stage. These probes were expected to
+remain RED because the handoff explicitly leaves I54/I56 open.
+
+**Method:** Used isolated fixture roots under `/data/ycfeng/sc26-ae-test-tmp/` and sourced the
+current Task2 functions only through the `task2_main` boundary. No repository file, submodule,
+release artifact, or qualification marker was edited.
+
+**Result:**
+
+- I56/F10-09 probe: a lexical-safe `_shared/task2/runs/<predictor_run_id>` symlink pointed outside
+  the output root. The consumer reached `MANIFEST_STATUS=verified` and `MANIFEST_FILE_COUNT=13`
+  before failing at the later `Path.relative_to(output_root)` check (`PROBE_RC=1`). This proves
+  containment is enforced too late.
+- I54/F10-05 probe: `task2_validate_reuse_evidence` returned `0` for
+  `real_exact_two_h800_qualified`, while the exact evidence predicate in `task2_verify_run`
+  returned `1` with `Task2 artifact manifest execution evidence is invalid`.
+- Full commands, numeric outputs, and hashes are recorded in
+  `test_report_2026-07-19_session46_control_plane_probes.md` and the two retained probe roots.
+
+**Disposition:** These are confirmed open findings, not product regressions to hide. No patch was
+applied because the current handoff requires owner-approved I54/I56 design before changing an
+I51–I58 contract. The evidence class remains `local_synthetic_not_gpu_qualification`; global
+status remains `INCOMPLETE`, Gate B1 `BLOCKED`, real/release pre-datasets `NOT QUALIFIED`, and
+`AE-ready=NO`.
+
+## Session 46 D30 Task2 canonical-containment repair — 2026-07-19
+
+**Motivation:** The Session 46 probe established that both Task2 reuse resolvers performed only
+lexical `absolute`/`..` checks and could follow a lexical-safe intermediate symlink outside
+`AE_OUTPUT_ROOT`. The first negative test fixture failed too early because its copied run retained
+`predictor_run_id=integration-one` while the symlink basename was different. That was a fixture
+identity defect, not valid containment RED evidence.
+
+**Expectation:** Construct complete synthetic external runs whose predictor IDs, manifests, metrics,
+provenance, and checksums agree with each symlink basename. Before the production repair, the old
+resolver must accept the escaped run (a real RED). After the minimal repair, both model-marker and
+shared-pointer resolvers must reject the canonical path before reading bundle artifacts, while a
+normal in-root reuse flow remains green.
+
+**Method:**
+
+1. Added only to `tests/integration/test_sc26_ae_task2_contract.sh` an `external_env` fixture helper
+   that builds two complete synthetic runs outside the canonical `OUT` root. The test points
+   intermediate symlinks at those runs and rewrites only `run_path`/`run_relative_path`; no evidence
+   classes, schema fields, or production acceptance rules were changed.
+2. Ran the corrected fixture against the unmodified resolver and preserved a genuine RED.
+3. Added the smallest production change in `SC26-AE/lib/task2_echo.sh`: each resolver now resolves
+   `(output_root / rel)` canonically and checks `run_root.relative_to(output_root)` before any
+   manifest, metrics, or provenance reads. Existing error strings and evidence predicates remain
+   unchanged.
+4. Ran targeted GREEN, Task2 smoke, fresh-chain, clean-clone, the full local matrix, and static
+   checks. No GPU, RJob, Docker, publication, commit, push, `rm`, or `mv` was used.
+
+**Result:**
+
+- Valid RED: `logs/task2-containment-fixture-red-20260719.log`, exit `1`, 269 bytes,
+  SHA256 `a95d18fcf0102bacc5d39eb1e8d72ec3707a6a9c4d863652cff83553be207041`. The old code reached
+  the escaped external run and the test reported `Task2 accepted a model marker whose resolved
+  path escapes the output root`.
+- Targeted GREEN: `logs/task2-containment-green-20260719.log`, exit `0`, 1,034 bytes,
+  SHA256 `03bbf12ca01a27dc97b1bd0f7fb722dca1e31c6e30f02c3c8bd2f72dac49c7e8`. Both symlink cases
+  were rejected and the normal three-model reuse path passed.
+- Affected Task2 integration/smoke: `logs/task2-containment-affected-20260719.log`, exit `0`;
+  integration and public smoke both passed, including two containment negatives, predictor-ID
+  negative, checksum-alias negative, unverified-pointer negative, and three valid attachments.
+- Fresh chain: `logs/fresh-chain-containment-20260719.log`, exit `0`, `CHAIN_PASS_COUNT=1`;
+  `TASK1_TRACE_FILES=4`, `TASK1_MEMORY_JSON=4`, `TASK2_DATASET_ROWS=2`, validation/test MSE
+  `3.0/0.5`, reload delta `0.0`, Task3 rank0/forward/backward/optimizer
+  `22.5/6.0/11.0/2.5 ms`, simulator wall `0.5 s`, peak RSS `51,540 KiB`.
+- Clean-clone replay: `logs/clean-clone-containment-20260719.log`, exit `0`; public entries
+  `3/3/3`, setup cases `6`, fresh chain `1`, and all four isolated repository statuses clean.
+- Full local rerun: `logs/task2-full-regression-rerun-20260719.log`, exit `0`, 23,822 bytes,
+  SHA256 `7aa27559ba67607bcf2d7fe02794638ccab64d14fd608100d0033a0445cb1ef4`. It reports
+  Python `73 passed`, Task1 `PASS_COUNT=31`, Task2 containment contract PASS, Task3 contract
+  `PASS_COUNT=10`, portability `PASS_COUNT=18`, provenance PASS, clean-clone/e2e PASS,
+  Task3 models `3/3`, grouped-gemm setup `37/37`, and GPT mock `22/22`.
+- Static GREEN: `logs/task2-static-validation-green-20260719.log`, exit `0`; shell scope/syntax
+  `73/73`, Python source compile scope/syntax `201/201`, production temp-root scan PASS, and
+  `git diff --check` PASS.
+
+**Disposition:** `I56 PARTIAL` only: post-resolution canonical containment is now guarded in both
+resolvers. Shared helper design, exact run-identity and alias equality across all evidence files,
+timing-of-check/frozen snapshot guarantees, and broader trusted-root semantics remain open. I54,
+I55, I57, and I58 remain open. The evidence class is still
+`local_synthetic_not_gpu_qualification`; `INCOMPLETE`, Gate B1 `BLOCKED`, both pre-datasets
+`NOT QUALIFIED`, and `AE-ready=NO` are unchanged.
+
+## Session 46 post-implementation independent review — 2026-07-19
+
+**Reviewer result:** `COMMENT / APPROVE WITH WATCH` for the narrow repair only. The independent
+review confirmed that both new guards reject a stable intermediate symlink whose canonical target
+is outside the resolved output root, and found no critical regression, fallback, evidence-class
+relabeling, or qualification promotion.
+
+**WATCH findings recorded for follow-up:**
+
+1. `Path(...).resolve()` currently treats a symlinked `AE_OUTPUT_ROOT` target as the trust root;
+   there is no lexical no-symlink check for the root or each parent component.
+2. Containment does not enforce the exact canonical shape
+   `_shared/task2/runs/<predictor_run_id>` or equality between `run_path` and
+   `run_relative_path`.
+3. The resolver still reopens manifest, metrics, and provenance through pathnames after the
+   containment check, so descriptor-anchored/frozen-snapshot TOCTOU protection is not present.
+4. The retained RED transcript directly observes the pre-fix model-marker acceptance branch.
+   The current GREEN transcript covers both model-marker and shared-pointer guards, but it does
+   not constitute an independent pre-fix RED for the shared-pointer containment branch. The older
+   Session 46 symlink probe remains supporting evidence of the pre-fix shared-pointer gap.
+
+**Remediation and boundary:** No additional production or test change was made in response to the
+review. The findings are recorded for a future owner-approved trusted-path/snapshot design rather
+than patched with inline semantics. `I56` therefore remains `PARTIAL / OPEN`; `I54`, `I55`, `I57`,
+and `I58` remain open. Global status remains `INCOMPLETE`, Gate B1 `BLOCKED`, real/release
+pre-datasets `NOT QUALIFIED`, and `AE-ready=NO`.
+
+After this documentation reconciliation, the targeted affected check was rerun. The log
+`logs/task2-post-review-doc-regression-20260719.log` (1,769 bytes,
+`SHA256=fc75ac5114ff54c936ab35f27397036fd15ecce01a6016e498e7c37e77f0f445`) records exit `0` for
+Task2 integration, the documentation contract (`PUBLIC_ENTRY_COUNT=9`,
+`PAPER_SUGGESTION_COUNT=10`), and `git diff --check`. No full product regression or external
+qualification run was implied by this docs-only rerun.
+
+## Session 46 primary-agent independent containment recheck — 2026-07-19
+
+**Motivation:** The D30 lane report claimed the Task2 canonical-containment repair was green, but
+the integrating agent had not yet independently executed the affected commands. A fresh rerun was
+needed to distinguish current working-tree evidence from a delegated transcript and to verify that
+the narrow guard did not weaken valid reuse or unrelated local contracts.
+
+**Expectation:** Both Task2 reuse resolvers must reject a lexical-safe intermediate symlink whose
+canonical target is outside `AE_OUTPUT_ROOT`; normal in-root reuse, the fresh chain, clean-clone
+replay, the full local matrix, and static checks must remain green. No evidence class or release
+boundary may change.
+
+**Method:** Ran the current integration contract, public Task2 smoke, fresh Task1→Task2→Task3
+chain, and clean-clone-style replay with new isolated temporary roots. Then ran the 22-case local
+matrix (`73` Python tests plus shell/integration/e2e cases), shell syntax, Python compilation,
+production temporary-root scan, and `git diff --check`. Logs were written without overwriting
+prior evidence:
+
+| Check | Exit | Bytes | SHA256 |
+|---|---:|---:|---|
+| Task2 integration | `0` | `1086` | `7b2bbea97c816110d050067a754033b915bf9f150f5eda84fcecaecb19eb718d` |
+| Task2 smoke | `0` | `1145` | `7dc98413038c9ab89b8f4656f5d0fd6eb2691cc5e6f7d8311e27f13be358c358` |
+| Fresh chain | `0` | `789` | `3b230e159ea0c34d21f1bbf943dcf72e69c715e9e101edf1dbdcc33ef6ae815c` |
+| Clean-clone replay | `0` | `1408` | `0e64fa6439a1380808304a91507affd477928c29a017c87c5335a354bffcabc0` |
+| Full matrix/static | `0` | `23476` | `a01816d3416045865c2476e3ddf6c2bb4c785068d72f2f69317a0ac69d680d8e` |
+
+**Result:**
+
+- Both containment negatives were rejected before model attachment; the valid path attached all
+  three synthetic models.
+- Fresh-chain metrics were trace/memory=`4/4`, dataset rows=`2`, validation/test MSE=`3.0/0.5`,
+  reload delta=`0.0`, rank0 step=`22.5 ms`, forward/backward/optimizer=`6.0/11.0/2.5 ms`,
+  simulator wall=`0.5 s`, peak RSS=`51,336 KiB`.
+- The full matrix returned exit `0`: Python=`73 passed`, Task1=`31`, Task3=`10`, portability=`18`,
+  clean-clone public=`3/3/3`, setup=`6`, fresh chain=`1`, Task3 models=`3/3`, grouped-gemm setup
+  `37/37`, GPT mock=`22/22`, shell syntax=`73/73`, Python compile=`201/201`, production temp-root
+  scan=`PASS`, and `git diff --check=PASS`.
+- No production source was changed during this recheck, and no GPU/RJob/Docker/publication action
+  was performed. The evidence class remains `local_synthetic_not_gpu_qualification`.
+
+**Disposition:** Independent evidence supports `I56 PARTIAL / OPEN` for the tested canonical
+containment seam only. Trusted-root lexical checks, exact run identity, cross-file equality,
+TOCTOU/frozen snapshots, I54 qualified lifecycle, I55 interpreter/provenance binding, I57 snapshot
+semantics, and I58 issuer authentication remain open. Global status is unchanged:
+`INCOMPLETE`; Gate B1 `BLOCKED`; real/release pre-datasets `NOT QUALIFIED`; `AE-ready=NO`.
+
+## Session 46 V20 verifier harness RED and root-cause correction — 2026-07-19
+
+**Motivation:** The first deterministic V20 verifier was intended to fail closed on any inventory
+mismatch, but its wrapper did not propagate a Python `SystemExit` through the surrounding shell and
+the expected digest for the full-regression log described bytes before the log appended its own
+summary lines. A second strict rerun then correctly exposed a missing explicit `I56` status marker
+in `summary.md`.
+
+**Expectation:** A verifier must exit non-zero on any mismatch, report the final (not pre-append)
+log identity, and require an explicit current I56 disposition while preserving the release boundary.
+
+**Method:** Preserved both harness outputs without overwrite, inspected their exact failure points,
+added `set -euo pipefail` plus file-redirection/explicit return-code handling to the rerun command,
+measured the final full-regression log after all appended lines, and added `I56 = PARTIAL / OPEN` to
+the V20 summary status block. No production source, test acceptance rule, evidence class, or
+qualification state was changed.
+
+**Result:**
+
+- Initial V20 harness output: `logs/session46-final-verification-v20.log`, bytes=`4704`, SHA256
+  `16a8d539f2f324861eac1836c3cec87271dbc5653383e016cc404ba41d9eab9a`. It exposed a supplemental
+  digest mismatch but incorrectly ended with `VERIFIER_EXIT=0`; this is retained as harness-only
+  RED evidence and is not a pass.
+- Strict rerun output: `logs/session46-final-verification-v20-rerun.log`, bytes=`4173`, SHA256
+  `85c710c085c43ef7e43919316805903c9a64603f486e33479b7d1aa70f9cd047`, exit=`1`; it failed on the
+  absent summary marker `I56 PARTIAL / OPEN`, proving the fail-fast path worked.
+- Root-cause corrections are limited to the verifier command and documentation status literal. A
+  final V21 inventory/verifier pass remains pending after these documentation changes.
+
+**Disposition:** This was a documentation/verifier harness issue, not a product or qualification
+failure. I56 remains `PARTIAL / OPEN`; I54/I55/I57/I58 and CR-01 remain open. Global state remains
+`INCOMPLETE`; Gate B1 `BLOCKED`; real/release pre-datasets `NOT QUALIFIED`; `AE-ready=NO`.
+
+## Session 47 I52 rank-promotion gate investigation — 2026-07-19
+
+**Status:** IN_PROGRESS; this is a D30 test/validation defect investigation only. No evidence class,
+qualification state, release gate, or GPU status is changed.
+
+**Motivation:** The existing Task1/packager boundary records `capture_summary.selected_rank_ids`
+and can carry a Qwen3/DSV3 QUICK subset (`0,64,128,192`) alongside `world_size=256`, but no
+machine check rejects that subset when a producer is presented as `real_single_h800_qualified`.
+The AE workflow must keep QUICK useful for local smoke tests while failing closed at promotion.
+
+**RED method:** Added a parametrized package-boundary regression for Qwen3-A30B and DSV3 that
+mutates a synthetic fixture to the target real evidence label with `capture_scope=quick` and the
+four-rank subset, then calls `_source_manifest_and_run()` while bypassing only the unrelated
+fixture evidence predicate. The old implementation accepted both cases unexpectedly.
+
+**RED evidence:** `logs/i52-rank-gate-red-20260719.log`; the focused pytest command returned
+exit `1` with `2 failed, 19 deselected`, each failure reporting `Failed: DID NOT RAISE
+ValueError`. The production implementation has not yet been changed in this session.
+
+## Session 47 I52 rank-promotion gate completion — 2026-07-19
+
+**Motivation:** The RED reproduction showed that a Qwen3/DSV3 QUICK subset could cross a
+real-qualification packaging boundary. The narrow repair needed to enforce the exact MoE rank
+inventory without changing GPT-175B's representative-rank policy or making local synthetic smoke
+captures unusable.
+
+**Expectation:** Pending external and already-qualified Task1 MoE inputs must require
+`capture_scope=full`, `simulation_topology.world_size=256`, selected ranks exactly `0..255`, and
+selected/trace/memory counts all equal to `256`. QUICK/local inputs and GPT representative inputs
+must remain accepted on their existing paths. The sealer must reject a QUICK source before creating
+a destination.
+
+**Method:** Kept the production error wording stable and corrected the focused test regex to cover
+`capture_scope`. Added direct artifact-manifest tests for exact positive inventory, missing/duplicate/
+out-of-order/boolean ranks, each count, topology, non-object input, and non-promotion bypasses;
+added package positive/negative boundary tests; added sealer QUICK rejection and full-inventory
+control-plane tests; and extended Task1 shell integration assertions for all model capture scopes
+and metadata propagation. No GPU, RJob, Docker, publication, issuer, trusted-root, or snapshot
+architecture was changed.
+
+**Result:** Focused package gate `2/2` pass; artifact inventory/edge tests `18/18` pass; package
+rank boundary `4/4` pass; package+sealer full suite `52/52` pass; full artifact suite `37/37` pass;
+Task1 integration `31/31`, Task2 `PASS`, Task3 `10/10`, fresh chain `1/1`, and clean-clone replay
+`PASS`. The SC26-AE shell matrix completed with exit `0`; the updated Task1 metadata observed
+Qwen3/DSV3 QUICK counts `selected=trace=memory=4`, GPT representative count `8`, and the direct
+full promotion fixtures observed `selected=trace=memory=256` with ranks `[0,255]` as the endpoints.
+Static shell/Python compilation and `git diff --check` passed. A deliberately broad
+`pytest tests/unit` run still has six pre-existing CUDA tests failing because this controller has
+`CUDA_AVAILABLE=False` and `CUDA_DEVICE_COUNT=0`; the non-GPU unit scope passed `113/113`.
+
+**Disposition:** `I52 narrow local promotion gate: GREEN after regression`; this does not qualify
+real hardware or close release lifecycle issues. Global state remains `INCOMPLETE`; Gate B1 is
+`BLOCKED`; `real_pre_dataset` and `release_pre_dataset` are `NOT QUALIFIED`; `AE-ready=NO`; I51,
+I54, I55, I56, I57, and I58 remain open or partial as previously recorded.
+
+## Session 47 post-agent independent validation and scope correction — 2026-07-19
+
+**Motivation:** The I52 lane changed the Task1 integration fixture after its first regression
+transcript. The integrating agent therefore needed fresh evidence from the final working tree
+before rebuilding the V21 inventory. A broad shell scan also exposed legacy example templates with
+literal placeholder assignments; those files are outside the established AE static scope and must
+not be silently counted as passing syntax.
+
+**Expectation:** Re-run every affected I52 unit/integration/e2e path, record the current numeric
+results and immutable log identities, and use the previously defined static scope (52 shell files,
+35 Python files) for the AE documentation gate. Any CUDA-only or legacy-placeholder failure must
+remain explicit and must not be converted into a synthetic qualification result.
+
+**Method:** Independently ran package/sealer and artifact-manifest units, Task1/Task2/Task3
+contracts, fresh chain, clean-clone replay, all SC26-AE Python units, all non-GPU unit files, the
+intentionally broad unit command, the scope-corrected shell/Python/diff/temp-root gate, and the
+documentation contract. The exploratory `find . -maxdepth 2 -name '*.sh'` scan was also run
+without changing any legacy example file; it found 17 pre-existing placeholder syntax failures.
+The parallel I52 session was stopped only after its process had been idle with no file writes; no
+working-tree changes were rolled back or overwritten.
+
+**Result:** Final-tree evidence is:
+
+| Check | Result / numeric evidence | Log identity |
+|---|---|---|
+| Package + sealer units | `52 passed` | `logs/session47-post-agent-package-artifact-20260720.log`, bytes=`247`, SHA256=`013f8ac894e6ee0c989cbbe6cab74217ddf8c01f90c4e1b4ed57fec24110cf56` |
+| Artifact-manifest units | `42 passed` | same log |
+| Task1 integration | `PASS_COUNT=31` | `logs/session47-post-agent-task1-20260720.log`, bytes=`2176`, SHA256=`d79a1f0fc98e97b21626d44f39c265d88aa316a46f8fb42341e0712d0eac9060` |
+| Task2 integration | exit `0` | `logs/session47-post-agent-task2-task3-e2e-20260720.log` (combined transcript) |
+| Task3 integration | `PASS_COUNT=10` | same combined transcript |
+| Fresh chain | `CHAIN_PASS_COUNT=1`, traces/memory=`4/4`, MSE=`3.0/0.5`, reload delta=`0.0`, rank0=`22.5 ms`, F/B/O=`6.0/11.0/2.5 ms`, wall=`0.5 s`, peak RSS=`51,640 KiB` | `logs/session47-post-agent-fresh-chain-20260720.log`, bytes=`719`, SHA256=`89dae5799b9d275f56b7af9b2f3618a0e2c23c4f6ae0a9500ad5d246e1cbe878` |
+| Clean-clone replay | public entries=`3/3/3`, setup=`6`, chain=`1`, clone statuses clean | `logs/session47-post-agent-clean-clone-20260720.log`, bytes=`1339`, SHA256=`a0c4d24e6e687b28d0d29d2255ae8386f5f70ed3552557cbf9e11b7ad3a5deef` |
+| SC26-AE Python units | `99 passed` | `logs/session47-post-agent-sc26-unit-20260720.log`, bytes=`197`, SHA256=`9384686630dc735f6be4352f2359afe3d22a194299a34bb91da67744860b41b5` |
+| Non-GPU unit scope | `113 passed` | `logs/session47-post-agent-nongpu-unit-20260720.log`, bytes=`198`, SHA256=`59ec80e40e3243874e61c282e0f919143c7a7a24a63a30c73543b0fa44020eae` |
+| Broad unit scope | `113 passed, 6 failed`, all CUDA-only with no NVIDIA driver | `logs/session47-post-agent-full-unit-20260720.log`, bytes=`21721`, SHA256=`822d20aaf8e667201ffd0ca42db9884fa20477161b42214f3d401fc7c7692e72` |
+| Scope-corrected static gate | shell=`52/52`, Python=`35/35`, temp-root=`PASS`, diff=`PASS` | `logs/session47-post-agent-static-scope-corrected-20260720.log`, SHA256=`c6b210eb8e1f8d1850ce95496ad08081212ab558775e76bc1b5405cbbaa75e34` |
+| Documentation contract | public entries=`9`, paper suggestions=`10` | `logs/session47-post-agent-docs-contract-20260720.log`, bytes=`91`, SHA256=`6a1f69b8a0c281ab8fdc62ae8e99c177dab0588542a15b74e4a4bc6134537210` |
+
+The first combined Task2/Task3/e2e command stopped before the fresh-chain section because the
+tool wrapper ended its streaming turn; each missing section was then rerun independently and
+passed. The broad shell probe's 17 failures are legacy examples such as
+`examples/evaluate_retriever_nq.sh` and `examples/pretrain_bert.sh` containing documentation
+placeholders (`<Specify path>`), not I52 code. The established AE scope remains the verified
+52/35 gate; no placeholder was edited.
+
+**Disposition:** I52 remains `GREEN` only for the narrow local promotion predicate. All observed
+outputs remain `local_synthetic_not_gpu_qualification`; the six CUDA failures, missing grouped-gemm
+runtime, unresolved I51/I54/I55/I56/I57/I58, and Gate B1 release boundary are unchanged.
+
+## Session 47 V21 strict verifier construction and pre-append validation — 2026-07-19
+
+**Motivation:** The handoff required a deterministic V21 verifier after the prior V21 harness RED.
+The current V21 artifact table still contained four stale I52 rows even though the final worktree
+had the full-rank Task1/package changes. A strict, reusable checker was needed so an inventory
+mismatch or child-process failure cannot be reported as a false zero.
+
+**Expectation:** Preserve every historical V19/V20 table and RED log; correct only the uniquely
+marked V21 current artifact rows; verify seven artifacts, ten non-self-referential documents,
+all supplemental identities, I50-I58 headings, the blocked status boundary, the established
+52/35 static scope, and the numeric synthetic metrics. The verifier must use `set -euo pipefail`
+and propagate a failing Python child process.
+
+**Method:** Added `tests/integration/sc26_ae_v21_verifier.py` plus the shell entry
+`tests/integration/test_sc26_ae_v21_verifier.sh`. The shell wrapper runs the existing documentation
+contract first, then invokes Python under `set -euo pipefail`; the static checker explicitly
+excludes only these two verifier files from the historical 52-shell/35-Python scope so the scope
+is not silently widened. Corrected only the V21 four-row artifact inventory to the measured
+full-rank values. Ran syntax/diff checks, a V21 pre-append GREEN, and a deliberate wrong-status
+RED to prove non-zero propagation.
+
+**Result:** The pre-append rerun exited `0` with artifacts=`7`, authoritative documents=`10`,
+supplemental identities=`17`, issue headings=`I50..I58`, docs=`9` public entries/`10` paper
+suggestions, shell/Python=`52/35`, temporary-root scan=`PASS`, and `git diff --check=PASS`.
+Fresh-chain metrics were trace/memory=`4/4`, dataset rows=`2`, validation/test MSE=`3.0/0.5`,
+reload delta=`0.0`, rank0 step=`22.5 ms`, forward/backward/optimizer=`6.0/11.0/2.5 ms`, and
+simulator wall=`0.5 s`; the broad unit limitation remained `6` CUDA-only failures with `113`
+non-GPU passes. The pre-append GREEN log is
+`logs/session47-final-verification-v21-preappend-20260720-rerun.log`; the deliberate wrong-status
+RED is `logs/session47-final-verification-v21-failfast-red-20260720.log`, exit=`1`. Neither run
+changed product code or qualification state.
+
+**Disposition:** This closes only the V21 local documentation/static harness once the final
+post-append run is recorded. Evidence remains `local_synthetic_not_gpu_qualification`; global
+status remains `INCOMPLETE`, Gate B1=`BLOCKED`, both pre-datasets=`NOT QUALIFIED`, and
+`AE-ready=NO`.
+
+## Session 47 V21 post-append verification closure — 2026-07-19
+
+**Motivation:** The status block and verifier identity were appended only after the pre-append
+checker passed. A fresh read-only rerun was required to prove that the new status and recorded log
+identity are themselves covered by the same fail-fast checks.
+
+**Expectation:** The post-append verifier must return exit `0`, validate the recorded V21 verifier
+log bytes/SHA256, preserve artifact/document rows=`7/10`, supplemental identities=`17`, docs
+`9/10`, static scope `52/35`, temporary-root `PASS`, `git diff --check=PASS`, and retain the
+explicit local-synthetic/non-qualification boundary.
+
+**Method:** Ran
+`bash tests/integration/test_sc26_ae_v21_verifier.sh --expected-status PASS` against the current
+summary after the V21 identity append. The read-only transcript was written to
+`logs/session47-final-verification-v21-post-append-20260720.log`; no source, table, or status file
+was changed by the command.
+
+**Result:** Exit=`0`; the verifier reported `V21_VERIFIER_IDENTITY=PASS` for the recorded final
+log (`6150` bytes, SHA256=`f8480ee9178bd2bbc56c528a42b7c02658efdb77949446104fddd6157594b17a`),
+artifact/document=`7/10`, supplemental=`17`, I50-I58=`PASS`, docs=`9/10`, shell/Python=`52/35`,
+production temporary-root=`PASS`, and `git diff --check=PASS`. Numeric synthetic metrics remained
+trace/memory=`4/4`, dataset rows=`2`, validation/test MSE=`3.0/0.5`, reload delta=`0.0`, rank0
+step=`22.5 ms`, forward/backward/optimizer=`6.0/11.0/2.5 ms`, simulator wall=`0.5 s`; CUDA-only
+full-unit failures=`6` remain explicit. The post-append transcript is `6312` bytes with SHA256
+`979fe47cf52509e36bdc68b37c44893823f18a2f6da533b9cbada33e557bb81a`.
+
+**Disposition:** V21 local documentation/static verification is GREEN. This does not alter the
+release boundary: evidence is `local_synthetic_not_gpu_qualification`, global status is
+`INCOMPLETE`, Gate B1=`BLOCKED`, both pre-datasets=`NOT QUALIFIED`, and `AE-ready=NO`.
+
+## Session 48 Task2 qualified-evidence predicate consistency — 2026-07-20
+
+**Status:** `LOCAL CONTROL-PLANE REPAIR GREEN`; I54 remains `PARTIAL / OPEN`, and no
+qualification, pre-dataset, release, or `AE-ready` state changed.
+
+**Motivation:** `task2_validate_reuse_evidence()` already accepted the terminal real evidence
+state `real_exact_two_h800_qualified`, while the canonical Python predicate embedded in
+`task2_verify_run()` rejected that same state. A run could therefore pass the mode-specific reuse
+precheck and fail the canonical verifier before marker/pointer attachment. This was a deterministic
+local split-brain defect, not evidence that a real two-H800 run exists.
+
+**Expectation:** The canonical verifier must accept the already authenticated terminal evidence
+state without accepting pending or synthetic evidence as real. Real-mode reuse must continue to
+require `real_exact_two_h800_qualified`; synthetic-mode reuse must retain its existing explicit
+allowlist. No fallback, source switching, threshold change, or evidence relabeling is permitted.
+
+**Method:**
+
+1. Added a RED integration case that changed only the synthetic fixture manifest's
+   `execution_evidence` to `real_exact_two_h800_qualified`, sourced a library containing
+   `task2_verify_run()`, and propagated the child return code.
+2. Confirmed the old predicate failed with exit `1` and the exact error
+   `Task2 artifact manifest execution evidence is invalid`.
+3. Applied the minimal production repair in `SC26-AE/lib/task2_echo.sh`: add
+   `real_exact_two_h800_qualified` to the canonical verifier's accepted terminal evidence set;
+   leave the mode-specific reuse predicate unchanged.
+4. Re-ran the qualified-verification case, then restored the original synthetic fixture and ran
+   all affected Task2 unit/integration contracts.
+
+**RED evidence:**
+
+- Log: `logs/i54-qualified-verify-red-20260720.log`
+- Exit code: `1`
+- Manifest status/file count observed before rejection: `verified` / `13`
+- Canonical result: `QUALIFIED_VERIFY_STATUS=rejected`
+- Root error: `Task2 artifact manifest execution evidence is invalid`
+
+**GREEN evidence:**
+
+- Log: `logs/i54-qualified-verify-green-20260720.log`
+- Exit code: `0`
+- Canonical result: `QUALIFIED_VERIFY_STATUS=accepted`
+- Manifest status/file count: `verified` / `13`
+- Existing negative marker/pointer cases remained rejected, and model attachment plus the
+  snapshot-only contract completed.
+
+**Affected regression evidence:**
+
+| Suite | Command | Result |
+|---|---|---|
+| Evidence-mode unit | `bash tests/unit/test_sc26_ae_task2_evidence_mode.sh` | `PASS_COUNT=4` |
+| Snapshot unit | `bash tests/unit/test_sc26_ae_task2_snapshot.sh` | exit `0`; synthetic dirty-source and excluded-tracked-path negatives remained enforced |
+| Interpreter contract | `bash tests/unit/test_sc26_ae_task2_interpreter_contract.sh` | `PASS_COUNT=11` |
+| Task2 integration | `bash tests/integration/test_sc26_ae_task2_contract.sh` | exit `0`; qualified verifier, marker/pointer negatives, model attachment, and snapshot contract passed |
+
+**I55 read-only audit handoff:** A separate synthetic CPU-only probe reproduced the nested
+interpreter/provenance gap without modifying repository files. The fixed outer wrapper generated
+four configs whose `python_path` pointed to an external executable; the subordinate path invoked
+that executable (`EXTERNAL_INVOCATIONS=1`) and created the external sentinel
+(`NESTED_SENTINEL=created`) before the mocked metrics stage returned `PROBE_RC=1`. This is RED
+behavioral evidence for I55/F10-07, not qualification evidence. The probe was performed in the
+ephemeral fixture `/tmp/sc26-i55-red3.VpcQhY`; no durable repository log was produced, so it is
+recorded as an audit handoff rather than a release artifact.
+
+**Result:** The local I54 predicate contradiction is repaired and covered by RED→GREEN plus the
+affected regression. The repair does not create a qualified shared-pointer lifecycle, solve
+producer provenance, bind every nested Echo module to one executable, or authenticate an issuer.
+
+Fresh post-documentation rerun: `logs/session48-task2-regression-20260720.log`, bytes=`2725`,
+SHA256=`eb3fed5ebe37ee498eee37347285caa2ac1b640a4e786a476f9d76c0dd14da79`, exit=`0`. It recorded
+Python `3.12.3`, pytest `9.1.1`, Torch `2.5.1+cu124`, CUDA availability `False`, device count `0`,
+`git diff --check=PASS`, changed-shell syntax `PASS`, evidence unit `4`, interpreter contract `11`,
+snapshot exit `0`, Task2 integration exit `0`, and documentation contract `PASS` with public
+entries=`9` and paper suggestions=`10`.
+
+**Disposition:** Keep I54 `PARTIAL / OPEN`, I55 `OPEN / HIGH/BLOCK`, I51/I53/I56/I57/I58 and CR-01
+open as previously recorded. Global state remains `INCOMPLETE`; Gate B1 remains `BLOCKED`;
+`real_pre_dataset` and `release_pre_dataset` remain `NOT QUALIFIED`; `AE-ready=NO`.
+
+## Session 48 V21 inventory refresh precheck — 2026-07-20
+
+The first post-documentation V21 invocation was intentionally run before refreshing the
+non-self-referential inventory. The documentation contract passed (`PUBLIC_ENTRY_COUNT=9`,
+`PAPER_SUGGESTION_COUNT=10`), then the strict checker failed closed on the stale progress row:
+expected bytes=`222799`, observed bytes=`227866`, exit=`1`. The transcript is
+`logs/session48-v21-stale-inventory-red-20260720.log`; the wrapper preserved the child status as
+`SESSION48_V21_STALE_INVENTORY_RC=1` while allowing the continuation to measure fresh hashes.
+This is a documentation inventory mismatch, not a product or qualification failure.
+
+## Session 48 V21 inventory refresh completion — 2026-07-20
+
+After recomputing the current non-self-referential V21 rows, the candidate verifier returned exit
+`0` with artifact/document rows=`7/10`, supplemental identities=`19`, issue headings `I50..I58`,
+documentation entries=`9/10`, static shell/Python scope=`52/35`, `TMP_ROOT_SCAN=PASS`, and
+`GIT_DIFF_CHECK=PASS`. The verifier identity was then updated and a post-append read-only rerun
+also returned exit `0`. The final log identities are recorded in `summary.md`; neither run changed
+the synthetic-only evidence class or any qualification/release boundary.
+
+## Session 49 I55 durable RED and design handoff — 2026-07-20
+
+**Motivation:** The earlier I55 observation existed only in an ephemeral fixture. Before any
+runtime-chain decision, the nested interpreter escape needed a reproducible, hash-identified local
+record.
+
+**Method:** Reused the current `task2_run_build` library boundary with a CPU-only fixture. The
+fixture mirrored pinned Echo's `which python` behavior, generated all four nested
+`global_config.json` files, and invoked a subordinate module through the configured path. The
+existing production wrapper was not edited and the pinned Echo checkout was not touched.
+
+**RED evidence:**
+
+```text
+Log: logs/i55-nested-interpreter-red-20260720.log
+Bytes: 1431
+SHA256: 0551da75f50e9801e875ba55ab036ce31b42c54d187c2239766da2050ac551f4
+PROBE_RC=1
+EXTERNAL_INVOCATIONS=1
+NESTED_SENTINEL=created
+Configs carrying external python_path: 4/4
+```
+
+The nonzero return came from the intentionally incomplete fixture's later prediction boundary;
+the external invocation occurred before that boundary and therefore proves the nested escape.
+
+**Design handoff:** `/root/audit_i54_i55` independently confirmed that the smallest root-cause
+seam is wrapper-only PATH binding plus canonical executable/path-hash checks, post-update
+validation of all four configs, and a manifest-bound interpreter sidecar. The current setup files
+do not provide an approved interpreter digest, and the sidecar schema/authority source are
+load-bearing inputs. They are recorded in `design.md` as **pending owner approval**, not as an
+implemented change.
+
+**Result and boundary:** No production code, pinned Echo source, test contract, evidence class,
+threshold, or release state changed. I55 remains `OPEN / HIGH/BLOCK`; I51/I53/I54/I56/I57/I58
+remain open or partial; Gate B1 remains `BLOCKED`; both pre-datasets remain `NOT QUALIFIED`; and
+`AE-ready=NO`.
+
+## Session 49 continuation — I55 sidecar RED→GREEN checkpoint — 2026-07-20
+
+**Motivation:** The first continuation run exposed a shell heredoc delimiter defect in the new
+wrapper code: the indented `PY` terminator caused `task2_write_failure_evidence` to be parsed as
+heredoc data, so early real-mode failures lost their JSON failure evidence. After correcting that
+root cause, the new nested-chain test was extended to require a canonical sidecar/provenance/
+manifest verifier and deliberately exercised tamper cases.
+
+**Expectation:** The fixed interpreter must remain the only real-mode executable; all four nested
+configs and archived post-update bytes must match it; sidecar/provenance/manifest cross-file
+identity must fail closed on mutation; synthetic mode and the pinned Echo checkout must remain
+unchanged.
+
+**Method and observed evidence:**
+
+1. Shell syntax and `git diff --check` passed after the heredoc repair.
+2. The targeted interpreter contract first returned RED because
+   `task2_validate_binding_sidecar` was absent (`logs/i55-sidecar-verifier-red-20260720.log`,
+   exit=`1`).
+3. Added the wrapper-owned verifier and reran the positive fixture (`logs/i55-sidecar-verifier-
+   green-attempt2-20260720.log`, exit=`0`, `PASS_COUNT=12`).
+4. Added four tamper/negative checks: sidecar fallback flag, archived config bytes, provenance
+   sidecar hash, and manifest sidecar omission; also checked a relative nested `python_path`.
+   The run remained GREEN with `SIDECAR_TAMPER_NEGATIVES=4`, and each expected rejection was
+   printed before restoration.
+5. Task2 synthetic integration remained GREEN (`MANIFEST_FILE_COUNT=13`, public attachments
+   `3/3`), showing that the sidecar verifier is skipped for synthetic artifacts.
+
+**Current implementation state:** `task2_validate_binding_sidecar()` is called from
+`task2_verify_run()` after generic manifest verification in real mode. The verifier checks exact
+sidecar keys/schema, current executable path/canonical path/SHA256, four archived config entries,
+provenance reference, and manifest membership. It does not add an approved external interpreter
+digest and does not change any evidence threshold.
+
+**Open follow-up:** Add strict duplicate-key parsing and early shell-level interpreter checks at
+reuse/verify entry; decide whether a synthetic consumer inspecting a `real_exact_two_h800_qualified`
+bundle must also require the sidecar. Keep I55 and Gate B1 open until canonical worker validation,
+approved digest authority, and the independent I51/I53/I57/I58 boundaries are complete.
+
+
+## Session 50 I55 wrapper-only semantic hardening — 2026-07-20
+
+**Motivation:** The durable I55 RED showed that an outer absolute interpreter did not bind the
+pinned Echo `which python` lookup or the four subordinate `python_path` values. The local contract
+needed to reject that escape before any producer, marker, or pointer publication while keeping the
+pinned Echo checkout untouched.
+
+**Expectation:** The fixed interpreter, PATH lookup, nested configs, archived config bytes, sidecar,
+provenance, and manifest must form one fail-closed identity chain. Duplicate JSON keys and
+non-canonical path spellings must not be accepted through last-value-wins parsing or checksum
+coherence. Synthetic consumers must still inspect the semantic contract of a real-evidence bundle.
+
+**Method:** Applied the smallest wrapper/test-owned change in `SC26-AE/lib/task2_echo.sh` and the
+Task2 unit/integration contracts:
+
+1. Made sidecar verification mode-independent for real-evidence bundles. Synthetic callers may
+   perform artifact-only semantic verification, while real callers additionally compare the live
+   executable identity. Synthetic bundles without a sidecar remain valid synthetic artifacts.
+2. Added strict duplicate-key parsing (`object_pairs_hook`) for sidecar, archived config,
+   provenance, manifest, and reuse-evidence reads.
+3. Added lexical canonical-path checks for artifact-only sidecar paths (`//`, `/./`, `/../`,
+   duplicate separators, and trailing-slash aliases are rejected).
+4. Changed the sidecar validator's optional run-root argument to `${1-}` so a missing argument
+   returns a diagnostic and non-zero status rather than an uncontrolled `set -u` expansion.
+5. Extended the unit/integration tests with coherent tamper, duplicate-key, parser-negative,
+   synthetic-real reuse, no-argument, and marker/pointer non-publication cases.
+
+**Result:** The final affected regression returned exit `0` with `PARSER_NEGATIVES=11`,
+`DUPLICATE_KEY_NEGATIVES=4`, `SIDECAR_TAMPER_NEGATIVES=9`, interpreter `PASS_COUNT=12`, evidence
+mode `PASS_COUNT=5`, and `94 passed in 4.72 s` for the artifact/sealer/package pytest subset. The
+coherent tamper's generic manifest verifier still returned `MANIFEST_STATUS=verified`, while the
+semantic verifier returned non-zero before publishing a model marker or changing the shared
+pointer. The final log is 8,613 bytes with SHA256
+`b6859ea9508328c664ec81e6906051759c97b2b3dae9d33fd958a49c87b6bd2b`.
+
+**Boundary:** This is local synthetic/controller evidence only. The observed fixture executable
+hash is not an authority-approved image digest. No GPU/RJob/Docker qualification ran, no pinned
+Echo source changed, and no evidence class, threshold, source, fallback, pointer lifecycle, or
+release state moved. I55 remains `OPEN / HIGH / BLOCK`; I51/I53/I54/I56/I57/I58 and CR-01 remain
+open or partial; Gate B1 remains `BLOCKED`; both pre-datasets remain `NOT QUALIFIED`; and
+`AE-ready=NO`.
+
+## Session 50 report and documentation checkpoint — 2026-07-20
+
+**Motivation:** The previous regression log predated the final parser-negative additions and the
+V21 document hashes were consequently stale.
+
+**Expectation:** Persist one reproducible report with actual environment, metric, artifact, and
+RED/GREEN identities, then refresh all current task-document hashes without changing the V21 row
+counts or status boundary.
+
+**Method:** Wrote
+`task_memory/task_2026-07-15_sc26_ae_workflow/test_report_2026-07-20_i55_interpreter_chain.md`,
+recorded the final regression and fixture byte/SHA256 values, and prepared a single V21 inventory
+refresh after the document append.
+
+**Result:** The report documents the exact controller environment (`Python 3.12.3`, pytest
+`9.1.1`, Torch `2.5.1+cu124`, CUDA available `False`, device count `0`), all command exit codes,
+archived config identities, sidecar/provenance/manifest hashes, marker/pointer publication checks,
+and residual authority/qualification risks. V21 refresh and post-final verification remain the
+last documentation step; the product/release boundary is unchanged.
+
+## Session 51 I53/D16 model-aware timing contract — 2026-07-20
+
+**Motivation:** The prior D16 writer applied the frozen MoE `rank0 × 256` arithmetic to GPT-175B,
+whose Task1 contract captures eight PP-stage representative ranks. That produced numerically valid
+but semantically misleading GPT metadata. The clean-clone harness also retained the superseded
+Task1 `PASS_COUNT=31` expectation.
+
+**Expectation:** Preserve the MoE D16 formula and fail-fast checks, make GPT applicability explicit,
+keep all local tests reproducible, and avoid changing any source-selection, fallback, evidence, or
+qualification boundary.
+
+**Method:**
+
+1. Recorded the independent Claude WATCH in `review.md`; artifact bytes=`14,005`, SHA256=`0aab78b56088f73c450f17476d4babdf3ec9ccf2c0ab351983ee8385ed3e900a`.
+2. Updated `SC26-AE/lib/task1_trace.sh` so GPT writes `d16_gate_applicable=false`,
+   `estimate_rank_count=8`, and no D16 threshold/result fields; Qwen3-A30B and DeepSeek-V3 retain
+   `d16_gate_applicable=true`, `estimate_rank_count=256`, threshold `7200`, and
+   `pass|prebaked_required`. The validator rejects unsupported models, non-boolean applicability,
+   model/count mismatches, and forbidden GPT gate fields.
+3. Added unit cases for GPT semantics and malformed applicability/count/gate combinations; updated
+   the clean-clone expectation from `31` to `35`; added fresh-chain D16 assertions; clarified README,
+   plan, design, review, issues, and summary boundaries.
+4. Preserved the independent-preflight limitation: rank timing is currently measured inside the
+   selected-rank capture and is diagnostic only.
+
+**Result:**
+
+| Validation | Result |
+|---|---|
+| Unit D16 timing | `PASS_COUNT=29`, exit `0` |
+| Task1 integration | `PASS_COUNT=35`, exit `0` |
+| Task1 smoke | `SMOKE_PASS_COUNT=1`, `REAL_GPU_WORKLOAD_COUNT=0`, exit `0` |
+| Fresh chain | `CHAIN_PASS_COUNT=1`, exit `0`; traces/memory=`4/4`; MSE=`3.0/0.5`; reload delta=`0.0`; Task3 rank0=`22.5 ms`; process wall=`1.048183 s`; peak RSS=`51,392 KiB` |
+| Clean-clone replay | public entries `3/3/3`, setup cases=`6`, chain=`1`, all four clone statuses clean, exit `0` |
+| Task3 integration | `PASS_COUNT=10`, exit `0` |
+| Artifact/sealer/package pytest | `94 passed in 7.09 s`, exit `0` |
+
+Synthetic fixture timing values (not qualification evidence) were:
+
+| Model | Rank-0 elapsed (s) | Estimate count | Estimated seconds | D16 result |
+|---|---:|---:|---:|---|
+| GPT-175B | `0.009844431` | `8` | `0.078755448` | not applicable |
+| Qwen3-A30B | `0.013280299` | `256` | `3.399756544` | `pass` |
+| DeepSeek-V3 | `0.010431187` | `256` | `2.670383872` | `pass` |
+
+The corresponding synthetic summary-log SHA256 values were GPT
+`2c933f10d43961d9dd6612885f979a9e695d2c9e840f66a7ce2f6b7175a0e17d`, Qwen
+`867762d6e75748549bdd4073252091965c0048ea8bfebc24bc59d779291f292c`, and DeepSeek
+`7b48dde1e1126edeaf9bc1fff2bd16479fe91120a4ae7b8f51fc0c577284c14c`.
+
+**Boundary:** No GPU, RJob, Docker, real SQLite/NVTX qualification, or independent rank-0
+preflight ran. The MoE `pass` values are arithmetic observations from synthetic selected-capture
+timings, not D16 qualification. I53 remains `OPEN / HIGH/WATCH`; I51/I54/I55/I56/I57/I58 and CR-01
+remain open or partial; Gate B1 remains `BLOCKED`; both pre-datasets remain `NOT QUALIFIED`; and
+`AE-ready=NO`.
+
+
+## Session 51 V21 shell-scope drift correction and final local rerun — 2026-07-20
+
+**Motivation:** The handoff stopped after the V21 verifier had been patched but before the corrected
+historical/current scope split was rerun. The current tree includes the D16 unit shell file and
+therefore has one more live shell path than the retained Session 47 transcript.
+
+**Expectation:** Preserve historical `52/52` transcript markers, enforce current live `53/53`
+shell enumeration, keep Python scope `35`, and propagate any verifier failure. No product,
+source-selection, fallback, evidence-class, or release-status change is allowed.
+
+**Method:**
+
+1. Ran `python3 -m py_compile tests/integration/sc26_ae_v21_verifier.py` and `git diff --check`;
+   both returned exit `0`.
+2. Preserved the stale-scope RED at
+   `logs/i53-v21-shell-scope-red-20260720.log` (exit `1`, `9482` bytes,
+   SHA256 `51d84029119161b276e6e1b3252e8d3f89cb524c8c58e64e217ed53332e441cf`).
+3. Preserved the separate historical-marker RED attempt at
+   `logs/i53-v21-shell-scope-green-20260720.log` (exit `1`, `9176` bytes,
+   SHA256 `dd651767b6c8930ad5d94df509b28728acdcd417a2cd6e91bc512bb8a318fcf5`).
+4. Ran the direct Python verifier and the required shell wrapper with
+   `--expected-status PASS`.
+
+**Result:** The direct run returned exit `0` (`logs/i53-v21-verifier-green-20260720.log`,
+`9531` bytes, SHA256 `33113ad76df4b220ec9af8c023b3946b2c64278f4adf6b356a4e33e96168425f`). The shell
+wrapper also returned exit `0` (`logs/i53-v21-shell-verifier-pass-20260720.log`, `9531` bytes,
+SHA256 `f95275a5526a97cab931d64b6f6da3f6b5529c30e70f24f1ac3ec2901c48c3f2`) with:
+
+```text
+ARTIFACT_COUNT=7
+DOCUMENT_COUNT=10
+SUPPLEMENTAL_COUNT=40
+ISSUE_HEADINGS_I50_I58=PASS
+V21_STATUS=PASS
+SHELL_SCOPE_COUNT=53
+SHELL_SYNTAX_COUNT=53
+PYTHON_SCOPE_COUNT=35
+PYTHON_SYNTAX_COUNT=35
+TMP_ROOT_SCAN=PASS
+GIT_DIFF_CHECK=PASS
+SESSION47_FINAL_VERIFICATION_V21=PASS
+```
+
+The shell wrapper also observed the unchanged synthetic chain metrics: trace/memory=`4/4`,
+dataset rows=`2`, validation/test MSE=`3.0/0.5`, reload delta=`0.0`, rank0 step=`22.5 ms`,
+forward/backward/optimizer=`6.0/11.0/2.5 ms`, simulator wall=`0.5 s`, and six CUDA-only full-unit
+failures remain explicitly recorded.
+
+**Disposition:** The current V21 harness is locally GREEN after the historical/current scope
+separation. This is not a qualification result. `I53` remains `OPEN / HIGH/WATCH`;
+`I51/I54/I55/I56/I57/I58/CR-01` remain open or partial; global state remains `INCOMPLETE`,
+`Gate B1=BLOCKED`, both pre-datasets remain `NOT QUALIFIED`, and `AE-ready=NO`.
+
+## Session 51 V21 stale-inventory precondition — 2026-07-20
+
+The first verifier run after the new scope-drift documentation intentionally preceded inventory
+refresh and returned exit `1` at the stale `progress.md` row (`241505` expected versus `244249`
+actual). The durable transcript is
+`logs/i53-v21-post-doc-stale-inventory-red-20260720.log` (`1420` bytes,
+SHA256 `be966073732b7ea6cc394c6478859d69a8de61a02673740b1d33af96e7999696`). This confirms the
+checker fails closed on documentation drift; it does not change the D16 contract or qualification
+state. Inventory refresh and one final serial verifier run are required.
+
+## Session 51 independent review and V21 identity freeze — 2026-07-20
+
+The independent read-only reviewer `/root/audit_i54_i55` found a transient current-snapshot
+`BLOCK`: duplicate `V21_STATUS` text and stale inventory hashes appeared after concurrent task-doc
+appends. The same review marked the D16 `8/256/7200` contract and historical `52` versus live `53`
+scope split as acceptable, while keeping I53 open because rank-0 timing is measured after the
+selected-rank loop and is not an independent preflight.
+
+Remediation removed the duplicate marker, refreshed the seven-artifact/ten-document inventory,
+and ran candidate2 with exit `0`. The non-self-referential identity is now
+`logs/i53-v21-final-candidate2-20260720.log`, bytes=`10134`, SHA256
+`9d51b3371eec34f4f4d0bb3d34f7223dfde724a1f359057803aa8eb66ae97a6c`. A post-identity shell run
+also returned exit `0` in `logs/i53-v21-final-post-identity-20260720.log`, bytes=`10138`, SHA256
+`077285e55c10100fc9687b6ce49102d6c7ab6365357ccb2d06a0c8452abf9e34`.
+
+This identity freeze is local controller evidence only. The qualification boundary is unchanged:
+I53=`OPEN / HIGH/WATCH`, Gate B1=`BLOCKED`, both pre-datasets=`NOT QUALIFIED`, and
+`AE-ready=NO`.
+
+## Session 52 D16 independent-preflight design review and RED preparation — 2026-07-20
+
+**Motivation:** The retained Task1 implementation still derives the MoE `rank0 × 256` timing from the selected-rank capture after that capture has already completed. The frozen Task 2.4 contract requires an independent rank-0-only preflight before deciding whether to start the full selected-rank capture.
+
+**Expectation:** Preserve the existing model-aware metadata contract (`GPT: d16_gate_applicable=false, count=8`; `Qwen3/DeepSeek: true, count=256, threshold=7200`), add no fallback/source switching, and keep all qualification/release states blocked. The new tests must prove preflight ordering, independent capture identity/root, full-capture gating, artifact isolation, and above-threshold no-NSYS/no-marker behavior.
+
+**Method:** Read the two latest independent Claude artifacts (`2026-07-19T19:45:25Z` D16 semantics and `2026-07-19T20:44:03Z` proposed preflight design), the frozen plan Task 2.4/Rank-scope rules, `SC26-AE/lib/task1_trace.sh`, and the existing Task1 unit/integration harness. Both reviews returned `WATCH`; neither authorized changing qualification status. RED tests will be added before production code.
+
+**Result:** Design review is complete. Current limitation remains confirmed: no independent preflight exists. `I53=OPEN/HIGH/WATCH`, `Gate B1=BLOCKED`, both pre-datasets `NOT QUALIFIED`, and `AE-ready=NO` remain unchanged.
+
+## Session 53 D16 preflight test-harness repair and RED evidence — 2026-07-20
+
+**Motivation:** The first independent-preflight RED patch contained malformed Python indentation,
+an unreachable expression, and string-vs-entry-list manifest assertions. That test defect had to be
+removed before any production implementation could be evaluated.
+
+**Expectation:** Keep the production implementation unchanged, make the integration fixture
+syntactically valid, pass the preflight report path explicitly to the Python assertion block, and
+observe failures caused by the missing production preflight/helper rather than by the test itself.
+
+**Method:** Rewrote only the affected integration heredoc to use explicit `sys.argv` values,
+normalized the assertions, and converted `manifest["files"]` to a set of entry paths. Ran
+`bash -n tests/integration/test_sc26_ae_task1_contracts.sh`, the D16 unit test, and the Task1
+integration test on the controller.
+
+**Result:** Shell syntax passed. Unit RED remains genuine (`ae_task1_d16_gate_result: command not
+found`, exit `1`). Integration RED now reaches the intended missing-preflight assertion for DSV3
+(`missing independent preflight report`, exit `1`). No production code, GPU/RJob/Docker command,
+source selection, fallback behavior, or qualification state changed; `I53=OPEN/HIGH/WATCH`,
+`Gate B1=BLOCKED`, both pre-datasets remain `NOT QUALIFIED`, and `AE-ready=NO`.
+
+## Session 54 D16 preflight contract GREEN rerun and count synchronization — 2026-07-20
+
+**Motivation:** The new independent-preflight behavior matrix expanded the Task1 integration
+invocation surface from the historical 18 fake `torchrun` calls to 281 calls. Two assertions still
+expected the old per-invocation flag count, and the first fresh integration run therefore failed
+at the assertion layer even though all behavior cases had passed.
+
+**Expectation:** Keep the historical Session 47 transcript immutable, make current tests assert the
+actual 281-call matrix, and preserve the strict D16 semantics: QUICK above-threshold is an
+observation that continues the four-rank smoke path; full above-threshold exits `2` before any
+selected-rank loop, full root, marker, or source switch; full-pass performs one preflight plus 256
+selected calls.
+
+**Method:** Updated the two warmup/profile flag-count assertions from `18` to `281`, retained the
+aggregate invocation assertion at `281`, added current unit/integration evidence checks to the V21
+verifier without changing the historical `PASS_COUNT=31` check, and updated clean-clone replay to
+expect the current `PASS_COUNT=38`. Then reran syntax, D16 unit, Task1 integration, fresh-chain,
+Task1 smoke, and `git diff --check`.
+
+**Result:** D16 unit passed `49/49`; Task1 integration passed `38/38`; the integration matrix
+observed `281` fake `torchrun` calls, including `257` for the full-pass case (`1` preflight + `256`
+selected) and `1` for full-above-threshold (`0` selected-loop calls). Fresh-chain passed `1/1`,
+Task1 smoke passed `1/1`, and `git diff --check` passed. The evidence class is
+`local_synthetic_not_gpu_qualification`; no GPU, RJob, Docker, H800, real preflight, or release
+qualification was run. I53 remains `OPEN / HIGH/WATCH`, Gate B1 remains `BLOCKED`, both
+pre-datasets remain `NOT QUALIFIED`, and `AE-ready=NO`.
+
+## Session 55 I55 synthetic real-bundle fixed-path binding — 2026-07-20
+
+**Motivation:** The independent I55 verifier reproduced a remaining semantic gap: a synthetic caller
+could accept a checksum-coherent real-evidence bundle whose `fixed_requested_path` named a
+different interpreter environment than the wrapper's fixed `/opt/conda/envs/echo_slowdown/bin/python`
+literal. This left the fixed interpreter contract dependent on caller mode.
+
+**Expectation:** Every pending/qualified real-evidence bundle must bind its requested path to the
+wrapper literal, regardless of whether the caller can inspect the worker filesystem. The fix must
+not require the controller to resolve `/opt/conda`, must preserve real-mode live executable checks,
+and must add no fallback, source switching, digest substitution, or qualification promotion.
+
+**Method:** Added a unit RED fixture that copied a real-evidence-shaped bundle, created a regular
+alternate executable under the temporary root, rewrote all sidecar/config/provenance/manifest
+fields and checksums coherently, and observed acceptance (`logs/i55-alternate-fixed-path-red-20260720.log`,
+179 bytes, SHA256 `523bc4512efa12b1ba5f89a3d82f259a13e965b82a1b80ab3040ac28c4deaf8e`). Implemented
+one common requested-path comparison before the `live_required` branch, then reran the same fixture
+to rejection (`logs/i55-alternate-fixed-path-green-20260720.log`, 3,103 bytes, SHA256
+`4b1f2a6453d603fb4e455a1e1b89e8874d6e44af6240771e8cac23ababbaf37f`). Tightened the nested unit
+assertions with explicit `return 1` propagation and updated the synthetic integration fixture to
+use the fixed requested literal with a controller-local canonical executable.
+
+**Result:** The refreshed affected matrix passed all `12/12` commands. Key values were interpreter
+`ALTERNATE_FIXED_PATH_NEGATIVE=1`, parser negatives=`11`, duplicate-key negatives=`4`, sidecar
+tamper negatives=`9`, interpreter `PASS_COUNT=12`, evidence-mode `PASS_COUNT=5`, and pytest
+`94 passed in 5.13 s`. The final transcript is
+`logs/i55-current-affected-regression-final-20260720.log` (8,416 bytes, SHA256
+`3aafe89acc8b7f718ae7711a7e00cef77d14d24764e27b6d46cf1544dd6aff53`). The archived
+`training_testing.global_config.json` report SHA was corrected to the measured 64-character
+digest `ecefbb83146a5401a75ef42d4115d67176b51496449fb255562765577db0db35`.
+
+This is CPU-only controller evidence (`torch.cuda.is_available()=False`); I55 remains
+`OPEN / HIGH / BLOCK`, Gate B1 remains `BLOCKED`, both pre-datasets remain `NOT QUALIFIED`, and
+`AE-ready=NO`.
+
+## Session 55 evidence-quality correction and final-v2 regression preparation — 2026-07-20
+
+**Motivation:** The independent I55 review accepted the requested-path repair but identified that the
+first alternate-path unit fixture intentionally isolated the sidecar seam; by itself it was not a
+complete generic-manifest-coherent real-evidence bundle. The durable record also needed to preserve
+the independent audit identity and distinguish the prior 12-command transcript from the final v2
+matrix.
+
+**Expectation:** Keep the production fixed-requested-path comparison unchanged, add no fallback,
+source switching, digest substitution, threshold change, or qualification promotion, and record a
+complete bundle test in which the generic verifier accepts all listed checksums before the semantic
+validator rejects the wrapper-path mismatch. The final regression must exercise every affected shell,
+Python, integration, e2e, syntax, diff, and pinned-Echo cleanliness check.
+
+**Method:** Retain the sidecar-focused unit RED→GREEN fixture; use the integration fixture that
+copies the qualified-real-shaped bundle, adds the alternate executable to the generic manifest,
+rewrites all four archived configs plus sidecar/provenance fields, and recomputes every listed
+checksum. Preserve `MANIFEST_STATUS=verified`, `MANIFEST_FILE_COUNT=19`, and semantic rejection as
+separate evidence. Preserve the independent audit transcript
+`logs/i55-independent-requested-path-audit-20260720.log` (9,617 bytes, SHA256
+`41a9a2b7d9ea8138096965093c68afcdae8db2670070f2fd1cfc83e3b8fe0118`) and run the affected matrix
+again to a new `i55-current-affected-regression-final-v2-20260720.log` path.
+
+**Result:** The complete generic-manifest negative is now represented by an integration test rather
+than inferred from the unit seam. The generic verifier reported `MANIFEST_STATUS=verified` and
+`MANIFEST_FILE_COUNT=19` before semantic rejection. The final v2 affected matrix completed with
+exit `0`: interpreter `PASS_COUNT=12`, alternate-path negative=`1`, parser negatives=`11`,
+duplicate-key negatives=`4`, sidecar-tamper negatives=`9`, evidence-mode `PASS_COUNT=5`, and
+artifact/sealer/package pytest `94 passed in 4.75 s`. The durable transcript is
+`logs/i55-current-affected-regression-final-v2-20260720.log` (7,650 bytes, SHA256
+`a78ea30c22667747d7d6f7a978c65fcda22b4b56b3a328e827f9b0b97d18ee84`). This is CPU-only
+controller evidence (`torch.cuda.is_available()=False`, `torch.cuda.device_count()=0`); the known
+`live_required=0` canonical/hash authority gap remains. I55 remains `OPEN / HIGH / BLOCK`, Gate B1
+remains `BLOCKED`, both pre-datasets remain `NOT QUALIFIED`, `AE-ready=NO`, and the overall workflow
+remains `INCOMPLETE`.
+
+## Session 55 durable alternate-manifest marker correction and final-v5 regression — 2026-07-20
+
+**Motivation:** The complete generic-manifest alternate-path integration had already verified the
+fixture's checksums, but the first standalone transcript did not print an independent marker for
+that fixture's `19` files. Its visible `MANIFEST_FILE_COUNT=13` lines belonged to the surrounding
+positive fixture. Treating that transcript as proof of the alternate bundle would have overstated
+the evidence.
+
+**Expectation:** Preserve the production fixed-requested-path repair and the generic-verifier versus
+semantic-validator distinction. Add only explicit alternate-bundle evidence markers, retain the
+RED attempt, and run the complete affected regression again with a durable exit marker. Do not
+change the wrapper contract, add fallback/source switching, substitute a digest, or promote any
+qualification state.
+
+**Method:** First removed the expected alternate-marker assertions from the integration contract and
+ran the test to obtain a deterministic RED (`logs/i55-alternate-manifest-marker-red-20260720.log`,
+257 bytes, SHA256 `8e50f7954f787344114fc1ccad74d85287482eb48f615f416e247fd67cfb4399`). The failure
+was the intended missing-marker assertion. The integration test then printed and asserted
+`ALTERNATE_MANIFEST_STATUS=verified` and `ALTERNATE_MANIFEST_FILE_COUNT=19`; the corrected source
+hash is `1722e4d5d15be761a8eb4a81c37375421d12672634bf2cad825e1c76f8476578`. The latest standalone
+GREEN transcript is `logs/i55-qualified-alternate-path-integration-green-v3-20260720.log`
+(1,340 bytes, SHA256 `70006af6138aa16b40d93c15409f42c96517e6f75f309f787c397f82dfb4f8d1`), while v2
+(1,305 bytes, SHA256 `22b45f5aa77da46858c3c08b8c48809d491eb76a9259d21f109febef3aed8a76`) is retained as
+intermediate evidence. The older `i55-qualified-alternate-path-integration-green-20260720.log`
+(1,272 bytes, SHA256 `cfda836abc419db5fa7a3bffe4eea6c861bdb0065f4810a6c790d33b715c6a37`) contains only the
+surrounding fixture's `MANIFEST_FILE_COUNT=13` lines and cannot be used to substantiate the
+alternate bundle's `19` files.
+
+The full affected matrix was rerun without overwriting v2/v3/v4 history. The current durable
+transcript is `logs/i55-current-affected-regression-final-v5-20260720.log` (7,801 bytes, SHA256
+`1ded471a0304d85300822f92ff6e717d842b9ea2ba69ee2bd998bae65a83eb32`), and it contains
+`FINAL_V5_EXIT=0`, `ALTERNATE_MANIFEST_STATUS=verified`, `ALTERNATE_MANIFEST_FILE_COUNT=19`, and
+`94 passed in 4.37s`. The measured matrix values remain interpreter `PASS_COUNT=12`, alternate
+fixed-path negative `1`, parser negatives `11`, duplicate-key negatives `4`, sidecar-tamper
+negatives `9`, and evidence-mode `PASS_COUNT=5`. The earlier v3 and v4 logs are retained because
+their pytest times were `4.56s` and `4.67s`, respectively, but neither is the current identity.
+
+**Result:** The evidence correction is locally GREEN: the generic manifest accepts the complete
+checksum-coherent alternate bundle (`19` files), and the wrapper semantic validator rejects its
+non-production requested path. The v5 affected regression exits `0`, and the durable log now
+contains the final exit marker. This is controller-only evidence (`Python 3.12.3`, Torch
+`2.5.1+cu124`, CUDA available `False`, device count `0`); it is not H800, real-worker, or release
+qualification. I55 remains `OPEN / HIGH / BLOCK`; I53 remains `OPEN / HIGH / WATCH`; I54 remains
+`PARTIAL / OPEN`; I51/I56/I57/I58/CR-01 remain open or partial; Gate B1 remains `BLOCKED`; both
+pre-datasets remain `NOT QUALIFIED`; `AE-ready=NO`; and the overall workflow remains `INCOMPLETE`.
+
+## Session 55 V21 inventory reconciliation after marker correction — 2026-07-20
+
+**Motivation:** The four authoritative documents and the supplemental evidence set changed after the
+previous V21 identity. The non-self-referential inventory had to be rebuilt from the live tree, and
+the V21 verifier had to be rerun without treating a stale identity as current.
+
+**Expectation:** Keep exactly seven artifact rows, ten authoritative-document rows, and one current
+`V21_STATUS=PASS` marker. Include the six new marker/v3/v4/v5 supplemental identities, refresh all
+live bytes/SHA256 values, preserve issue headings `I50..I58`, and retain the unchanged synthetic-only
+qualification boundary.
+
+**Method:** Ran `python3 /tmp/reconcile_i55_summary.py`, which refreshed the four changed document
+rows and rebuilt the supplemental fence to `64` unique identities. Then ran
+`bash tests/integration/test_sc26_ae_v21_verifier.sh --expected-status PASS` into
+`logs/i55-v21-final-reconciliation-v2-20260720.log`, appended `CURRENT_V21_EXIT=0`, and measured
+`13,465` bytes with SHA256
+`10f31078cb2744350cb0efa587ab27a3138786571550a6c2f0fd9a4f9245ef02`. The summary's single
+`V21_VERIFIER_IDENTITY` block now points to that exact log. A post-identity read-only rerun also
+returned `0` (`/tmp/i55-v21-post-identity-v2-20260720.log`, 13,470 bytes, SHA256
+`c419ec11e320614e5801a1f4d5c6b5ca67532c0b3e01c661bab204e832015da8`, marker
+`POST_IDENTITY_EXIT=0`).
+
+**Result:** V21 passed with artifact/document rows=`7/10`, supplemental identities=`64`, issue
+headings `I50..I58`, shell/Python scope=`53/35`, `TMP_ROOT_SCAN=PASS`, and `GIT_DIFF_CHECK=PASS`.
+The identity update is documentation evidence only. I55 remains `OPEN / HIGH / BLOCK`; I53 remains
+`OPEN / HIGH / WATCH`; I54 remains `PARTIAL / OPEN`; I51/I56/I57/I58/CR-01 remain open or partial;
+Gate B1 remains `BLOCKED`; `real_pre_dataset` and `release_pre_dataset` remain `NOT QUALIFIED`;
+`AE-ready=NO`; and the overall workflow remains `INCOMPLETE`.
+
+## Session 55 V21 identity v3 historical supersession — 2026-07-20
+
+The v2 V21 log recorded the first post-marker inventory (`13,465` bytes,
+`10f31078cb2744350cb0efa587ab27a3138786571550a6c2f0fd9a4f9245ef02`) and remains historical
+supplementary evidence. After the V21 reconciliation checkpoint itself was appended to the
+current progress/review/report documents, the inventory was refreshed and the v3 transcript below
+was generated as a historical snapshot:
+`logs/i55-v21-final-reconciliation-v3-20260720.log` (`13,471` bytes,
+`8f8e21f5e333a963457d776f3547a5fe008a5ed28314ff5ddb3b6006386e3aea`,
+`CURRENT_V21_V3_EXIT=0`). The v3 summary identity was later superseded by v4 and then v5; the
+sole current identity is maintained only in `summary.md` after the latest authoritative-document
+snapshot. The post-identity v3 rerun returned `0` (`/tmp/i55-v21-post-identity-v3-20260720.log`,
+13,473 bytes, SHA256 `ba616240aa5094db1d29dcb7b7a914df18f8adc430416eb655a7386dd9fbbbc7`,
+`POST_IDENTITY_V3_EXIT=0`). No production source, test contract, evidence class, or qualification
+state changed.
+
+## Session 55 independent evidence-audit correction — 2026-07-20
+
+**Motivation:** The final read-only audit found two stale claims in the I55 report: the historical
+v2 section was labeled `current` and asserted a durable `FINAL_V2_EXIT=0` marker that is absent
+from the v2 log, and the old 1,272-byte integration transcript was described as closing the
+complete-bundle evidence gap even though it only prints the surrounding `13`-file fixture.
+
+**Expectation:** Correct the report's evidence semantics without deleting historical logs or changing
+production/test behavior. The v2/v1,272-byte records must remain available as historical context;
+the marker-complete v3 alternate-manifest integration log and v5 affected regression remain the current Task2 evidence; V21 verifier v3 is historical.
+
+**Method:** Updated the report in place to mark final-v2 historical and explicitly record
+`FINAL_V2_EXIT_MARKER=ABSENT_FROM_V2_LOG`; replaced the old integration claim with the v3 identity
+and its `ALTERNATE_MANIFEST_STATUS=verified` / `ALTERNATE_MANIFEST_FILE_COUNT=19` markers. Added
+this review finding to the task ledger and kept all prior hashes/logs immutable.
+
+**Result:** The independent reviewer classified the issue as medium-severity documentation/evidence
+drift only. The corrected report now distinguishes historical v2 from current v5 and old 13-file
+output from current 19-file output. Narrow requested-path repair remains `CLEAR/COMMENT`; full I55
+remains `OPEN / HIGH / BLOCK`; Gate B1 remains `BLOCKED`; both pre-datasets remain `NOT QUALIFIED`;
+`AE-ready=NO`; and no source, test, threshold, fallback, or qualification state changed.
+
+## Session 56 V21 clean-clone provenance reconciliation — 2026-07-20
+
+**Motivation:** The pre-commit independent review found that V21's strict local PASS could not be
+reproduced from a clean clone because its required evidence logs were excluded by the global
+`logs/` ignore rule. The same review also generated an OMC runtime-state file inside the otherwise
+clean sim-engine worktree.
+
+**Expectation:** Preserve the strict checksum/marker verifier, track only the exact evidence it
+requires, keep unrelated logs ignored, retain all historical RED/GREEN evidence identities, and
+restore the nested producer to a genuinely clean state. Do not weaken assertions, add fallback,
+promote synthetic evidence, or alter external qualification state.
+
+**Method:** The independent StepCode Claude artifact returned `BLOCK` after resolving `65` unique
+V21 dependencies: `6` task-root documents and `59` logs totaling `228,172` bytes. D31 approved the
+exact-log solution. The review-created
+`megatron-sim-engine/.omc/state/sessions/97724d0a-b8ba-42b6-9d32-779f923ff2d7/last-tool-error-state.json`
+was confirmed to contain only the reviewer's failed attempt to read a main-repository entry point
+from the nested workdir; D32 authorized deletion. The exact `.omc/` directory was removed.
+
+**Current result:** Nested HEAD and the outer gitlink both equal
+`39755169f73f6c748e8d7376c3a2158c6569436b`, and nested tracked/staged/untracked status is empty.
+The exact force-add, candidate tracked-snapshot replay, and independent follow-up review are now
+complete. Final document/hash reconciliation, sole-current V21 identity replacement, final
+tracked-snapshot replay, and the local Lore commit remain in progress. I55 remains `OPEN / HIGH / BLOCK`;
+I53 remains `OPEN / HIGH / WATCH`; I54/I56 remain `PARTIAL / OPEN`; Gate B1 remains `BLOCKED`;
+both pre-datasets remain `NOT QUALIFIED`; `AE-ready=NO`; overall workflow remains `INCOMPLETE`.
+
+### Session 56 candidate staging, verifier-scope repair, and follow-up review
+
+**Motivation:** Prove that the approved exact-log solution is reproducible from tracked bytes and
+that the staged producer contains no runtime captures, credentials, hidden nested state, or other
+unapproved material. Any local-only file that affected V21 had to be diagnosed as a source-scope
+defect rather than copied into the commit.
+
+**Expectation:** The index contains exactly the required `59` logs; unrelated logs remain ignored;
+`git diff --cached --check` passes without rewriting immutable evidence; source static counts are
+identical in the working tree and a tracked snapshot; and the independent follow-up verdict is not
+`BLOCK`.
+
+**Method:**
+
+1. Recomputed `64` supplemental identities plus eight fixed marker dependencies and the sole
+   current identity. The union remained `65` files: `6` task-root reports and `59` logs totaling
+   `228,172` bytes. Force-added only that log allowlist.
+2. The first staged-audit helper failed before inspecting content because `comm` used locale-aware
+   ordering while the Python allowlist used ASCII ordering. A second helper then treated an
+   expected `git ls-files --error-unmatch` result as fatal under `pipefail`. Both harness defects
+   were corrected with `LC_ALL=C` and explicit `if` handling; neither changed repository bytes.
+3. `git diff --cached --check` then correctly exposed trailing whitespace inside immutable captured
+   logs and historical Markdown archives. Rewriting those bytes would invalidate recorded SHA256
+   identities, so `.gitattributes` now disables whitespace classification only below this task
+   archive. `SC26-AE/`, tests, and other source retain the default whitespace rules. Both cached and
+   working-tree diff checks returned `0`.
+4. The first tracked-tree snapshot produced a valid RED: inventories, supplementals, markers, and
+   identities passed, but shell scope was `47` while the verifier expected local count `53`.
+   Current-vs-snapshot comparison proved the extra six were ignored
+   `SC26-AE/output/_work/.../source/*.sh` runtime copies. No output file was staged.
+5. Added `tests/unit/test_sc26_ae_v21_scope.py`; observed RED exit `1` with the expected missing
+   `collect_shell_paths` attribute, then added the narrow collector/exclusion. GREEN was `1 passed`
+   with exit `0`. Live source scope is now shell `47/47`, Python `36/36`, and
+   `RUNTIME_OUTPUT_SHELL_EXCLUDED=1`.
+6. Candidate audit passed with required/staged logs=`59/59`, missing/extra=`0/0`, unrelated
+   top-level logs=`218` with tracked/not-ignored=`0/0`, runtime-state/output/credential/secret/large
+   violations=`0`, staged blobs=`150`, staged bytes=`2,528,112`, nested statuses empty, and sim-engine
+   HEAD equal to the outer gitlink.
+7. Exported candidate tree `841042300c32dc737d429feb333283fb53f7fbd0` to
+   `/data/ycfeng/sc26-ae-test-tmp/session56-candidate-snapshot-green-20260720-sSHNUC`, created an
+   ephemeral local Git commit, and ran V21. Exit was `0`; artifact/document rows=`7/10`,
+   supplementals=`64`, shell=`47/47`, Python=`36/36`, and `git diff --check=PASS`.
+8. StepCode Claude artifact
+   `.omx/artifacts/claude-act-as-an-independent-read-only-reviewer-for-the-sc26-ae-loc-2026-07-20T06-40-51-467Z.md`
+   returned `APPROVE`. It accepted I59's fail-closed remediation, the narrow archive attribute, and
+   runtime-output exclusion, with no CRITICAL/HIGH local commit blocker. Its LOW executable-mode
+   note was corrected for the newly added Task3 portability test; all newly added shell files are
+   now `100755`. An overbroad local audit that also required three pre-existing `100644` scripts to
+   change mode was rejected; those established files remain unchanged and are invoked via `bash`.
+
+**Result:** The candidate tracked snapshot and independent review clear the implementation design.
+The final authoritative-document hashes and sole current V21 identity must still be regenerated and
+replayed from the final staged tree before I59 can move from `IN PROGRESS` to `RESOLVED / LOCAL`.
+The controller evidence remains synthetic/local only; no GPU/RJob/Docker/network job ran, no push or
+release occurred, and all external qualification dispositions remain unchanged.
+
+## Session 56 penultimate tracked-snapshot closure and I59 local resolution — 2026-07-20
+
+**Motivation:** Close the approved local clean-clone provenance defect only after the exact
+required-log staged tree reproduced the strict V21 verifier from tracked bytes. The replay had to
+remain separate from external H800, dataset, issuer, and release qualification.
+
+**Expectation:** Tree `6c5cf790c62b021e1504621ae7489986a29990ec` must produce a clean ephemeral
+Git snapshot and V21 exit `0`, with the current hard inventory, syntax, evidence-marker, and status
+boundaries unchanged. Any orchestration interruption must be recorded and rerun rather than treated
+as verifier evidence.
+
+**Method:** Exported the staged tree with `git archive`, initialized a new repository under
+`/data/ycfeng/sc26-ae-test-tmp/session56-penultimate-snapshot-20260720-gqjKDf`, staged all exported
+bytes, and created ephemeral commit `26f89b4df53760df8c38ac9ab62bfcf4ff0d6349`. The first tool
+invocation was interrupted after the commit and before verifier output was persisted; its empty log
+`session56-penultimate-snapshot-v21-20260720-Z5XvbR.log` is `0` bytes with SHA256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` and is not a PASS record.
+Process, lock, index, commit, and clean-status diagnostics isolated the failure to the command
+transport. Without changing repository bytes, reran the complete verifier from the clean snapshot.
+
+**Result:** The fresh transcript
+`/data/ycfeng/sc26-ae-test-tmp/session56-penultimate-snapshot-v21-rerun-20260720-iXxBlF.log` is
+`13,524` bytes, SHA256 `5e68330fc19eeead6eb6e1f52a046b9d7f0427e3a3cc32ffe05723c7f964ab39`,
+and records `SESSION56_PENULTIMATE_SNAPSHOT_V21_EXIT=0`. It verified artifact/document rows=`7/10`,
+supplementals=`64`, shell=`47/47`, Python=`36/36`, runtime-output exclusion=`1`,
+`TMP_ROOT_SCAN=PASS`, and `GIT_DIFF_CHECK=PASS`. I59 is now `RESOLVED / LOCAL`. Final
+authoritative-hash reconciliation, sole closure identity, exact `59`-log restaging, final staged
+snapshot, local Lore commit, and actual committed-clone replay remain in progress. I55 remains
+`OPEN / HIGH / BLOCK`; I53 remains `OPEN / HIGH / WATCH`; I54/I56 remain `PARTIAL / OPEN`; Gate B1
+remains `BLOCKED`; both pre-datasets remain `NOT QUALIFIED`; `AE-ready=NO`; workflow remains
+`INCOMPLETE`.

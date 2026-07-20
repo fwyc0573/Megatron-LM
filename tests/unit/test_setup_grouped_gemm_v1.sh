@@ -4,6 +4,9 @@ set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 INSTALLER="$REPO_ROOT/tools/ae/setup_grouped_gemm_v1.sh"
+SETUP_ENTRY="$REPO_ROOT/SC26-AE/setup.sh"
+TMP_PARENT=${SC26_AE_TMP_ROOT:-${TMPDIR:-/tmp}}
+mkdir -p -- "$TMP_PARENT"
 EXPECTED_VCS_URL="git+https://github.com/fanshiqing/grouped_gemm@v1.0"
 EXPECTED_GROUPED_GEMM_SHA256="c80276f32455f7b216c53bab33a050bd3b699415c70098342d0549235326a26f"
 EXPECTED_CUTLASS_SHA256="163146409c12f5cab6fae1218b4a702ab90713c2f363d8170179033d148c704e"
@@ -27,6 +30,14 @@ assert_not_contains() {
     local unexpected=$2
     if grep -Fq -- "$unexpected" "$file"; then
         fail "Did not expect '$unexpected' in $file"
+    fi
+}
+
+assert_no_command() {
+    local file=$1
+    local command_name=$2
+    if grep -Eq "^${command_name}([[:space:]]|$)" "$file"; then
+        fail "Did not expect command '$command_name' in $file"
     fi
 }
 
@@ -235,6 +246,7 @@ run_installer() {
     shift
     env \
         PATH="$root/bin:/usr/bin:/bin" \
+        GROUPED_GEMM_SOURCE=vcs \
         GROUPED_GEMM_PYTHON="$root/bin/python" \
         GROUPED_GEMM_LOG_DIR="$root/logs" \
         GROUPED_GEMM_STATE_DIR="$root/state" \
@@ -246,6 +258,64 @@ run_installer() {
         bash "$INSTALLER"
 }
 
+run_installer_without_source() {
+    local root=$1
+    shift
+    env -u GROUPED_GEMM_SOURCE \
+        PATH="$root/bin:/usr/bin:/bin" \
+        GROUPED_GEMM_PYTHON="$root/bin/python" \
+        GROUPED_GEMM_LOG_DIR="$root/logs" \
+        GROUPED_GEMM_STATE_DIR="$root/state" \
+        TMPDIR="$root/tmp" \
+        FAKE_TMP_ROOT="$root/tmp" \
+        FAKE_CALL_LOG="$root/calls.log" \
+        FAKE_BACKEND_SO="$root/backend.so" \
+        "$@" \
+        bash "$INSTALLER"
+}
+
+run_setup() {
+    local root=$1
+    shift
+    env \
+        PATH="$root/bin:/usr/bin:/bin" \
+        GROUPED_GEMM_SOURCE=vcs \
+        GROUPED_GEMM_PYTHON="$root/bin/python" \
+        GROUPED_GEMM_LOG_DIR="$root/logs" \
+        GROUPED_GEMM_STATE_DIR="$root/state" \
+        TMPDIR="$root/tmp" \
+        FAKE_TMP_ROOT="$root/tmp" \
+        FAKE_CALL_LOG="$root/calls.log" \
+        FAKE_BACKEND_SO="$root/backend.so" \
+        "$@" \
+        /usr/bin/bash -c '
+            set -euo pipefail
+            source "$1"
+            # The runtime contract has a dedicated deterministic verifier test.
+            # This unit lane isolates setup source forwarding and installer
+            # status propagation without discovering a host runtime.
+            sc26_ae_setup_verify_runtime_contract() { :; }
+            sc26_ae_setup_verify_grouped_gemm() { :; }
+            sc26_ae_setup_main
+        ' -- "$SETUP_ENTRY"
+}
+
+run_setup_without_source() {
+    local root=$1
+    shift
+    env -u GROUPED_GEMM_SOURCE \
+        PATH="$root/bin:/usr/bin:/bin" \
+        GROUPED_GEMM_PYTHON="$root/bin/python" \
+        GROUPED_GEMM_LOG_DIR="$root/logs" \
+        GROUPED_GEMM_STATE_DIR="$root/state" \
+        TMPDIR="$root/tmp" \
+        FAKE_TMP_ROOT="$root/tmp" \
+        FAKE_CALL_LOG="$root/calls.log" \
+        FAKE_BACKEND_SO="$root/backend.so" \
+        "$@" \
+        bash "$SETUP_ENTRY"
+}
+
 run_case() {
     local name=$1
     shift
@@ -254,53 +324,103 @@ run_case() {
     echo "PASS: $name"
 }
 
-test_default_multiarch_vcs_first() {
-    local root
-    root=$(mktemp -d /tmp/grouped-gemm-unit-default.XXXXXX)
+test_missing_source_fails_before_pip_or_curl() {
+    local root status
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-missing-source.XXXXXX")
     make_fixture "$root"
-    run_installer "$root" FAKE_VCS_STATUS=0 > "$root/stdout" 2> "$root/stderr"
+    set +e
+    run_installer_without_source "$root" > "$root/stdout" 2> "$root/stderr"
+    status=$?
+    set -e
+    [[ $status -ne 0 ]] || fail "Missing GROUPED_GEMM_SOURCE returned success"
+    assert_contains "$root/stderr" "GROUPED_GEMM_SOURCE must be set to 'vcs' or 'archive'"
+    assert_not_contains "$root/calls.log" "pip_vcs"
+    assert_not_contains "$root/calls.log" "pip_source"
+    assert_not_contains "$root/calls.log" "curl "
+}
+
+test_invalid_source_fails_before_pip_or_curl() {
+    local root status
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-invalid-source.XXXXXX")
+    make_fixture "$root"
+    set +e
+    run_installer "$root" GROUPED_GEMM_SOURCE=automatic > "$root/stdout" 2> "$root/stderr"
+    status=$?
+    set -e
+    [[ $status -ne 0 ]] || fail "Invalid GROUPED_GEMM_SOURCE returned success"
+    assert_contains "$root/stderr" "Unsupported GROUPED_GEMM_SOURCE='automatic'; expected 'vcs' or 'archive'"
+    assert_not_contains "$root/calls.log" "pip_vcs"
+    assert_not_contains "$root/calls.log" "pip_source"
+    assert_not_contains "$root/calls.log" "curl "
+}
+
+test_explicit_vcs_multiarch_success() {
+    local root
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-default.XXXXXX")
+    make_fixture "$root"
+    run_installer "$root" GROUPED_GEMM_SOURCE=vcs FAKE_VCS_STATUS=0 > "$root/stdout" 2> "$root/stderr"
     assert_contains "$root/calls.log" "pip_vcs mode=multiarch arch=8.0;8.6;8.9;9.0"
     assert_not_contains "$root/calls.log" "pip_source"
+    assert_not_contains "$root/calls.log" "curl "
     assert_contains "$root/state/manifest.env" "ABSL_PY_VERSION=2.3.1"
+    assert_contains "$root/state/manifest.env" "SOURCE_METHOD=vcs"
     assert_contains "$root/stdout" "GROUPED_GEMM_INSTALL_STATUS=success"
 }
 
-test_vcs_failure_uses_exact_source_without_native_switch() {
-    local root
-    root=$(mktemp -d /tmp/grouped-gemm-unit-source.XXXXXX)
+test_selected_vcs_failure_does_not_call_archive_tools() {
+    local root status
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-source.XXXXXX")
     make_fixture "$root"
-    run_installer "$root" FAKE_VCS_STATUS=17 > "$root/stdout" 2> "$root/stderr"
+    set +e
+    run_installer "$root" GROUPED_GEMM_SOURCE=vcs FAKE_VCS_STATUS=17 > "$root/stdout" 2> "$root/stderr"
+    status=$?
+    set -e
+    [[ $status -eq 17 ]] || fail "Expected selected VCS status 17, got $status"
     assert_contains "$root/calls.log" "pip_vcs mode=multiarch arch=8.0;8.6;8.9;9.0"
-    assert_contains "$root/calls.log" "pip_source mode=multiarch arch=8.0;8.6;8.9;9.0"
-    assert_contains "$root/calls.log" "c80276f32455f7b216c53bab33a050bd3b699415c70098342d0549235326a26f"
-    assert_contains "$root/calls.log" "163146409c12f5cab6fae1218b4a702ab90713c2f363d8170179033d148c704e"
-    assert_not_contains "$root/calls.log" "mode=native"
+    assert_not_contains "$root/calls.log" "pip_source"
+    assert_not_contains "$root/calls.log" "curl "
     assert_contains "$root/stdout" "VCS_INSTALL_EXIT_STATUS=17"
-    assert_contains "$root/stdout" "SOURCE_RECOVERY_USED=true"
+    assert_not_contains "$root/stdout" "SOURCE_RECOVERY_USED"
+    [[ ! -e $root/state/manifest.env ]] || fail "Selected VCS failure created a manifest"
+    assert_not_contains "$root/stdout" "GROUPED_GEMM_INSTALL_STATUS=success"
+}
+
+test_explicit_archive_multiarch_success() {
+    local root
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-archive.XXXXXX")
+    make_fixture "$root"
+    run_installer "$root" GROUPED_GEMM_SOURCE=archive > "$root/stdout" 2> "$root/stderr"
+    assert_not_contains "$root/calls.log" "pip_vcs"
+    assert_no_command "$root/calls.log" timeout
+    assert_contains "$root/calls.log" "pip_source mode=multiarch arch=8.0;8.6;8.9;9.0"
+    assert_contains "$root/calls.log" "$EXPECTED_GROUPED_GEMM_SHA256"
+    assert_contains "$root/calls.log" "$EXPECTED_CUTLASS_SHA256"
+    assert_contains "$root/state/manifest.env" "SOURCE_METHOD=archive"
+    assert_contains "$root/stdout" "GROUPED_GEMM_INSTALL_STATUS=success"
 }
 
 test_vcs_install_uses_exact_absl_constraint() {
     local root
-    root=$(mktemp -d /tmp/grouped-gemm-unit-vcs-constraint.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-vcs-constraint.XXXXXX")
     make_fixture "$root"
     run_installer "$root" FAKE_VCS_STATUS=0 > "$root/stdout" 2> "$root/stderr"
     assert_exact_file "$root/state/constraints.txt" "$EXPECTED_ABSL_PY_CONSTRAINT"
     assert_contains "$root/calls.log" "pip_vcs mode=multiarch arch=8.0;8.6;8.9;9.0 constraint=$root/state/constraints.txt"
 }
 
-test_source_install_uses_exact_absl_constraint() {
+test_archive_install_uses_exact_absl_constraint() {
     local root
-    root=$(mktemp -d /tmp/grouped-gemm-unit-source-constraint.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-source-constraint.XXXXXX")
     make_fixture "$root"
-    run_installer "$root" FAKE_VCS_STATUS=17 > "$root/stdout" 2> "$root/stderr"
+    run_installer "$root" GROUPED_GEMM_SOURCE=archive > "$root/stdout" 2> "$root/stderr"
     assert_exact_file "$root/state/constraints.txt" "$EXPECTED_ABSL_PY_CONSTRAINT"
-    assert_contains "$root/calls.log" "pip_vcs mode=multiarch arch=8.0;8.6;8.9;9.0 constraint=$root/state/constraints.txt"
+    assert_not_contains "$root/calls.log" "pip_vcs"
     assert_contains "$root/calls.log" "pip_source mode=multiarch arch=8.0;8.6;8.9;9.0 constraint=$root/state/constraints.txt"
 }
 
 test_existing_exact_constraint_is_reused() {
     local root
-    root=$(mktemp -d /tmp/grouped-gemm-unit-existing-constraint.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-existing-constraint.XXXXXX")
     make_fixture "$root"
     printf '%s\n' "$EXPECTED_ABSL_PY_CONSTRAINT" > "$root/state/constraints.txt"
     run_installer "$root" FAKE_VCS_STATUS=0 > "$root/stdout" 2> "$root/stderr"
@@ -310,7 +430,7 @@ test_existing_exact_constraint_is_reused() {
 
 test_existing_constraint_mismatch_fails_before_pip() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-constraint-mismatch.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-constraint-mismatch.XXXXXX")
     make_fixture "$root"
     printf '%s\n' 'absl-py==2.2.0' > "$root/state/constraints.txt"
     set +e
@@ -325,7 +445,7 @@ test_existing_constraint_mismatch_fails_before_pip() {
 
 test_existing_constraint_extra_line_fails_before_pip() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-constraint-extra-line.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-constraint-extra-line.XXXXXX")
     make_fixture "$root"
     printf '%s\n\n' "$EXPECTED_ABSL_PY_CONSTRAINT" > "$root/state/constraints.txt"
     set +e
@@ -340,7 +460,7 @@ test_existing_constraint_extra_line_fails_before_pip() {
 
 test_existing_constraint_without_trailing_newline_fails_before_pip() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-constraint-no-newline.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-constraint-no-newline.XXXXXX")
     make_fixture "$root"
     printf '%s' "$EXPECTED_ABSL_PY_CONSTRAINT" > "$root/state/constraints.txt"
     set +e
@@ -355,7 +475,7 @@ test_existing_constraint_without_trailing_newline_fails_before_pip() {
 
 test_native_mode_is_explicit() {
     local root
-    root=$(mktemp -d /tmp/grouped-gemm-unit-native.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-native.XXXXXX")
     make_fixture "$root"
     run_installer "$root" GROUPED_GEMM_BUILD_MODE=native FAKE_VCS_STATUS=0 > "$root/stdout" 2> "$root/stderr"
     assert_contains "$root/calls.log" "pip_vcs mode=native arch=unset"
@@ -364,7 +484,7 @@ test_native_mode_is_explicit() {
 
 test_invalid_mode_fails_before_pip() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-invalid.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-invalid.XXXXXX")
     make_fixture "$root"
     set +e
     run_installer "$root" GROUPED_GEMM_BUILD_MODE=automatic > "$root/stdout" 2> "$root/stderr"
@@ -377,7 +497,7 @@ test_invalid_mode_fails_before_pip() {
 
 test_broken_ninja_prerequisite_fails_before_pip() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-prereq.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-prereq.XXXXXX")
     make_fixture "$root"
     printf '#!/usr/bin/env bash\nexit 127\n' > "$root/bin/ninja"
     chmod +x "$root/bin/ninja"
@@ -392,10 +512,10 @@ test_broken_ninja_prerequisite_fails_before_pip() {
 
 test_hash_mismatch_stops_source_install() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-hash.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-hash.XXXXXX")
     make_fixture "$root"
     set +e
-    run_installer "$root" FAKE_VCS_STATUS=17 FAKE_HASH_STATUS=1 > "$root/stdout" 2> "$root/stderr"
+    run_installer "$root" GROUPED_GEMM_SOURCE=archive FAKE_HASH_STATUS=1 > "$root/stdout" 2> "$root/stderr"
     status=$?
     set -e
     [[ $status -ne 0 ]] || fail "Hash mismatch returned success"
@@ -405,11 +525,11 @@ test_hash_mismatch_stops_source_install() {
 
 test_cutlass_hash_mismatch_stops_source_install() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-cutlass-hash.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-cutlass-hash.XXXXXX")
     make_fixture "$root"
     set +e
     run_installer "$root" \
-        FAKE_VCS_STATUS=17 \
+        GROUPED_GEMM_SOURCE=archive \
         FAKE_CUTLASS_HASH_STATUS=1 \
         > "$root/stdout" 2> "$root/stderr"
     status=$?
@@ -423,7 +543,7 @@ test_cutlass_hash_mismatch_stops_source_install() {
 
 test_exact_manifest_skips_rebuild() {
     local root
-    root=$(mktemp -d /tmp/grouped-gemm-unit-idempotent.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-idempotent.XXXXXX")
     make_fixture "$root"
     cat > "$root/state/manifest.env" <<'EOF'
 GROUPED_GEMM_TAG=v1.0
@@ -435,12 +555,14 @@ PYTHON_VERSION=3.9.18
 TORCH_VERSION=2.1.2
 TORCH_CUDA_VERSION=12.1
 ABSL_PY_VERSION=2.3.1
+SOURCE_METHOD=vcs
 BACKEND_SO=BACKEND_SO_PLACEHOLDER
 BACKEND_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 EOF
     sed -i "s|BACKEND_SO_PLACEHOLDER|$root/backend.so|" "$root/state/manifest.env"
     env \
         PATH="$root/bin:/usr/bin:/bin" \
+        GROUPED_GEMM_SOURCE=vcs \
         GROUPED_GEMM_PYTHON="$root/bin/python" \
         GROUPED_GEMM_LOG_DIR="$root/logs" \
         GROUPED_GEMM_STATE_DIR="$root/state" \
@@ -454,9 +576,63 @@ EOF
     assert_not_contains "$root/calls.log" "pip_source"
 }
 
+test_archive_manifest_skips_rebuild() {
+    local root
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-idempotent-archive.XXXXXX")
+    make_fixture "$root"
+    cat > "$root/state/manifest.env" <<EOF
+GROUPED_GEMM_TAG=v1.0
+GROUPED_GEMM_COMMIT=7a7f0189797889e926a30b3487512f9539161060
+CUTLASS_COMMIT=8783c41851cd3582490e04e69e0cd756a8c1db7f
+BUILD_MODE=multiarch
+TORCH_CUDA_ARCH_LIST=8.0;8.6;8.9;9.0
+PYTHON_VERSION=3.9.18
+TORCH_VERSION=2.1.2
+TORCH_CUDA_VERSION=12.1
+ABSL_PY_VERSION=2.3.1
+SOURCE_METHOD=archive
+BACKEND_SO=$root/backend.so
+BACKEND_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+EOF
+    run_installer "$root" GROUPED_GEMM_SOURCE=archive > "$root/stdout" 2> "$root/stderr"
+    assert_contains "$root/stdout" "GROUPED_GEMM_INSTALL_STATUS=already_satisfied"
+    assert_not_contains "$root/calls.log" "pip_vcs"
+    assert_not_contains "$root/calls.log" "pip_source"
+    assert_not_contains "$root/calls.log" "curl "
+}
+
+test_manifest_source_mismatch_fails_before_install() {
+    local root status
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-manifest-source.XXXXXX")
+    make_fixture "$root"
+    cat > "$root/state/manifest.env" <<EOF
+GROUPED_GEMM_TAG=v1.0
+GROUPED_GEMM_COMMIT=7a7f0189797889e926a30b3487512f9539161060
+CUTLASS_COMMIT=8783c41851cd3582490e04e69e0cd756a8c1db7f
+BUILD_MODE=multiarch
+TORCH_CUDA_ARCH_LIST=8.0;8.6;8.9;9.0
+PYTHON_VERSION=3.9.18
+TORCH_VERSION=2.1.2
+TORCH_CUDA_VERSION=12.1
+ABSL_PY_VERSION=2.3.1
+SOURCE_METHOD=archive
+BACKEND_SO=$root/backend.so
+BACKEND_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+EOF
+    set +e
+    run_installer "$root" GROUPED_GEMM_SOURCE=vcs > "$root/stdout" 2> "$root/stderr"
+    status=$?
+    set -e
+    [[ $status -ne 0 ]] || fail "Manifest source mismatch returned success"
+    assert_contains "$root/stderr" "Existing manifest mismatch for SOURCE_METHOD"
+    assert_not_contains "$root/calls.log" "pip_vcs"
+    assert_not_contains "$root/calls.log" "pip_source"
+    assert_not_contains "$root/calls.log" "curl "
+}
+
 test_manifest_absl_version_mismatch_fails() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-manifest-absl.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-manifest-absl.XXXXXX")
     make_fixture "$root"
     cat > "$root/state/manifest.env" <<EOF
 GROUPED_GEMM_TAG=v1.0
@@ -468,6 +644,7 @@ PYTHON_VERSION=3.9.18
 TORCH_VERSION=2.1.2
 TORCH_CUDA_VERSION=12.1
 ABSL_PY_VERSION=2.2.0
+SOURCE_METHOD=vcs
 BACKEND_SO=$root/backend.so
 BACKEND_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 EOF
@@ -484,7 +661,7 @@ EOF
 
 test_idempotent_live_absl_version_mismatch_fails() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-live-absl.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-live-absl.XXXXXX")
     make_fixture "$root"
     cat > "$root/state/manifest.env" <<EOF
 GROUPED_GEMM_TAG=v1.0
@@ -496,6 +673,7 @@ PYTHON_VERSION=3.9.18
 TORCH_VERSION=2.1.2
 TORCH_CUDA_VERSION=12.1
 ABSL_PY_VERSION=2.3.1
+SOURCE_METHOD=vcs
 BACKEND_SO=$root/backend.so
 BACKEND_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 EOF
@@ -514,7 +692,7 @@ EOF
 
 test_manifest_backend_hash_mismatch_fails() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-manifest-hash.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-manifest-hash.XXXXXX")
     make_fixture "$root"
     cat > "$root/state/manifest.env" <<EOF
 GROUPED_GEMM_TAG=v1.0
@@ -526,6 +704,7 @@ PYTHON_VERSION=3.9.18
 TORCH_VERSION=2.1.2
 TORCH_CUDA_VERSION=12.1
 ABSL_PY_VERSION=2.3.1
+SOURCE_METHOD=vcs
 BACKEND_SO=$root/backend.so
 BACKEND_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 EOF
@@ -542,7 +721,7 @@ EOF
 
 test_max_jobs_above_cpu_limit_fails_before_pip() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-max-jobs.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-max-jobs.XXXXXX")
     make_fixture "$root"
     set +e
     run_installer "$root" MAX_JOBS=33 FAKE_NPROC=32 > "$root/stdout" 2> "$root/stderr"
@@ -555,7 +734,7 @@ test_max_jobs_above_cpu_limit_fails_before_pip() {
 
 test_wrong_environment_fails_before_pip() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-wrong-env.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-wrong-env.XXXXXX")
     make_fixture "$root"
     set +e
     run_installer "$root" FAKE_TORCH_VERSION=2.2.0 > "$root/stdout" 2> "$root/stderr"
@@ -568,7 +747,7 @@ test_wrong_environment_fails_before_pip() {
 
 test_unverified_existing_package_fails() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-existing-package.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-existing-package.XXXXXX")
     make_fixture "$root"
     set +e
     run_installer "$root" FAKE_PACKAGE_PRESENT=0 > "$root/stdout" 2> "$root/stderr"
@@ -581,7 +760,7 @@ test_unverified_existing_package_fails() {
 
 test_matching_manifest_with_broken_import_fails() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-broken-import.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-broken-import.XXXXXX")
     make_fixture "$root"
     cat > "$root/state/manifest.env" <<EOF
 GROUPED_GEMM_TAG=v1.0
@@ -593,6 +772,7 @@ PYTHON_VERSION=3.9.18
 TORCH_VERSION=2.1.2
 TORCH_CUDA_VERSION=12.1
 ABSL_PY_VERSION=2.3.1
+SOURCE_METHOD=vcs
 BACKEND_SO=$root/backend.so
 BACKEND_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 EOF
@@ -605,39 +785,41 @@ EOF
     assert_not_contains "$root/calls.log" "pip_vcs"
 }
 
-test_source_install_failure_propagates() {
+test_selected_archive_install_failure_propagates() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-source-failure.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-source-failure.XXXXXX")
     make_fixture "$root"
     set +e
-    run_installer "$root" FAKE_VCS_STATUS=17 FAKE_SOURCE_STATUS=23 > "$root/stdout" 2> "$root/stderr"
+    run_installer "$root" GROUPED_GEMM_SOURCE=archive FAKE_SOURCE_STATUS=23 > "$root/stdout" 2> "$root/stderr"
     status=$?
     set -e
     [[ $status -eq 23 ]] || fail "Expected source install status 23, got $status"
+    assert_not_contains "$root/calls.log" "pip_vcs"
     assert_contains "$root/calls.log" "pip_source mode=multiarch"
     assert_not_contains "$root/stdout" "GROUPED_GEMM_INSTALL_STATUS=success"
 }
 
-test_source_log_write_failure_fails_explicitly() {
+test_selected_archive_log_write_failure_fails_explicitly() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-source-log-failure.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-source-log-failure.XXXXXX")
     make_fixture "$root"
     set +e
     run_installer "$root" \
-        FAKE_VCS_STATUS=17 \
+        GROUPED_GEMM_SOURCE=archive \
         FAKE_SOURCE_TEE_STATUS=74 \
         > "$root/stdout" 2> "$root/stderr"
     status=$?
     set -e
     [[ $status -ne 0 ]] || fail "Source log write failure returned success"
     assert_contains "$root/stderr" "Failed to persist the source installation log"
+    assert_not_contains "$root/calls.log" "pip_vcs"
     [[ ! -e $root/state/manifest.env ]] || fail "Source log write failure created a manifest"
     assert_not_contains "$root/stdout" "GROUPED_GEMM_INSTALL_STATUS=success"
 }
 
 test_vcs_wrong_commit_fails_verification() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-wrong-commit.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-wrong-commit.XXXXXX")
     make_fixture "$root"
     set +e
     run_installer "$root" \
@@ -652,7 +834,7 @@ test_vcs_wrong_commit_fails_verification() {
 
 test_post_install_absl_version_mismatch_fails() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-absl-version.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-absl-version.XXXXXX")
     make_fixture "$root"
     set +e
     run_installer "$root" \
@@ -669,7 +851,7 @@ test_post_install_absl_version_mismatch_fails() {
 
 test_vcs_log_write_failure_fails() {
     local root
-    root=$(mktemp -d /tmp/grouped-gemm-unit-log-failure.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-log-failure.XXXXXX")
     make_fixture "$root"
     set +e
     run_installer "$root" FAKE_VCS_STATUS=0 FAKE_TEE_STATUS=74 > "$root/stdout" 2> "$root/stderr"
@@ -681,7 +863,7 @@ test_vcs_log_write_failure_fails() {
 
 test_python_environment_bin_is_added_to_path() {
     local root
-    root=$(mktemp -d /tmp/grouped-gemm-unit-env-path.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-env-path.XXXXXX")
     make_fixture "$root"
     mkdir -p "$root/env/bin" "$root/toolbin"
     cp "$root/bin/python" "$root/env/bin/python"
@@ -693,6 +875,7 @@ test_python_environment_bin_is_added_to_path() {
     set +e
     env \
         PATH="$root/toolbin:/usr/bin:/bin" \
+        GROUPED_GEMM_SOURCE=vcs \
         GROUPED_GEMM_PYTHON="$root/env/bin/python" \
         GROUPED_GEMM_LOG_DIR="$root/logs" \
         GROUPED_GEMM_STATE_DIR="$root/state" \
@@ -708,20 +891,26 @@ test_python_environment_bin_is_added_to_path() {
     assert_contains "$root/calls.log" "pip_vcs mode=multiarch arch=8.0;8.6;8.9;9.0"
 }
 
-test_vcs_timeout_uses_exact_source_recovery() {
-    local root
-    root=$(mktemp -d /tmp/grouped-gemm-unit-vcs-timeout.XXXXXX)
+test_selected_vcs_timeout_is_final() {
+    local root status
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-vcs-timeout.XXXXXX")
     make_fixture "$root"
-    run_installer "$root" FAKE_TIMEOUT_STATUS=124 > "$root/stdout" 2> "$root/stderr"
+    set +e
+    run_installer "$root" GROUPED_GEMM_SOURCE=vcs FAKE_TIMEOUT_STATUS=124 > "$root/stdout" 2> "$root/stderr"
+    status=$?
+    set -e
+    [[ $status -eq 124 ]] || fail "Expected selected VCS timeout status 124, got $status"
     assert_contains "$root/calls.log" "timeout --signal=TERM --kill-after=30s 600s"
     assert_contains "$root/stdout" "VCS_INSTALL_EXIT_STATUS=124"
-    assert_contains "$root/stdout" "SOURCE_RECOVERY_USED=true"
-    assert_contains "$root/calls.log" "pip_source mode=multiarch arch=8.0;8.6;8.9;9.0"
+    assert_not_contains "$root/stdout" "SOURCE_RECOVERY_USED"
+    assert_not_contains "$root/calls.log" "pip_source"
+    assert_not_contains "$root/calls.log" "curl "
+    [[ ! -e $root/state/manifest.env ]] || fail "Selected VCS timeout created a manifest"
 }
 
 test_invalid_vcs_timeout_fails_before_pip() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-invalid-timeout.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-invalid-timeout.XXXXXX")
     make_fixture "$root"
     set +e
     run_installer "$root" \
@@ -737,7 +926,7 @@ test_invalid_vcs_timeout_fails_before_pip() {
 
 test_log_directory_creation_failure_stops_before_pip() {
     local root status
-    root=$(mktemp -d /tmp/grouped-gemm-unit-log-dir.XXXXXX)
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-log-dir.XXXXXX")
     make_fixture "$root"
     : > "$root/not-a-directory"
     set +e
@@ -752,10 +941,50 @@ test_log_directory_creation_failure_stops_before_pip() {
     assert_not_contains "$root/calls.log" "pip_source"
 }
 
-run_case "default multiarch attempts VCS first" test_default_multiarch_vcs_first
-run_case "VCS failure uses exact source without native switch" test_vcs_failure_uses_exact_source_without_native_switch
+test_sc26_setup_requires_explicit_source() {
+    local root status
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-setup-missing-source.XXXXXX")
+    make_fixture "$root"
+    set +e
+    run_setup_without_source "$root" > "$root/stdout" 2> "$root/stderr"
+    status=$?
+    set -e
+    [[ $status -ne 0 ]] || fail "SC26-AE/setup.sh accepted a missing source"
+    assert_contains "$root/stderr" "GROUPED_GEMM_SOURCE must be set to 'vcs' or 'archive'"
+    assert_not_contains "$root/calls.log" "pip_vcs"
+    assert_not_contains "$root/calls.log" "pip_source"
+    assert_not_contains "$root/calls.log" "curl "
+}
+
+test_sc26_setup_forwards_selected_archive() {
+    local root
+    root=$(mktemp -d "${TMP_PARENT%/}/grouped-gemm-unit-setup-archive.XXXXXX")
+    make_fixture "$root"
+    # The setup wrapper owns fixed runtime verification; this unit case keeps
+    # that verifier stubbed and models only the installer process boundary.
+    # The installer-specific behavior is covered by the cases above.
+    cat > "$root/bin/bash" <<'EOF'
+#!/usr/bin/bash
+set -euo pipefail
+printf 'setup_installer source=%s python=%s args=%s\n' \
+    "${GROUPED_GEMM_SOURCE-}" "${GROUPED_GEMM_PYTHON-}" "$*" >> "$FAKE_CALL_LOG"
+printf 'GROUPED_GEMM_INSTALL_STATUS=success\n'
+EOF
+    chmod +x "$root/bin/bash"
+    run_setup "$root" GROUPED_GEMM_SOURCE=archive > "$root/stdout" 2> "$root/stderr"
+    assert_contains "$root/calls.log" \
+        "setup_installer source=archive python=/opt/conda/envs/megatron_env/bin/python"
+    assert_not_contains "$root/calls.log" "source=vcs"
+    assert_contains "$root/stdout" "GROUPED_GEMM_INSTALL_STATUS=success"
+}
+
+run_case "missing source fails before pip or curl" test_missing_source_fails_before_pip_or_curl
+run_case "invalid source fails before pip or curl" test_invalid_source_fails_before_pip_or_curl
+run_case "explicit VCS multiarch succeeds" test_explicit_vcs_multiarch_success
+run_case "selected VCS failure does not call archive tools" test_selected_vcs_failure_does_not_call_archive_tools
+run_case "explicit archive multiarch succeeds" test_explicit_archive_multiarch_success
 run_case "VCS install uses exact absl-py constraint" test_vcs_install_uses_exact_absl_constraint
-run_case "source install uses exact absl-py constraint" test_source_install_uses_exact_absl_constraint
+run_case "archive install uses exact absl-py constraint" test_archive_install_uses_exact_absl_constraint
 run_case "existing exact absl-py constraint is reused" test_existing_exact_constraint_is_reused
 run_case "existing absl-py constraint mismatch fails before pip" test_existing_constraint_mismatch_fails_before_pip
 run_case "existing absl-py constraint extra line fails before pip" test_existing_constraint_extra_line_fails_before_pip
@@ -765,7 +994,9 @@ run_case "invalid mode fails before pip" test_invalid_mode_fails_before_pip
 run_case "broken Ninja prerequisite fails before pip" test_broken_ninja_prerequisite_fails_before_pip
 run_case "hash mismatch stops source install" test_hash_mismatch_stops_source_install
 run_case "CUTLASS hash mismatch stops source install" test_cutlass_hash_mismatch_stops_source_install
-run_case "exact manifest skips rebuild" test_exact_manifest_skips_rebuild
+run_case "exact VCS manifest skips rebuild" test_exact_manifest_skips_rebuild
+run_case "exact archive manifest skips rebuild" test_archive_manifest_skips_rebuild
+run_case "manifest source mismatch fails before install" test_manifest_source_mismatch_fails_before_install
 run_case "manifest absl-py version mismatch fails" test_manifest_absl_version_mismatch_fails
 run_case "idempotent live absl-py version mismatch fails" test_idempotent_live_absl_version_mismatch_fails
 run_case "manifest backend hash mismatch fails" test_manifest_backend_hash_mismatch_fails
@@ -773,14 +1004,16 @@ run_case "MAX_JOBS above CPU count fails before pip" test_max_jobs_above_cpu_lim
 run_case "wrong environment fails before pip" test_wrong_environment_fails_before_pip
 run_case "unverified existing package fails" test_unverified_existing_package_fails
 run_case "matching manifest with broken import fails" test_matching_manifest_with_broken_import_fails
-run_case "source install failure propagates" test_source_install_failure_propagates
-run_case "source log write failure fails explicitly" test_source_log_write_failure_fails_explicitly
+run_case "selected archive install failure propagates" test_selected_archive_install_failure_propagates
+run_case "selected archive log write failure fails explicitly" test_selected_archive_log_write_failure_fails_explicitly
 run_case "VCS wrong commit fails verification" test_vcs_wrong_commit_fails_verification
 run_case "post-install absl-py version mismatch fails" test_post_install_absl_version_mismatch_fails
 run_case "VCS log write failure fails" test_vcs_log_write_failure_fails
 run_case "Python environment bin is added to PATH" test_python_environment_bin_is_added_to_path
-run_case "VCS timeout uses exact source recovery" test_vcs_timeout_uses_exact_source_recovery
+run_case "selected VCS timeout is final" test_selected_vcs_timeout_is_final
 run_case "invalid VCS timeout fails before pip" test_invalid_vcs_timeout_fails_before_pip
 run_case "log directory creation failure stops before pip" test_log_directory_creation_failure_stops_before_pip
+run_case "SC26-AE setup requires explicit source" test_sc26_setup_requires_explicit_source
+run_case "SC26-AE setup forwards selected archive" test_sc26_setup_forwards_selected_archive
 
 echo "PASS: $TESTS_RUN/$TESTS_RUN grouped_gemm setup unit cases."

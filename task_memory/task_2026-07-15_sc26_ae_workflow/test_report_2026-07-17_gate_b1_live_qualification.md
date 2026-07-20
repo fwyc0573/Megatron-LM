@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-19 | Marked v1.2-ae as the current qualification target and retained v1.1 as historical evidence only |
 | 2026-07-17 | Added the fresh post-closure validator rerun, validator-test root-cause corrections, and final stop-state evidence |
 | 2026-07-17 | Recorded final D1–D28 docs, artifact, hash, Markdown, and Git-scope validation evidence |
 | 2026-07-17 | Recorded follow-up independent D28 APPROVE after both WATCH precision findings were closed |
@@ -12,7 +13,7 @@
 
 ## 1. Scope and Verdict
 
-This report consolidates historical Gate B1 runtime evidence. It does not authorize or execute a new RJob.
+This report consolidates historical Gate B1 runtime evidence. It does not authorize or execute a new RJob. Any future clean preflight/predict-only/live qualification must target `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae` and record its immutable digest; the v1.1 image below is historical evidence only and must not be reused as the current target.
 
 | Branch | Current result | Reason |
 |--------|----------------|--------|
@@ -32,6 +33,7 @@ This report consolidates historical Gate B1 runtime evidence. It does not author
 | D27 worker | `/opt/conda/envs/megatron_env/bin/python3.9` | Python `3.9.18`, torch `2.1.2`, torch CUDA `12.1` |
 | Echo Task2 | `/data/ycfeng/ae_dependency_cache/sc26_ae/conda_envs/echo_py310_miniconda_26_5_3_1/bin/python3.10` | Python `3.10.20` |
 | Echo image | `hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef` | Historical qualification image; not the final release image |
+| Current target image | `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae` | Digest and worker qualification not yet recorded |
 
 ### Scripts and artifact roots
 

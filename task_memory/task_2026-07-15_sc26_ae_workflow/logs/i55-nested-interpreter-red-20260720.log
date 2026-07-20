@@ -1,0 +1,17 @@
+I55 synthetic CPU-only RED reproduction
+repo=/data/ycfeng/Megatron-LM-sc26-ae-exec-clean-20260717
+root=/data/ycfeng/tmp/sc26-i55-red-repro.DcgyAZ
+initial PATH=/data/ycfeng/tmp/sc26-i55-red-repro.DcgyAZ/external:/home/i-fengyicheng/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-path:/home/i-fengyicheng/bin:/home/i-fengyicheng/.local/bin:/opt/conda/bin:/kubebrain:/usr/local/nvidia/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+[ERROR] pinned Echo snapshot is missing training_testing/predict.py
+PROBE_RC=1
+EXTERNAL_INVOCATIONS=1
+NESTED_SENTINEL=created
+CONFIG_PYTHON_PATH=/data/ycfeng/tmp/sc26-i55-red-repro.DcgyAZ/external/python
+FIXED_PYTHON=/data/ycfeng/tmp/sc26-i55-red-repro.DcgyAZ/fixed_python
+FIXED_PYTHON_REALPATH=/data/ycfeng/tmp/sc26-i55-red-repro.DcgyAZ/fixed_python
+EXTERNAL_PYTHON_REALPATH=/data/ycfeng/tmp/sc26-i55-red-repro.DcgyAZ/external/python
+CONFIG[kernel_metric/input/global_config.json]=/data/ycfeng/tmp/sc26-i55-red-repro.DcgyAZ/external/python
+CONFIG[merge/input/global_config.json]=/data/ycfeng/tmp/sc26-i55-red-repro.DcgyAZ/external/python
+CONFIG[slowdown_collection/input/global_config.json]=/data/ycfeng/tmp/sc26-i55-red-repro.DcgyAZ/external/python
+CONFIG[training_testing/input/global_config.json]=/data/ycfeng/tmp/sc26-i55-red-repro.DcgyAZ/external/python
+EVIDENCE_CLASS=local_synthetic_not_two_gpu_qualification

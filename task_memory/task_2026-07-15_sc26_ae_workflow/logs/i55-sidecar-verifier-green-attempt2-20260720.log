@@ -1,0 +1,3 @@
+PASS_COUNT=12
+PASS: Task2 default interpreter=/opt/conda/envs/echo_slowdown/bin/python and real runtime controls fail fast
+Evidence root: /data/ycfeng/tmp/sc26-ae-task2-runtime-binding.y1shge

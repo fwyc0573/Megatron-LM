@@ -1,0 +1,22 @@
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[PASS] Task2 gpt175b predictor_run_id=integration-one (local evidence; no GPU qualification claim)
+PASS: canonical Task2 verification accepts qualified evidence
+PASS: coherent tamper remains generic-manifest verified
+PASS: coherent semantic tamper fails before marker/pointer publication
+PASS: Task2 rejects an intermediate symlink escape in a model marker
+PASS: Task2 rejects an intermediate symlink escape in a shared pointer
+PASS: Task2 rejects a model marker whose predictor identity differs from its run path
+PASS: Task2 rejects a shared pointer with a mismatched artifact_manifest_sha256 alias
+PASS: Task2 rejects an unverified shared predictor pointer before attachment
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model qwen3_a30b to verified Task2 predictor_run_id=integration-one
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model dsv3 to verified Task2 predictor_run_id=integration-one
+PASS: Task2 snapshot-only execution, predictor identity, and provenance contract
+Evidence root:
+/data/ycfeng/tmp/sc26-ae-task2-integration.PwE1dk

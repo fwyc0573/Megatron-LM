@@ -1,0 +1,62 @@
+=== environment ===
+Python 3.12.3
+pytest 9.1.1
+torch=2.5.1+cu124 cuda_available=False device_count=0
+=== git diff check ===
+GIT_DIFF_CHECK=PASS
+=== shell syntax ===
+SHELL_SYNTAX=PASS
+=== evidence unit ===
+PASS_COUNT=4
+=== snapshot unit ===
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+[PASS] Task2 gpt175b predictor_run_id=snapshot-one (local evidence; no GPU qualification claim)
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+[INFO] Attached model qwen3_a30b to verified Task2 predictor_run_id=snapshot-one
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+[PASS] Task2 dsv3 predictor_run_id=snapshot-two (local evidence; no GPU qualification claim)
+[ERROR] Echo-slowdown checkout is dirty: ?? dirty.txt
+[ERROR] Task2 evidence preserved at /data/ycfeng/tmp/sc26-ae-task2-unit.higvxE/output/_work/task2-failure-20260719T173308Z-494236-23787
+[ERROR] new tracked path under excluded output contract: merge/output/new.csv
+[ERROR] Task2 evidence preserved at /data/ycfeng/tmp/sc26-ae-task2-unit.higvxE/output/_work/task2-failure-20260719T173308Z-494283-27520
+PASS: synthetic snapshot/reuse/rebuild/dirty/new-path contracts
+Evidence root:
+/data/ycfeng/tmp/sc26-ae-task2-unit.higvxE
+=== interpreter contract ===
+PASS_COUNT=11
+PASS: Task2 default interpreter=/opt/conda/envs/echo_slowdown/bin/python and real runtime controls fail fast
+Evidence root: /data/ycfeng/tmp/sc26-ae-task2-runtime-binding.bGyOVI
+=== integration ===
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[PASS] Task2 gpt175b predictor_run_id=integration-one (local evidence; no GPU qualification claim)
+PASS: canonical Task2 verification accepts qualified evidence
+PASS: Task2 rejects an intermediate symlink escape in a model marker
+PASS: Task2 rejects an intermediate symlink escape in a shared pointer
+PASS: Task2 rejects a model marker whose predictor identity differs from its run path
+PASS: Task2 rejects a shared pointer with a mismatched artifact_manifest_sha256 alias
+PASS: Task2 rejects an unverified shared predictor pointer before attachment
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model qwen3_a30b to verified Task2 predictor_run_id=integration-one
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model dsv3 to verified Task2 predictor_run_id=integration-one
+PASS: Task2 snapshot-only execution, predictor identity, and provenance contract
+Evidence root:
+/data/ycfeng/tmp/sc26-ae-task2-integration.uidLRn
+=== docs contract ===
+DOC_CONTRACT_STATUS=PASS
+PUBLIC_ENTRY_COUNT=9
+PAPER_SUGGESTION_COUNT=10
+SESSION48_TASK2_REGRESSION=PASS
+SESSION48_TASK2_REGRESSION_RC=0

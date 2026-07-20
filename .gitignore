@@ -68,3 +68,8 @@ run_log/
 latest-megatron/
 vTrain/
 .serena/
+
+# AE runtime captures are versioned by manifest and must not enter the source
+# tree.  The selected prebaked distribution under SC26-AE/prebaked/ remains
+# explicitly trackable.
+SC26-AE/output/

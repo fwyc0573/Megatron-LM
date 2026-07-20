@@ -2,6 +2,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-19 | Replaced automatic VCS-to-archive recovery with required `GROUPED_GEMM_SOURCE=vcs|archive` selection and documented the `SC26-AE/setup.sh` one-command entry point. |
 | 2026-07-13 | Made the one-command contract explicit: the script now pins, installs, verifies, and records absl-py 2.3.1 together with exact grouped_gemm and CUTLASS acquisition. |
 | 2026-07-13 | Added the validated immutable-image setup, dependency inventory, architecture evidence, and failure policy for grouped_gemm v1.0. |
 
@@ -16,7 +17,7 @@ Image:  hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef
 Digest: sha256:11c794efbfe166932089a7cb9fb1e68fea6fa0101d4265ab51337437184a6c9e
 ```
 
-The image does not contain `grouped_gemm` or its required `absl-py` dependency. Run the supplemental installer after every new container is started. The one script automatically acquires exact grouped_gemm source, its exact CUTLASS build source, and `absl-py==2.3.1`. It fails fast on an unexpected Python, PyTorch, CUDA, compiler, source hash, package, dependency version, constraint, or manifest instead of changing to another package version or backend.
+The image does not contain `grouped_gemm` or its required `absl-py` dependency. Run the supplemental installer after every new container is started. The one-command entry point installs from one explicitly selected exact source and constrains the same operation to `absl-py==2.3.1`. It fails fast on a missing or invalid source selection, an unexpected Python, PyTorch, CUDA, compiler, source hash, package, dependency version, constraint, or manifest instead of changing source, package version, or backend.
 
 ## 2. Required Command
 
@@ -24,26 +25,36 @@ From the repository root inside the started container, run:
 
 ```bash
 cd /research/d1/gds/ytyang/yichengfeng/fork_megatron/Megatron-LM
-bash tools/ae/setup_grouped_gemm_v1.sh
+GROUPED_GEMM_SOURCE=archive bash SC26-AE/setup.sh
 ```
 
-This is the complete supplemental setup command. AE personnel do **not** need to run a separate `pip install absl-py`, `git clone CUTLASS`, `curl`, or source-build command. The script performs the following ordered actions:
+The pinned archive source is recommended for AE reproduction because both downloaded source archives have fixed SHA-256 values. The explicit VCS alternative is:
 
-1. Creates and verifies an exact pip constraint containing only `absl-py==2.3.1`.
-2. Attempts the required grouped_gemm `v1.0` VCS install under that constraint.
-3. If VCS/submodule transport fails, downloads and hash-verifies the exact grouped_gemm and CUTLASS archives, reconstructs `third_party/cutlass`, and builds the same selected architecture mode under the same constraint.
+```bash
+GROUPED_GEMM_SOURCE=vcs bash SC26-AE/setup.sh
+```
+
+Exactly one source must be selected. A missing or unsupported `GROUPED_GEMM_SOURCE` fails before any pip or archive command. A failure from the selected source is final; the entry point and installer never switch to the other source.
+
+Either command is a complete supplemental setup command. AE personnel do **not** need to run a separate `pip install absl-py`, `git clone CUTLASS`, `curl`, or source-build command. The script performs the following ordered actions:
+
+1. Validates the explicit `GROUPED_GEMM_SOURCE=vcs|archive` selection.
+2. Creates and verifies an exact pip constraint containing only `absl-py==2.3.1`.
+3. Runs only the selected grouped_gemm `v1.0` route: the pinned VCS install, or the two pinned and hash-verified archives with reconstructed `third_party/cutlass`.
 4. Verifies grouped_gemm distribution version `0.0.1`, `absl-py` distribution version `2.3.1`, backend import/path, and source identity before writing the manifest or reporting success.
-5. On later invocations, verifies the exact constraint, manifest, live `absl-py` version, backend path, and backend hash before reporting `already_satisfied`.
+5. On later invocations, verifies the same source method, exact constraint, manifest, live `absl-py` version, backend path, and backend hash before reporting `already_satisfied`.
 
 The default build is the AE release configuration:
 
 ```text
+GROUPED_GEMM_SOURCE=archive
 GROUPED_GEMM_BUILD_MODE=multiarch
 TORCH_CUDA_ARCH_LIST=8.0;8.6;8.9;9.0
 MAX_JOBS=8
-GROUPED_GEMM_VCS_TIMEOUT_SECONDS=600
 PIP_CONSTRAINT=/opt/conda/envs/megatron_env/share/grouped_gemm_ae/constraints.txt
 ```
+
+For the explicit VCS selection, `GROUPED_GEMM_VCS_TIMEOUT_SECONDS` defaults to `600`.
 
 `PIP_CONSTRAINT` is created and exported by the script; AE personnel must not create or override it manually. Its exact content is:
 
@@ -66,7 +77,7 @@ Do not invoke it with `/opt/conda/bin/python` or an unverified environment.
 | Item | Exact identity | Purpose | Live validation result |
 |------|----------------|---------|------------------------|
 | `grouped_gemm` | upstream tag `v1.0`; commit `7a7f0189797889e926a30b3487512f9539161060`; installed distribution version `0.0.1` | Megatron-Core GroupedMLP CUDA extension | Installed and imported on H800 |
-| grouped_gemm source archive | `https://codeload.github.com/fanshiqing/grouped_gemm/tar.gz/refs/tags/v1.0`; `15174` bytes; SHA-256 `c80276f32455f7b216c53bab33a050bd3b699415c70098342d0549235326a26f` | Exact-tag source route when the required VCS install fails | Hash verified before extraction |
+| grouped_gemm source archive | `https://codeload.github.com/fanshiqing/grouped_gemm/tar.gz/refs/tags/v1.0`; `15174` bytes; SHA-256 `c80276f32455f7b216c53bab33a050bd3b699415c70098342d0549235326a26f` | Exact-tag source for explicit `GROUPED_GEMM_SOURCE=archive` | Hash verified before extraction |
 | CUTLASS source archive | commit `8783c41851cd3582490e04e69e0cd756a8c1db7f`; `https://codeload.github.com/NVIDIA/cutlass/tar.gz/8783c41851cd3582490e04e69e0cd756a8c1db7f`; `20782247` bytes; SHA-256 `163146409c12f5cab6fae1218b4a702ab90713c2f363d8170179033d148c704e` | Reconstructs the exact `third_party/cutlass` gitlink required by the tagged source | Hash verified before extraction; source-only build dependency, not an installed Python distribution |
 | `absl-py` | `2.3.1` | Runtime dependency declared by grouped_gemm | Explicitly pinned by the script's pip constraint; installed by the same grouped_gemm pip operation; verified through package metadata and recorded in the AE manifest |
 
@@ -89,7 +100,9 @@ The container's initial `PATH` includes `/opt/conda/bin` but omits `/opt/conda/e
 
 ## 4. Source Selection Contract
 
-The first install attempt is the user-required VCS command:
+`GROUPED_GEMM_SOURCE` is mandatory and accepts only `vcs` or `archive`. The installer validates it before prerequisite checks or network access. It executes exactly one source branch and records that branch as `SOURCE_METHOD` in the manifest. A later invocation with a different source selection fails on the manifest mismatch rather than silently replacing the installation.
+
+The explicit VCS selection runs:
 
 ```bash
 /opt/conda/envs/megatron_env/bin/python -m pip install \
@@ -102,9 +115,22 @@ The command runs with:
 PIP_CONSTRAINT=/opt/conda/envs/megatron_env/share/grouped_gemm_ae/constraints.txt
 ```
 
-Therefore grouped_gemm's transitive dependency resolution is fixed to `absl-py==2.3.1`; it is not left to the newest version available from the package index. The exact-tag archive recovery install uses the same exported constraint. The script does not install an unconstrained grouped_gemm first and repair or downgrade `absl-py` afterward.
+Therefore grouped_gemm's transitive dependency resolution is fixed to `absl-py==2.3.1`; it is not left to the newest version available from the package index. The explicit archive install uses the same exported constraint. The script does not install an unconstrained grouped_gemm first and repair or downgrade `absl-py` afterward.
 
-The VCS operation is bounded by `GROUPED_GEMM_VCS_TIMEOUT_SECONDS` and its numeric status is recorded. The exact-image network path was able to check out grouped_gemm commit `7a7f0189797889e926a30b3487512f9539161060`, but the recursive CUTLASS submodule clone stalled on GitHub transport. The validation run therefore recorded:
+The VCS operation is bounded by `GROUPED_GEMM_VCS_TIMEOUT_SECONDS`, and its numeric pip and log statuses are recorded. Any nonzero VCS status is returned as the final selected-source failure. The installer does not run `curl`, extract archives, or perform a source-directory pip install after that failure.
+
+The explicit archive selection downloads only the exact grouped_gemm `v1.0` archive and the exact CUTLASS gitlink archive listed above. Both hashes are checked before extraction. It does not invoke the VCS pip route or the VCS timeout wrapper. Its final `pip | tee` pipeline records both sides:
+
+```text
+SOURCE_INSTALL_EXIT_STATUS=<pip status>
+SOURCE_LOG_EXIT_STATUS=<log persistence status>
+```
+
+A nonzero log status is fatal even when pip itself succeeds, because an AE installation without its retained build log is not reproducible evidence. Any archive hash mismatch, incomplete source tree, compiler failure, installation failure, constraint mismatch, `absl-py` version mismatch, import failure, or manifest mismatch is fatal.
+
+### 4.1 Pre-change historical transport evidence
+
+Before explicit source selection replaced automatic recovery, the exact-image network path checked out grouped_gemm commit `7a7f0189797889e926a30b3487512f9539161060`, but the recursive CUTLASS submodule clone stalled on GitHub transport. That historical validation run recorded:
 
 ```text
 VCS_INSTALL_EXIT_STATUS=124
@@ -112,18 +138,7 @@ VCS_LOG_EXIT_STATUS=0
 SOURCE_RECOVERY_USED=true
 ```
 
-After a nonzero VCS status, the installer uses only the exact grouped_gemm `v1.0` archive and the exact CUTLASS gitlink archive listed above. Both hashes are checked before extraction. This is the explicitly approved exact-tag source route; it does not change the grouped_gemm version, build mode, or architecture list.
-
-The exact-source build records both sides of its final `pip | tee` pipeline:
-
-```text
-SOURCE_INSTALL_EXIT_STATUS=<pip status>
-SOURCE_LOG_EXIT_STATUS=<log persistence status>
-```
-
-A nonzero log status is fatal even when pip itself succeeds, because an AE installation without its retained build log is not reproducible evidence.
-
-Any archive hash mismatch, incomplete source tree, compiler failure, installation failure, constraint mismatch, `absl-py` version mismatch, import failure, or manifest mismatch is fatal.
+`SOURCE_RECOVERY_USED` is historical output only. The current installer does not emit it and does not reproduce this automatic source switch. This evidence explains why `archive` is the recommended explicit AE selection; it is not the current runtime contract.
 
 ## 5. Architecture Build and Evidence
 
@@ -172,8 +187,9 @@ An explicit `TORCH_CUDA_ARCH_LIST` leaves `GROUPED_GEMM_DEVICE_CAPABILITY` undef
 Native mode is retained only as an explicit backup after a default multiarch failure has been preserved and analyzed:
 
 ```bash
+GROUPED_GEMM_SOURCE=archive \
 GROUPED_GEMM_BUILD_MODE=native \
-  bash tools/ae/setup_grouped_gemm_v1.sh
+  bash SC26-AE/setup.sh
 ```
 
 The script never selects native mode automatically. A native SM80 build may select the upstream CUTLASS path; native H800/SM90 uses the cuBLAS path. Native mode covers only the GPU visible during that build and must not be reported as the multi-GPU-family AE artifact.
@@ -249,7 +265,7 @@ The test is intentionally H800-specific. It checks fixed and variable expert tok
 | Metric | Actual result |
 |--------|---------------|
 | Exact-image live installation | PASS |
-| VCS attempt | Timed out with status `124`; full log persisted |
+| Pre-change historical VCS attempt | Timed out with status `124`; full log persisted before explicit source selection was introduced |
 | Exact-tag source hashes | `2/2` PASS |
 | Source install status | `0` |
 | Log pipeline status | `0` |
@@ -257,9 +273,9 @@ The test is intentionally H800-specific. It checks fixed and variable expert tok
 | Installed package | `grouped_gemm==0.0.1` |
 | Additional Python package | `absl-py==2.3.1` |
 | Second installer invocation | `GROUPED_GEMM_INSTALL_STATUS=already_satisfied`; exit `0` |
-| Current exact-dependency unit contract | `30/30` PASS; both pip routes constrained; wrong post-install, manifest, and live idempotent `absl-py` versions rejected; malformed newline and source-log failure covered |
+| Current exact-dependency and source-selection unit contract | `37/37` PASS; missing/invalid source rejected; VCS and archive cross-calls rejected; selected-source failures propagated; both pip routes constrained; source-specific manifests and idempotency checked |
 
-The retained live build observed `absl-py==2.3.1` in the exact image. The later exact constraint/manifest/log-integrity hardening was validated offline through the current 30-case installer suite; it did not allocate another GPU or rebuild the already validated binary. The AE default VCS timeout remains `600 s`, so wall time can exceed the validation measurement when GitHub transport stalls.
+The retained live build observed `absl-py==2.3.1` in the exact image. The later exact constraint, manifest, log-integrity, and explicit source-selection hardening was validated offline through the current 37-case installer suite; it did not allocate another GPU or rebuild the already validated binary. For an explicit VCS run, the default timeout remains `600 s`, so wall time can exceed the historical validation measurement when GitHub transport stalls.
 
 ### 7.2 H800 numerical correctness
 
@@ -310,7 +326,7 @@ This validates the requested scaled configuration on one H800 in scaling mode. I
 ## 8. Fail-Fast Rules for AE
 
 1. Preserve the complete installer log and the first nonzero status.
-2. Stop on source-hash, compiler, linker, import, manifest, numerical, or MoE failure.
+2. Stop on the selected-source, source-hash, compiler, linker, import, manifest, numerical, or MoE failure. Do not switch from `vcs` to `archive`, or from `archive` to `vcs`, within the same invocation.
 3. Do not change grouped_gemm tag, CUTLASS commit, Python environment, PyTorch version, CUDA version, or architecture list to obtain a passing run.
 4. Do not select `GROUPED_GEMM_BUILD_MODE=native` silently. Use it only after the default failure has a recorded root-cause analysis and the narrower single-GPU target is acceptable.
 5. Do not remove `--moe-grouped-gemm` or switch to SequentialMLP; that changes the tested MoE contract.

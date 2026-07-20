@@ -1,0 +1,3 @@
+tests/unit/test_sc26_ae_task2_interpreter_contract.sh: line 373: task2_validate_binding_sidecar: command not found
+Task2 nested interpreter chain was not bound to the fixed executable
+Task2 real runtime binding failures=1 passes=11

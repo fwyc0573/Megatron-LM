@@ -1,0 +1,406 @@
+FFFFFF.................................................................. [ 60%]
+...............................................                          [100%]
+=================================== FAILURES ===================================
+__________________________ test_simple_autograd_chain __________________________
+
+    def test_simple_autograd_chain():
+        """Test that a simple chain of linear layers preserves autograd."""
+        print("=" * 60)
+        print("TEST 1: Simple chain of linear layers")
+        print("=" * 60)
+    
+        num_layers = 4
+>       layers = [torch.nn.Linear(64, 64).cuda() for _ in range(num_layers)]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_backward_layer_count.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:1050: in cuda
+    return self._apply(lambda t: t.cuda(device))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:927: in _apply
+    param_applied = fn(param)
+                    ^^^^^^^^^
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:1050: in <lambda>
+    return self._apply(lambda t: t.cuda(device))
+                                 ^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _lazy_init():
+        global _initialized, _queued_calls
+        if is_initialized() or hasattr(_tls, "is_initializing"):
+            return
+        with _initialization_lock:
+            # We be double-checked locking, boys!  This is OK because
+            # the above test was GIL protected anyway.  The inner test
+            # is for when a thread blocked on some other thread which was
+            # doing the initialization; when they get the lock, they will
+            # find there is nothing left to do.
+            if is_initialized():
+                return
+            # It is important to prevent other threads from entering _lazy_init
+            # immediately, while we are still guaranteed to have the GIL, because some
+            # of the C calls we make below will release the GIL
+            if _is_in_bad_fork():
+                raise RuntimeError(
+                    "Cannot re-initialize CUDA in forked subprocess. To use CUDA with "
+                    "multiprocessing, you must use the 'spawn' start method"
+                )
+            if not hasattr(torch._C, "_cuda_getDeviceCount"):
+                raise AssertionError("Torch not compiled with CUDA enabled")
+            if _cudart is None:
+                raise AssertionError(
+                    "libcudart functions unavailable. It looks like you have a broken build?"
+                )
+            # This function throws if there's a driver initialization error, no GPUs
+            # are found or any other error occurs
+            if "CUDA_MODULE_LOADING" not in os.environ:
+                os.environ["CUDA_MODULE_LOADING"] = "LAZY"
+>           torch._C._cuda_init()
+E           RuntimeError: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx
+
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/cuda/__init__.py:319: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+============================================================
+TEST 1: Simple chain of linear layers
+============================================================
+___________________________ test_deallocate_backward ___________________________
+
+    def test_deallocate_backward():
+        """Test that deallocate_output_tensor + custom_backward preserves full autograd."""
+        from torch.autograd import Variable
+    
+        print("=" * 60)
+        print("TEST 2: deallocate + custom_backward chain")
+        print("=" * 60)
+    
+        num_layers = 4
+>       layers = [torch.nn.Linear(64, 64).cuda() for _ in range(num_layers)]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_backward_layer_count.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:1050: in cuda
+    return self._apply(lambda t: t.cuda(device))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:927: in _apply
+    param_applied = fn(param)
+                    ^^^^^^^^^
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:1050: in <lambda>
+    return self._apply(lambda t: t.cuda(device))
+                                 ^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _lazy_init():
+        global _initialized, _queued_calls
+        if is_initialized() or hasattr(_tls, "is_initializing"):
+            return
+        with _initialization_lock:
+            # We be double-checked locking, boys!  This is OK because
+            # the above test was GIL protected anyway.  The inner test
+            # is for when a thread blocked on some other thread which was
+            # doing the initialization; when they get the lock, they will
+            # find there is nothing left to do.
+            if is_initialized():
+                return
+            # It is important to prevent other threads from entering _lazy_init
+            # immediately, while we are still guaranteed to have the GIL, because some
+            # of the C calls we make below will release the GIL
+            if _is_in_bad_fork():
+                raise RuntimeError(
+                    "Cannot re-initialize CUDA in forked subprocess. To use CUDA with "
+                    "multiprocessing, you must use the 'spawn' start method"
+                )
+            if not hasattr(torch._C, "_cuda_getDeviceCount"):
+                raise AssertionError("Torch not compiled with CUDA enabled")
+            if _cudart is None:
+                raise AssertionError(
+                    "libcudart functions unavailable. It looks like you have a broken build?"
+                )
+            # This function throws if there's a driver initialization error, no GPUs
+            # are found or any other error occurs
+            if "CUDA_MODULE_LOADING" not in os.environ:
+                os.environ["CUDA_MODULE_LOADING"] = "LAZY"
+>           torch._C._cuda_init()
+E           RuntimeError: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx
+
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/cuda/__init__.py:319: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+============================================================
+TEST 2: deallocate + custom_backward chain
+============================================================
+___________________________ test_index_copy_autograd ___________________________
+
+    def test_index_copy_autograd():
+        """Test that index_copy_ (used in unpermute) preserves autograd."""
+        print("=" * 60)
+        print("TEST 3: index_copy_ autograd preservation")
+        print("=" * 60)
+    
+>       x = torch.randn(6, 32, device='cuda', requires_grad=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_backward_layer_count.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _lazy_init():
+        global _initialized, _queued_calls
+        if is_initialized() or hasattr(_tls, "is_initializing"):
+            return
+        with _initialization_lock:
+            # We be double-checked locking, boys!  This is OK because
+            # the above test was GIL protected anyway.  The inner test
+            # is for when a thread blocked on some other thread which was
+            # doing the initialization; when they get the lock, they will
+            # find there is nothing left to do.
+            if is_initialized():
+                return
+            # It is important to prevent other threads from entering _lazy_init
+            # immediately, while we are still guaranteed to have the GIL, because some
+            # of the C calls we make below will release the GIL
+            if _is_in_bad_fork():
+                raise RuntimeError(
+                    "Cannot re-initialize CUDA in forked subprocess. To use CUDA with "
+                    "multiprocessing, you must use the 'spawn' start method"
+                )
+            if not hasattr(torch._C, "_cuda_getDeviceCount"):
+                raise AssertionError("Torch not compiled with CUDA enabled")
+            if _cudart is None:
+                raise AssertionError(
+                    "libcudart functions unavailable. It looks like you have a broken build?"
+                )
+            # This function throws if there's a driver initialization error, no GPUs
+            # are found or any other error occurs
+            if "CUDA_MODULE_LOADING" not in os.environ:
+                os.environ["CUDA_MODULE_LOADING"] = "LAZY"
+>           torch._C._cuda_init()
+E           RuntimeError: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx
+
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/cuda/__init__.py:319: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+============================================================
+TEST 3: index_copy_ autograd preservation
+============================================================
+__________________________ test_alltoall_scaling_path __________________________
+
+    def test_alltoall_scaling_path():
+        """Test the _AllToAll autograd Function with scaling-mode path."""
+        print("=" * 60)
+        print("TEST 4: _AllToAll autograd Function (scaling mode path)")
+        print("=" * 60)
+    
+        # We need torch.distributed initialized for _AllToAll
+        # Instead, test the raw logic: new_zeros + copy_ inside an autograd.Function
+        class FakeAllToAll(torch.autograd.Function):
+            @staticmethod
+            def forward(ctx, input_, output_rows):
+                ctx.input_rows = input_.shape[0]
+                ctx.output_rows = output_rows
+                # Mimic scaling mode _profiled_all_to_all_single
+                output = input_.new_zeros(output_rows, input_.shape[1])
+                rows_to_copy = min(output_rows, input_.shape[0])
+                if rows_to_copy > 0:
+                    output[:rows_to_copy].copy_(input_[:rows_to_copy])
+                return output
+    
+            @staticmethod
+            def backward(ctx, grad_output):
+                # Mimic the reverse all-to-all
+                output = grad_output.new_zeros(ctx.input_rows, grad_output.shape[1])
+                rows_to_copy = min(ctx.input_rows, grad_output.shape[0])
+                if rows_to_copy > 0:
+                    output[:rows_to_copy].copy_(grad_output[:rows_to_copy])
+                return output, None
+    
+>       x = torch.randn(10, 32, device='cuda', requires_grad=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_backward_layer_count.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _lazy_init():
+        global _initialized, _queued_calls
+        if is_initialized() or hasattr(_tls, "is_initializing"):
+            return
+        with _initialization_lock:
+            # We be double-checked locking, boys!  This is OK because
+            # the above test was GIL protected anyway.  The inner test
+            # is for when a thread blocked on some other thread which was
+            # doing the initialization; when they get the lock, they will
+            # find there is nothing left to do.
+            if is_initialized():
+                return
+            # It is important to prevent other threads from entering _lazy_init
+            # immediately, while we are still guaranteed to have the GIL, because some
+            # of the C calls we make below will release the GIL
+            if _is_in_bad_fork():
+                raise RuntimeError(
+                    "Cannot re-initialize CUDA in forked subprocess. To use CUDA with "
+                    "multiprocessing, you must use the 'spawn' start method"
+                )
+            if not hasattr(torch._C, "_cuda_getDeviceCount"):
+                raise AssertionError("Torch not compiled with CUDA enabled")
+            if _cudart is None:
+                raise AssertionError(
+                    "libcudart functions unavailable. It looks like you have a broken build?"
+                )
+            # This function throws if there's a driver initialization error, no GPUs
+            # are found or any other error occurs
+            if "CUDA_MODULE_LOADING" not in os.environ:
+                os.environ["CUDA_MODULE_LOADING"] = "LAZY"
+>           torch._C._cuda_init()
+E           RuntimeError: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx
+
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/cuda/__init__.py:319: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+============================================================
+TEST 4: _AllToAll autograd Function (scaling mode path)
+============================================================
+___________________________ test_chain_with_alltoall ___________________________
+
+    def test_chain_with_alltoall():
+        """Test that a chain of layers with interleaved all-to-all ops preserves autograd."""
+        print("=" * 60)
+        print("TEST 5: Layer chain with interleaved all-to-all (simulated MoE)")
+        print("=" * 60)
+    
+        class FakeAllToAll(torch.autograd.Function):
+            @staticmethod
+            def forward(ctx, input_):
+                output = input_.new_zeros(input_.shape)
+                output.copy_(input_)
+                return output
+    
+            @staticmethod
+            def backward(ctx, grad_output):
+                output = grad_output.new_zeros(grad_output.shape)
+                output.copy_(grad_output)
+                return output
+    
+        num_layers = 4
+>       attn_layers = [torch.nn.Linear(64, 64).cuda() for _ in range(num_layers)]
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_backward_layer_count.py:252: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:1050: in cuda
+    return self._apply(lambda t: t.cuda(device))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:927: in _apply
+    param_applied = fn(param)
+                    ^^^^^^^^^
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:1050: in <lambda>
+    return self._apply(lambda t: t.cuda(device))
+                                 ^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _lazy_init():
+        global _initialized, _queued_calls
+        if is_initialized() or hasattr(_tls, "is_initializing"):
+            return
+        with _initialization_lock:
+            # We be double-checked locking, boys!  This is OK because
+            # the above test was GIL protected anyway.  The inner test
+            # is for when a thread blocked on some other thread which was
+            # doing the initialization; when they get the lock, they will
+            # find there is nothing left to do.
+            if is_initialized():
+                return
+            # It is important to prevent other threads from entering _lazy_init
+            # immediately, while we are still guaranteed to have the GIL, because some
+            # of the C calls we make below will release the GIL
+            if _is_in_bad_fork():
+                raise RuntimeError(
+                    "Cannot re-initialize CUDA in forked subprocess. To use CUDA with "
+                    "multiprocessing, you must use the 'spawn' start method"
+                )
+            if not hasattr(torch._C, "_cuda_getDeviceCount"):
+                raise AssertionError("Torch not compiled with CUDA enabled")
+            if _cudart is None:
+                raise AssertionError(
+                    "libcudart functions unavailable. It looks like you have a broken build?"
+                )
+            # This function throws if there's a driver initialization error, no GPUs
+            # are found or any other error occurs
+            if "CUDA_MODULE_LOADING" not in os.environ:
+                os.environ["CUDA_MODULE_LOADING"] = "LAZY"
+>           torch._C._cuda_init()
+E           RuntimeError: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx
+
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/cuda/__init__.py:319: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+============================================================
+TEST 5: Layer chain with interleaved all-to-all (simulated MoE)
+============================================================
+_______________________________ test_graph_depth _______________________________
+
+    def test_graph_depth():
+        """Count autograd graph depth for a 4-layer chain to establish baseline."""
+        print("=" * 60)
+        print("TEST 6: Autograd graph depth analysis")
+        print("=" * 60)
+    
+        num_layers = 4
+>       layers = [torch.nn.Linear(64, 64).cuda() for _ in range(num_layers)]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_backward_layer_count.py:303: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:1050: in cuda
+    return self._apply(lambda t: t.cuda(device))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:927: in _apply
+    param_applied = fn(param)
+                    ^^^^^^^^^
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/nn/modules/module.py:1050: in <lambda>
+    return self._apply(lambda t: t.cuda(device))
+                                 ^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _lazy_init():
+        global _initialized, _queued_calls
+        if is_initialized() or hasattr(_tls, "is_initializing"):
+            return
+        with _initialization_lock:
+            # We be double-checked locking, boys!  This is OK because
+            # the above test was GIL protected anyway.  The inner test
+            # is for when a thread blocked on some other thread which was
+            # doing the initialization; when they get the lock, they will
+            # find there is nothing left to do.
+            if is_initialized():
+                return
+            # It is important to prevent other threads from entering _lazy_init
+            # immediately, while we are still guaranteed to have the GIL, because some
+            # of the C calls we make below will release the GIL
+            if _is_in_bad_fork():
+                raise RuntimeError(
+                    "Cannot re-initialize CUDA in forked subprocess. To use CUDA with "
+                    "multiprocessing, you must use the 'spawn' start method"
+                )
+            if not hasattr(torch._C, "_cuda_getDeviceCount"):
+                raise AssertionError("Torch not compiled with CUDA enabled")
+            if _cudart is None:
+                raise AssertionError(
+                    "libcudart functions unavailable. It looks like you have a broken build?"
+                )
+            # This function throws if there's a driver initialization error, no GPUs
+            # are found or any other error occurs
+            if "CUDA_MODULE_LOADING" not in os.environ:
+                os.environ["CUDA_MODULE_LOADING"] = "LAZY"
+>           torch._C._cuda_init()
+E           RuntimeError: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx
+
+/home/i-fengyicheng/.local/lib/python3.12/site-packages/torch/cuda/__init__.py:319: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+============================================================
+TEST 6: Autograd graph depth analysis
+============================================================
+=========================== short test summary info ============================
+FAILED tests/unit/test_backward_layer_count.py::test_simple_autograd_chain - ...
+FAILED tests/unit/test_backward_layer_count.py::test_deallocate_backward - Ru...
+FAILED tests/unit/test_backward_layer_count.py::test_index_copy_autograd - Ru...
+FAILED tests/unit/test_backward_layer_count.py::test_alltoall_scaling_path - ...
+FAILED tests/unit/test_backward_layer_count.py::test_chain_with_alltoall - Ru...
+FAILED tests/unit/test_backward_layer_count.py::test_graph_depth - RuntimeErr...
+6 failed, 113 passed in 15.84s
+FULL_UNIT_RC=1

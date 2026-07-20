@@ -5,7 +5,7 @@ set -euo pipefail
 REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 UPDATE_SCRIPT="${UPDATE_SCRIPT:-${REPO_ROOT}/examples/update_pretrain_gpt.sh}"
 REALISTIC_SCRIPT="${REALISTIC_SCRIPT:-${REPO_ROOT}/examples/realistic_run_gpt.sh}"
-TEST_ROOT="${TEST_ROOT:-$(mktemp -d /tmp/megatron-gpt-example-mock.XXXXXX)}"
+TEST_ROOT="${TEST_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/megatron-gpt-example-mock.XXXXXX")}"
 PROJECT_ROOT="${TEST_ROOT}/project"
 CAPTURE_FILE="${TEST_ROOT}/torchrun-args.txt"
 FAKE_BIN="${REPO_ROOT}/tests/integration/fixtures/mock_torchrun_bin"

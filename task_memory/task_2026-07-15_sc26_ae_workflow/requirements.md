@@ -4,6 +4,10 @@
 
 | Date       | Summary of Changes                                       |
 |------------|----------------------------------------------------------|
+| 2026-07-20 | Captured D31 approval to track exactly the V21-required evidence logs and D32 approval to delete the reviewer-generated nested `.omc/` runtime state |
+| 2026-07-19 | Added D30: latest user instruction makes all test/validation/rehearsal failures autonomous when they serve the AE scripts and reusable pre-dataset, without relaxing release gates |
+| 2026-07-19 | Clarified the test-autonomy gate across all AE-serving test/control-plane surfaces and retained real qualification hard blocks |
+| 2026-07-18 | Captured D29 authorization for autonomous test-issue repair in service of the AE workflow |
 | 2026-07-17 | Captured D28 authorization for one clean B1 retry after the interrupted unauthorized submission |
 | 2026-07-17 | Captured D27 MemoryTracker qualification probe-only remediation selection |
 | 2026-07-16 | Captured D26 current-container environment remediation and execution-continuation directive |
@@ -163,6 +167,23 @@
 
 ### D28. Gate B1 interrupted-submission recovery authorization
 [Original Request] 对 2026-07-17 14:37:44 +08:00 未经授权提交、随后在 Echo qualification payload 执行前停止的 exact-two-H800 RJob，用户选择 `authorize_one_clean_retry`：完整保留并披露该违规事件；在独立审计通过并完成与实际 live contract 完整绑定的 fresh predict-only 后，只允许再提交一次 exact-two-H800 live qualification。
+
+### D29. Test 问题自主修复授权与 AE 核心目标
+
+[Original Request] 该 test 自主修复授权覆盖与 test 直接相关的 audit、schema、validator、documentation 和 control-plane 问题；不得通过弱化 assertion/acceptance criteria、跳过 checksum/provenance、加入 fallback，或把 local/synthetic PASS 冒充真实 qualification 来规避问题。真实 GPU、quota、image、scheduler、实际 product/runtime/workload、真实 pre-dataset data-quality 或 qualification 失败仍按 fail-fast 处理。
+[Original Request] 修改 gate：任何 test 类型的错误和问题，允许 agent 自行修复和决策；前提是所有处理都服务于当前 task 的 AE 流程核心目标，即编写可一键运行的 shell scripts，并收集符合要求、可供 AE 人员直接复用运行的 pre dataset。
+
+### D30. Latest test-failure autonomy gate (supersedes the narrow D29 interpretation)
+
+[Original Request] 任何由 test、validation 或 rehearsal 暴露的错误和问题，只要直接服务当前 task 的 AE 核心目标（编写可一键运行的 shell scripts，并收集符合要求、可供 AE 人员直接复用运行的 pre dataset），agent 可以自行诊断、决策和修复；不需要因为这类 test 问题再次等待用户批准。测试的验收标准、数据质量、checksum/provenance、real-vs-synthetic 证据边界和 no-fallback 规则不能被降低或绕过；测试未通过前不得宣称对应 gate 已通过。
+
+### D31. V21 clean-clone evidence-log tracking approval
+
+[Original Request] 批准“精确追踪 59 个 V21 必需 logs”。
+
+### D32. Reviewer-generated nested runtime-state cleanup approval
+
+[Original Request] 批准删除 `megatron-sim-engine/.omc`。
 
 ## A1. Gate A 批准与执行授权
 [Original Request] 批准 Gate A，完成已审查的 plan；允许启用并行 team 模式和 subagents，以尽可能加速当前任务的执行速度。

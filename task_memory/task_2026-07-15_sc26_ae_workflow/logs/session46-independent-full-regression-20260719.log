@@ -1,0 +1,408 @@
+=== ENV ===
+Python 3.12.3
+pytest 9.1.1
+CONDA_DEFAULT_ENV=${CONDA_DEFAULT_ENV:-none}
+=== PYTHON UNIT ===
+........................................................................ [ 98%]
+.                                                                        [100%]
+73 passed in 4.76s
+=== SHELL/INTEGRATION/E2E MATRIX ===
+--- CASE 1/22: tests/unit/test_sc26_ae_common.sh ---
+PASS: enum validation
+PASS: positive integer validation
+PASS: command validation
+PASS: file and directory validation
+PASS: safe output path construction
+PASS: gitlink and clean submodule validation
+PASS: dirty submodule rejection
+PASS_COUNT=7
+--- CASE 2/22: tests/unit/test_sc26_ae_docs_contract.sh ---
+DOC_CONTRACT_STATUS=PASS
+PUBLIC_ENTRY_COUNT=9
+PAPER_SUGGESTION_COUNT=10
+--- CASE 3/22: tests/unit/test_sc26_ae_setup_runtime.sh ---
+PASS: fixed runtime verifier contract is present
+PASS: valid fixed runtime contract passes
+PASS: wrong_python fails closed
+PASS: wrong_torch fails closed
+PASS: wrong_cuda fails closed
+PASS: cuda_unavailable fails closed
+PASS: missing_module fails closed
+PASS: zero_nvml fails closed
+PASS: missing_predictor fails closed
+PASS: Echo wrong Python version fails closed
+PASS: Echo wrong torch version fails closed
+PASS: grouped-gemm import and backend path are verified after install
+PASS: fake-nsys missing path fails closed
+PASS: fake-ncu missing path fails closed
+PASS: wrong Nsight Systems version fails closed
+PASS: wrong Nsight Compute version fails closed
+PASS: missing Nsight Compute command capability fails closed
+PASS: missing Nsight Systems profile capability fails closed
+PASS: missing Nsight Systems export capability fails closed
+PASS: missing Nsight Compute log-file capability fails closed
+PASS: PATH interpreter/tool discovery is rejected
+EVIDENCE_CLASS=local_synthetic_setup_runtime_contract
+PASS_COUNT=21
+--- CASE 4/22: tests/unit/test_sc26_ae_task1_source_provenance.sh ---
+PASS_COUNT=2
+--- CASE 5/22: tests/unit/test_sc26_ae_task2_evidence_mode.sh ---
+PASS_COUNT=4
+--- CASE 6/22: tests/unit/test_sc26_ae_task2_interpreter_contract.sh ---
+PASS_COUNT=11
+PASS: Task2 default interpreter=/opt/conda/envs/echo_slowdown/bin/python and real runtime controls fail fast
+Evidence root: /data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-6-test_sc26_ae_task2_interpreter_contract/sc26-ae-task2-runtime-binding.i8YOgc
+--- CASE 7/22: tests/unit/test_sc26_ae_task2_snapshot.sh ---
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+[PASS] Task2 gpt175b predictor_run_id=snapshot-one (local evidence; no GPU qualification claim)
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+[INFO] Attached model qwen3_a30b to verified Task2 predictor_run_id=snapshot-one
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+[PASS] Task2 dsv3 predictor_run_id=snapshot-two (local evidence; no GPU qualification claim)
+[ERROR] Echo-slowdown checkout is dirty: ?? dirty.txt
+[ERROR] Task2 evidence preserved at /data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-7-test_sc26_ae_task2_snapshot/sc26-ae-task2-unit.IX8sYK/output/_work/task2-failure-20260719T154516Z-4107063-13010
+[ERROR] new tracked path under excluded output contract: merge/output/new.csv
+[ERROR] Task2 evidence preserved at /data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-7-test_sc26_ae_task2_snapshot/sc26-ae-task2-unit.IX8sYK/output/_work/task2-failure-20260719T154517Z-4107089-29626
+PASS: synthetic snapshot/reuse/rebuild/dirty/new-path contracts
+Evidence root:
+/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-7-test_sc26_ae_task2_snapshot/sc26-ae-task2-unit.IX8sYK
+--- CASE 8/22: tests/unit/test_sc26_ae_task3_contracts.sh ---
+PASS: synthetic Task3 mode emits the non-qualification evidence class
+PASS: real Task3 mode emits the pending external-sealing evidence class
+PASS: unknown Task3 execution mode fails without an evidence fallback
+PASS: three public entries and shared library exist
+PASS: missing artifact source fails before execution
+PASS: invalid artifact source fails without fallback
+PASS: selected missing prebaked bundle fails fast
+PASS: fresh/prebaked cross mixing is rejected
+PASS: CPU simulator hardware contract is explicit
+PASS_COUNT=9
+EVIDENCE_ROOT=/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-8-test_sc26_ae_task3_contracts/sc26-ae-task3-unit.6RypAE
+--- CASE 9/22: tests/unit/test_sc26_ae_task3_interpreter_contract.sh ---
+PASS_COUNT=3
+--- CASE 10/22: tests/unit/test_sc26_ae_task3_provenance.sh ---
+PASS: dirty canonical Task3 producer fails before provenance resolution
+PASS: explicit synthetic producer fixture remains isolated from canonical status
+PASS: real Task3 rejects a non-canonical producer path
+PASS: clean canonical producer matching the outer gitlink is accepted
+PASS: real Task3 rejects external TASK3_BUILDER before producer execution
+PASS: real Task3 rejects external TASK3_SCHEDULER before producer execution
+PASS: real Task3 rejects external TASK3_SIMULATOR before producer execution
+PASS: synthetic Task3 retains explicit producer fixture paths
+PASS: real Task3 producer bytes must match the pinned commit
+PASS: checked-out producer commit must match the outer gitlink
+PROVENANCE_TEST_STATUS=PASS
+--- CASE 11/22: tests/integration/test_sc26_ae_setup.sh ---
+PASS: missing source fails before the installer boundary
+PASS: invalid source fails before the installer boundary
+PASS: missing pinned installer fails before the installer boundary
+PASS: VCS selection reaches exactly the pinned installer entry
+PASS: archive selection reaches exactly the pinned installer entry
+PASS: selected installer failure propagates without another source attempt
+EVIDENCE_CLASS=local_synthetic_setup_contract
+REAL_INSTALLER_EXECUTION_COUNT=0
+PASS_COUNT=6
+EVIDENCE_ROOT=/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-11-test_sc26_ae_setup/sc26-ae-setup-integration.BUCdLE
+--- CASE 12/22: tests/integration/test_sc26_ae_task1_contracts.sh ---
+PASS: missing batch contract fails before real torchrun
+PASS: malformed batch contract fails before real torchrun
+PASS: conflicting batch contract fails before real torchrun
+PASS: frozen full and QUICK rank scopes
+PASS: Task1 evidence class is explicit and never self-promotes
+PASS: Task1 rejects non-decimal GPU selectors before workload execution
+PASS: three Task1 entries produce isolated verified mock bundles
+PASS: adapter enforces bf16, mock data, overlap, trace memory, and warmup/profile
+PASS: one Nsight invocation wraps the complete selected-rank source loop
+PASS: source failure leaves the partial run unverified and publishes no marker
+PASS: missing-forward-step trace semantics fail before marker publication
+PASS: missing-backward-step trace semantics fail before marker publication
+PASS: missing-optimizer-step trace semantics fail before marker publication
+PASS: missing-backward-cmd-uid trace semantics fail before marker publication
+PASS: missing-backward-timestamp trace semantics fail before marker publication
+PASS: missing-backward-duration trace semantics fail before marker publication
+PASS: missing-backward-mg-state trace semantics fail before marker publication
+PASS: missing-backward-stage-id trace semantics fail before marker publication
+PASS: missing-backward-batch-id trace semantics fail before marker publication
+PASS: missing-ddp-trigger trace semantics fail before marker publication
+PASS: empty-payload memory semantics fail before marker publication
+PASS: empty-samples memory semantics fail before marker publication
+PASS: nan-peak memory semantics fail before marker publication
+PASS: inf-peak memory semantics fail before marker publication
+PASS: zero-peak memory semantics fail before marker publication
+PASS: negative-reserved memory semantics fail before marker publication
+PASS: negative-allocated memory semantics fail before marker publication
+PASS: all-zero-samples memory semantics fail before marker publication
+PASS: missing-rank memory semantics fail before marker publication
+PASS: duplicate-rank memory semantics fail before marker publication
+PASS: existing run destinations are never reused
+PASS_COUNT=31
+--- CASE 13/22: tests/integration/test_sc26_ae_task2_contract.sh ---
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[PASS] Task2 gpt175b predictor_run_id=integration-one (local evidence; no GPU qualification claim)
+PASS: Task2 rejects an intermediate symlink escape in a model marker
+PASS: Task2 rejects an intermediate symlink escape in a shared pointer
+PASS: Task2 rejects a model marker whose predictor identity differs from its run path
+PASS: Task2 rejects a shared pointer with a mismatched artifact_manifest_sha256 alias
+PASS: Task2 rejects an unverified shared predictor pointer before attachment
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model qwen3_a30b to verified Task2 predictor_run_id=integration-one
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model dsv3 to verified Task2 predictor_run_id=integration-one
+PASS: Task2 snapshot-only execution, predictor identity, and provenance contract
+Evidence root:
+/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-13-test_sc26_ae_task2_contract/sc26-ae-task2-integration.6xVbMb
+--- CASE 14/22: tests/integration/test_sc26_ae_task3_contract.sh ---
+PASS: prebaked resolver remains portable and emits every explicit schedule/simulator flag
+PASS: rank0 report, provenance, outer manifest, and verified marker close in order
+PASS: underspecified schedule fails exact microbatch validation before simulator execution
+PASS: PP schedule shape mismatch fails before simulator execution
+PASS: PP schedule dtype mismatch fails before simulator execution
+PASS: missing PP schedule records fail before simulator execution
+PASS: existing simulation_run_id fails without stale-output or marker reuse
+PASS: prebaked checksum corruption fails before simulator execution and marker publication
+PASS: fresh builder root-cause exit status propagates unchanged without fallback
+PASS: missing exact optimizer metric fails report validation and marker publication
+PASS_COUNT=10
+EVIDENCE_CLASS=local_synthetic_not_gpu_qualification
+EVIDENCE_ROOT=/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-14-test_sc26_ae_task3_contract/sc26-ae-task3-integration.FgHCh9
+--- CASE 15/22: tests/integration/test_sc26_ae_task3_portability.sh ---
+PASS: real Task3 rejects external TASK3_BUILDER before producer execution
+PASS: real Task3 rejects external TASK3_SCHEDULER before producer execution
+PASS: real Task3 rejects external TASK3_SIMULATOR before producer execution
+PASS: real Task3 enforces the fixed interpreter before synthetic prebaked reuse
+PASS: synthetic Task3 rejects an unknown distribution evidence class
+PASS: synthetic Task3 rejects an unknown model evidence class
+PASS: synthetic Task3 rejects an unknown shared Task2 evidence class
+PASS: fresh Task3 rejects an unverified Task1 capture marker
+PASS: fresh Task3 rejects an unverified shared Task2 predictor marker
+PASS: Task3 rejects parent-directory symlink traversal before creating a run
+PASS: Task3 rejects an intermediate Task1-root symlink before resolving fresh inputs
+PASS: Task3 rejects a non-directory model output component
+PASS: Task3 rejects a dangling symlink at the selected immutable run root
+PASS: prebaked Task3 rejects a checksum-consistent non-overlap model manifest
+PASS: prebaked Task3 rejects a checksum-consistent fresh shared manifest
+PASS: Task3 report schema rejects boolean rank_id
+PASS: prebaked distribution rejects absolute bundle paths
+PASS: relocated prebaked bundle resolves only portable manifest paths and verifies output
+PASS_COUNT=18
+EVIDENCE_CLASS=local_synthetic_not_gpu_qualification
+EVIDENCE_ROOT=/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-15-test_sc26_ae_task3_portability/sc26-ae-task3-portability.Kls0xs
+--- CASE 16/22: tests/e2e/test_sc26_ae_clean_clone_replay.sh ---
+Note: switching to '6e06e3f5140cd4e2e7c12a35586ebcdc0f410df0'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+[RUN] setup_public_contract
+[PASS] setup_public_contract
+[RUN] task1_public_entries
+[PASS] task1_public_entries
+[RUN] task2_public_entries
+[PASS] task2_public_entries
+[RUN] task3_prebaked_public_entries
+[PASS] task3_prebaked_public_entries
+[RUN] task1_task2_task3_fresh_chain
+[PASS] task1_task2_task3_fresh_chain
+PUBLIC_TASK1_ENTRY_COUNT=3
+PUBLIC_TASK2_ENTRY_COUNT=3
+PUBLIC_TASK3_ENTRY_COUNT=3
+SETUP_CONTRACT_CASE_COUNT=6
+FRESH_ATOMIC_CHAIN_COUNT=1
+OUTER_CLONE_STATUS=clean
+ECHO_SUBMODULE_STATUS=clean
+SIM_ENGINE_STATUS=clean
+COLLECTIVE_SIM_STATUS=clean
+EVIDENCE_CLASS=local_synthetic_not_gpu_qualification
+REPLAY_ROOT=/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-16-test_sc26_ae_clean_clone_replay/sc26-ae-clean-clone-replay.Q9WSyS
+PASS: isolated clean-clone-style nine-entry synthetic replay completed.
+--- CASE 17/22: tests/e2e/test_sc26_ae_fresh_chain.sh ---
+TASK1_TRACE_FILES=4
+TASK1_MEMORY_JSON=4
+TASK2_DATASET_ROWS=2
+TASK2_AVERAGE_VALIDATION_MSE=3.0
+TASK2_TEST_MSE=0.5
+TASK2_MODEL_RELOAD_MAX_ABS_PREDICTION_DELTA=0.0
+TASK3_BACKWARD_CMD_UID_COUNT=4
+TASK3_RANK0_STEP_MS=22.5
+TASK3_FORWARD_MS=6.0
+TASK3_BACKWARD_MS=11.0
+TASK3_OPTIMIZER_MS=2.5
+TASK3_LOAD_S=0.125
+TASK3_EXECUTION_S=0.375
+TASK3_SIM_WALL_S=0.5
+TASK3_PROCESS_WALL_S=0.939838
+TASK3_PEAK_RSS_KIB=51688
+TASK3_PEAK_RSS_GIB=0.049293518
+TESTED_HOST_ALLOCATION_MIB=32
+PASS: Task1 capture, shared Task2 predictor, and fresh Task3 simulation formed one verified synthetic chain.
+CHAIN_PASS_COUNT=1
+EVIDENCE_CLASS=local_synthetic_not_gpu_qualification
+EVIDENCE_ROOT=/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-17-test_sc26_ae_fresh_chain/sc26-ae-fresh-chain.pmnbsF
+--- CASE 18/22: tests/e2e/test_sc26_ae_task1_smoke.sh ---
+EVIDENCE_CLASS=local_synthetic_not_gpu_qualification
+REAL_GPU_WORKLOAD_COUNT=0
+PASS: missing batch contract fails before real torchrun
+PASS: malformed batch contract fails before real torchrun
+PASS: conflicting batch contract fails before real torchrun
+PASS: frozen full and QUICK rank scopes
+PASS: Task1 evidence class is explicit and never self-promotes
+PASS: Task1 rejects non-decimal GPU selectors before workload execution
+PASS: three Task1 entries produce isolated verified mock bundles
+PASS: adapter enforces bf16, mock data, overlap, trace memory, and warmup/profile
+PASS: one Nsight invocation wraps the complete selected-rank source loop
+PASS: source failure leaves the partial run unverified and publishes no marker
+PASS: missing-forward-step trace semantics fail before marker publication
+PASS: missing-backward-step trace semantics fail before marker publication
+PASS: missing-optimizer-step trace semantics fail before marker publication
+PASS: missing-backward-cmd-uid trace semantics fail before marker publication
+PASS: missing-backward-timestamp trace semantics fail before marker publication
+PASS: missing-backward-duration trace semantics fail before marker publication
+PASS: missing-backward-mg-state trace semantics fail before marker publication
+PASS: missing-backward-stage-id trace semantics fail before marker publication
+PASS: missing-backward-batch-id trace semantics fail before marker publication
+PASS: missing-ddp-trigger trace semantics fail before marker publication
+PASS: empty-payload memory semantics fail before marker publication
+PASS: empty-samples memory semantics fail before marker publication
+PASS: nan-peak memory semantics fail before marker publication
+PASS: inf-peak memory semantics fail before marker publication
+PASS: zero-peak memory semantics fail before marker publication
+PASS: negative-reserved memory semantics fail before marker publication
+PASS: negative-allocated memory semantics fail before marker publication
+PASS: all-zero-samples memory semantics fail before marker publication
+PASS: missing-rank memory semantics fail before marker publication
+PASS: duplicate-rank memory semantics fail before marker publication
+PASS: existing run destinations are never reused
+PASS_COUNT=31
+PASS: all public Task1 entries satisfy the local synthetic smoke contract.
+SMOKE_PASS_COUNT=1
+--- CASE 19/22: tests/e2e/test_sc26_ae_task2_smoke.sh ---
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[PASS] Task2 gpt175b predictor_run_id=integration-one (local evidence; no GPU qualification claim)
+PASS: Task2 rejects an intermediate symlink escape in a model marker
+PASS: Task2 rejects an intermediate symlink escape in a shared pointer
+PASS: Task2 rejects a model marker whose predictor identity differs from its run path
+PASS: Task2 rejects a shared pointer with a mismatched artifact_manifest_sha256 alias
+PASS: Task2 rejects an unverified shared predictor pointer before attachment
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model qwen3_a30b to verified Task2 predictor_run_id=integration-one
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model dsv3 to verified Task2 predictor_run_id=integration-one
+PASS: Task2 snapshot-only execution, predictor identity, and provenance contract
+Evidence root:
+/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-19-test_sc26_ae_task2_smoke/sc26-ae-task2-integration.iN934C
+PASS: public Task2 entries share the isolated synthetic contract test.
+--- CASE 20/22: tests/e2e/test_sc26_ae_task3_prebaked_cpu.sh ---
+MODEL=gpt175b RANK0_STEP_MS=18.5 FORWARD_MS=5.0 BACKWARD_MS=9.0 OPTIMIZER_MS=2.0 LOAD_S=0.125 EXECUTION_S=0.375 SIM_WALL_S=0.5 PROCESS_WALL_S=0.935829 PEAK_RSS_KIB=51592 PEAK_RSS_GIB=0.049201965 TESTED_HOST_ALLOCATION_MIB=32 SCHEDULE_STAGES=8 SCHEDULE_MICROBATCHES_PER_STAGE=48 MANIFEST_FILE_COUNT=22 MANIFEST_SHA256=4e05bd0626b56d092f5c073e680ca3b9805ec5bb2d8c2594af0aba705592f4be
+MODEL=qwen3_a30b RANK0_STEP_MS=22.5 FORWARD_MS=6.0 BACKWARD_MS=11.0 OPTIMIZER_MS=2.5 LOAD_S=0.125 EXECUTION_S=0.375 SIM_WALL_S=0.5 PROCESS_WALL_S=0.931358 PEAK_RSS_KIB=51412 PEAK_RSS_GIB=0.049030304 TESTED_HOST_ALLOCATION_MIB=32 SCHEDULE_STAGES=4 SCHEDULE_MICROBATCHES_PER_STAGE=16 MANIFEST_FILE_COUNT=18 MANIFEST_SHA256=5dc6f4b681516e8a3fb2d5dc0fd3d50ab48f60ad324a07b78f7c0f94b7217138
+MODEL=dsv3 RANK0_STEP_MS=24.5 FORWARD_MS=6.5 BACKWARD_MS=12.0 OPTIMIZER_MS=3.0 LOAD_S=0.125 EXECUTION_S=0.375 SIM_WALL_S=0.5 PROCESS_WALL_S=0.992804 PEAK_RSS_KIB=51608 PEAK_RSS_GIB=0.049217224 TESTED_HOST_ALLOCATION_MIB=32 SCHEDULE_STAGES=4 SCHEDULE_MICROBATCHES_PER_STAGE=16 MANIFEST_FILE_COUNT=18 MANIFEST_SHA256=312d3ae12a6fec9902f8b154093cef46d3241cad398fbcceeff3fc63c228ad65
+PASS: all three Task3 public entries completed the strict prebaked CPU synthetic workflow.
+MODEL_PASS_COUNT=3
+EVIDENCE_CLASS=local_synthetic_not_gpu_qualification
+SUMMARY_JSON=/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-20-test_sc26_ae_task3_prebaked_cpu/sc26-ae-task3-prebaked-e2e.E1kpnr/summary.json
+EVIDENCE_ROOT=/data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-20-test_sc26_ae_task3_prebaked_cpu/sc26-ae-task3-prebaked-e2e.E1kpnr
+--- CASE 21/22: tests/unit/test_setup_grouped_gemm_v1.sh ---
+PASS: missing source fails before pip or curl
+PASS: invalid source fails before pip or curl
+PASS: explicit VCS multiarch succeeds
+PASS: selected VCS failure does not call archive tools
+PASS: explicit archive multiarch succeeds
+PASS: VCS install uses exact absl-py constraint
+PASS: archive install uses exact absl-py constraint
+PASS: existing exact absl-py constraint is reused
+PASS: existing absl-py constraint mismatch fails before pip
+PASS: existing absl-py constraint extra line fails before pip
+PASS: existing absl-py constraint without trailing newline fails before pip
+PASS: native mode is explicit
+PASS: invalid mode fails before pip
+PASS: broken Ninja prerequisite fails before pip
+PASS: hash mismatch stops source install
+PASS: CUTLASS hash mismatch stops source install
+PASS: exact VCS manifest skips rebuild
+PASS: exact archive manifest skips rebuild
+PASS: manifest source mismatch fails before install
+PASS: manifest absl-py version mismatch fails
+PASS: idempotent live absl-py version mismatch fails
+PASS: manifest backend hash mismatch fails
+PASS: MAX_JOBS above CPU count fails before pip
+PASS: wrong environment fails before pip
+PASS: unverified existing package fails
+PASS: matching manifest with broken import fails
+PASS: selected archive install failure propagates
+PASS: selected archive log write failure fails explicitly
+PASS: VCS wrong commit fails verification
+PASS: post-install absl-py version mismatch fails
+PASS: VCS log write failure fails
+PASS: Python environment bin is added to PATH
+PASS: selected VCS timeout is final
+PASS: invalid VCS timeout fails before pip
+PASS: log directory creation failure stops before pip
+PASS: SC26-AE setup requires explicit source
+PASS: SC26-AE setup forwards selected archive
+PASS: 37/37 grouped_gemm setup unit cases.
+--- CASE 22/22: tests/integration/test_gpt_example_mock_mode.sh ---
+PASS: update mock mode and environment overrides
+PASS: update legacy data arguments
+PASS: update preserves glob characters in legacy data argv
+PASS: update invalid MOCK_DATA fails before torchrun
+PASS: update legacy CUDA and NCCL defaults
+PASS: update aggregates a torchrun failure into status 1
+PASS: update calculates PP ranks without external seq
+PASS: update rejects invalid topology before torchrun
+PASS: update fails before torchrun when log directory creation fails
+PASS: update propagates tee failure
+PASS: update rejects whitespace in BASE_PATH before torchrun
+PASS: update preserves whitespace in LOG_ROOT
+PASS: realistic mock mode, topology, and environment overrides
+PASS: realistic legacy data and environment defaults
+PASS: realistic preserves glob characters in legacy data argv
+PASS: realistic invalid MOCK_DATA fails before torchrun
+PASS: realistic invalid model fails before torchrun
+PASS: realistic propagates torchrun status 23
+PASS: realistic rejects invalid topology before torchrun
+PASS: realistic fails before torchrun when log directory creation fails
+PASS: realistic rejects whitespace in BASE_PATH before torchrun
+PASS: realistic preserves whitespace in LOG_DIR
+PASS: 22/22 selected GPT example integration cases.
+Artifacts: /data/ycfeng/sc26-ae-test-tmp/session46-independent-full-regression-20260719/case-22-test_gpt_example_mock_mode/megatron-gpt-example-mock.ueP5D0
+MATRIX_CASE_COUNT=22
+=== STATIC SHELL SYNTAX ===
+SHELL_SYNTAX_COUNT=73
+=== STATIC PYTHON COMPILE ===
+PYTHON_COMPILE_COUNT=201
+=== PRODUCTION TEMP ROOT SCAN ===
+PRODUCTION_TEMP_ROOT_SCAN=PASS
+=== DIFF CHECK ===
+GIT_DIFF_CHECK=PASS
+
+INDEPENDENT_FULL_REGRESSION_RC=0
+INDEPENDENT_FULL_REGRESSION_BYTES=23336
+INDEPENDENT_FULL_REGRESSION_SHA256=296ead9f6572173bfe9e930636326f06ba9b82bb86c584da2e66229cbc5ca198

@@ -4,6 +4,24 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-20 | Passed the penultimate tracked-snapshot V21 gate, closed I59 locally, and retained final identity, commit, and committed-clone verification as mechanical provenance steps |
+| 2026-07-20 | Added the Session 56 local provenance checkpoint: exact V21 log tracking, runtime-output scope isolation, staged-snapshot replay, and local-only commit boundary |
+| 2026-07-20 | Recorded the independent MoE rank-0 preflight orchestration: QUICK observes without applying D16, while full enforces 7200 seconds before the 256-rank capture |
+| 2026-07-20 | Applied the independent I53/D16 WATCH: GPT uses an eight-rank diagnostic estimate with no D16 gate fields; MoE retains rank0×256 and the 7200-second gate, pending an independent preflight probe |
+| 2026-07-19 | Recorded post-implementation `APPROVE WITH WATCH`: the intermediate-symlink containment repair is narrow; root trust and TOCTOU remain open |
+| 2026-07-19 | Recorded the D30 Task2 canonical-containment RED/GREEN repair; I56 is only partial and all real/release gates remain blocked |
+| 2026-07-19 | Session 45: recorded the read-only control-plane audit and kept source-binding, qualification-handoff, and release gates blocked pending design approval |
+| 2026-07-19 | Recorded the post-closure I49 document verifier with hash-inventory, marker, syntax, and diff evidence; global qualification gates remain blocked |
+| 2026-07-19 | Verified the Session 44 documentation reconciliation with focused/full local regression, static scope checks, and semantic I39 status probe; global qualification gates remain blocked |
+| 2026-07-19 | Reconciled the future-work provenance wording with I39 closure and removed one accidental duplicate continuation sentence; all real qualification gates remain blocked |
+| 2026-07-19 | Closed I48 local documentation/static verifier after status-aware no-match handling and scope-corrected GREEN evidence; all real qualification gates remain blocked |
+| 2026-07-19 | Recorded and corrected a local final-verifier shell quoting typo; no repository test result or acceptance boundary changed |
+| 2026-07-19 | Reconciled the Phase 7/9 audit with the canonical aggregate report and Session 43 final local regression; historical evidence and external release blocks remain append-only |
+| 2026-07-19 | Closed the continuation local regression after D30 temp-root portability repair; real H800 qualification remains externally blocked |
+| 2026-07-19 | Corrected the stale D26 current-quota wording using the newer D45 v1.2-ae semantic quota evidence (`129/128`); historical D26 facts remain append-only |
+| 2026-07-19 | Added D30 latest-user test-failure autonomy overlay; test/validation/rehearsal defects may be self-repaired for AE deliverables without relaxing acceptance or release gates |
+| 2026-07-19 | Appended the D42/D43 superseding handoff: terminal Retry-1 identity, retired D28 path, narrow functional PASS with provenance WATCH, and final 3x3 block |
+| 2026-07-19 | Added D29 test-issue autonomy overlay, synchronized current target image v1.2-ae, and retained historical v1.1 qualification evidence as non-current |
 | 2026-07-17 | Closed the D28 docs-only addendum after follow-up APPROVE and final D1–D28 artifact/Git-scope validation |
 | 2026-07-17 | Recorded independent follow-up APPROVE for the remediated D28 addendum and opened final docs validation |
 | 2026-07-17 | Applied the independent D28 WATCH precision fixes for exact resource flags and standalone next-gate wording |
@@ -46,7 +64,7 @@
 
 **Architecture:** Keep orchestration in the main repository under `SC26-AE/`, reuse the three existing model scripts as Task1 compute/tracing sources, execute Echo-slowdown from an isolated `git archive` snapshot for Task2, and use only the sim-engine built-in scheduler plus simulator for Task3. Task1 and Task3 write immutable versioned runs and expose only verified markers. A portable outer manifest ties every artifact to checksums, producer commits, simulation topology, capture runtime, profile, capture identity, and explicit artifact source; selected-source failures stop immediately rather than switching paths.
 
-**Tech Stack:** Bash with `set -euo pipefail`; a Megatron/Task1/Task3 environment at `/opt/conda/envs/megatron_env` with Python `3.9.18`, PyTorch `2.1.2`, and CUDA `12.1`; a separate exact Python `3.10.x` conda environment for Echo Task2 with the same PyTorch/CUDA family; NVML through `pynvml`; Nsight Systems (`nsys`); Nsight Compute (`ncu`); XGBoost; JSON/Markdown reports; pytest; shell integration tests; Git submodules; a user-approved immutable AE image; and the internal `rlaunch` H800 platform. The current execution continues in `hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef` by explicitly provisioning only proven gaps. D24 still requires a future immutable replacement image for final release qualification, but D26 makes that future image unavailable and non-blocking for current Gate B execution. `container_dependency_inventory.md` is the single dependency-gap handoff and current-container installation ledger.
+**Tech Stack:** Bash with `set -euo pipefail`; a Megatron/Task1/Task3 environment at `/opt/conda/envs/megatron_env` with Python `3.9.18`, PyTorch `2.1.2`, and CUDA `12.1`; a separate exact Python `3.10.x` conda environment for Echo Task2 with the same PyTorch/CUDA family; NVML through `pynvml`; Nsight Systems (`nsys`); Nsight Compute (`ncu`); XGBoost; JSON/Markdown reports; pytest; shell integration tests; Git submodules; a user-approved immutable AE image; and the internal `rlaunch` H800 platform. The current qualification target is `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae`; its immutable digest must be resolved by the reviewed preflight, and the tag alone is not a qualification claim. The `v1.1-image-11c794ef` image remains historical evidence only and must not be used as the current target. `container_dependency_inventory.md` is the single dependency-gap handoff and current-container installation ledger.
 
 ---
 
@@ -54,7 +72,7 @@
 
 | Gate / Phase | Status | Entry condition | Exit condition |
 |--------------|--------|-----------------|----------------|
-| **Gate A — enhanced plan and independent review** | **D28 ADDENDUM INDEPENDENTLY APPROVED AND VALIDATED 2026-07-17** | R1–R15 and D1–D28 captured | SATISFIED: D28 synchronization, WATCH remediation, follow-up `APPROVE`, and final docs/artifact/Git-scope validation |
+| **Gate A — enhanced plan and independent review** | **D28 ADDENDUM COMPLETE; D29/D30 TEST-AUTONOMY OVERLAYS SYNCHRONIZED 2026-07-19** | R1–R15 and D1–D30 captured | D28 docs/artifact/Git-scope validation remains satisfied; D30 latest-user scope/boundary/evidence language is synchronized and locally validated |
 | Phase 0 — safety baseline and isolated worktree | **COMPLETED 2026-07-16** | Gate A approved | Protected baseline committed and branches/worktree ready |
 | **Gate B — existing Task1/Task2/Task3 runtime reconnaissance** | **IN PROGRESS — D27 ONE-H800 PASS; ECHO EXACT-TWO-H800 BLOCK; INTEGRATED B1 BLOCK** | Phase 0 complete; D27 MemoryTracker evidence passed; D28 conditionally authorizes one clean Echo retry after review and a fully-bound predict-only PASS | Echo clean live qualification and independent evidence audit pass; then B2/B3/B4 run successfully and B5 reconciles their interfaces before implementation |
 | Phase 1 — shared AE infrastructure | BLOCKED | Gate B complete | Setup, common shell contracts, and manifest helper tested |
@@ -67,7 +85,21 @@
 | Phase 8 — GPU dry-run and clean-clone rehearsal | BLOCKED | Phases 1–7 locally verified | Nine entries rehearsed with recorded metrics |
 | Phase 9 — final review, evidence, and archive | BLOCKED | Phase 8 complete | Tests/reviews complete; summary and lessons archived |
 
-**Current execution rule:** D26 explicitly resumes Gate B and requires environment problems to be solved inside the current container. Fresh inventory proved that the image has no `/opt/anaconda` or `myenv_yc`; `/opt/conda/envs/megatron_env` is the fixed Megatron/Task1/Task3 runtime. A live Python `3.9.18` import of pinned Echo `prediction_api.py` proved an independent Python `3.10.x` Task2 environment is required. These are two explicit role-bound runtimes, not automatic fallback candidates: each task invokes its fixed interpreter and fails if it is missing or incompatible. Install only proven missing packages/tools from exact cached sources with an auditable ledger, then complete live qualification. D27's probe-only isolated loader has now passed on one H800 and does not authorize a product-source edit, MemoryTracker bypass, empty JSON, or controller-only qualification. The unavailable replacement image remains a future Phase 8 release gate, not a current blocker. **D27 one-H800 is PASS; Echo exact-two-H800 and integrated B1 remain BLOCKED.** The unauthorized 2026-07-17 14:37:44 +08:00 submission consumed the prior live budget even though its Echo payload did not execute. D28 creates a separate conditional, currently unconsumed clean-retry budget: D28 synchronization, independent review, and a fresh predict-only command fully bound to the exact live image, volume, workdir, interpreter, isolated source, helper, payload, artifact root, and exact resources (`--gpu=2 --cpu=4 --memory=8192 --charged-group=codesign --private-machine=group --positive-tags=h800 --backoff-limit=1`) must all pass first. Only then may one final exact-two-H800 live qualification run; there is no additional retry after it, and any new root-cause class stops execution. B2/B3/B4 remain blocked until integrated B1 passes; Phase 1 remains blocked until Gate B passes. Push, Release publication, asset upload, default-branch mutation, and submodule commit/gitlink changes remain prohibited.
+**Current execution rule:** D26 explicitly resumes Gate B and requires environment problems to be solved inside the current container. Fresh inventory proved that the image has no `/opt/anaconda` or `myenv_yc`; `/opt/conda/envs/megatron_env` is the fixed Megatron/Task1/Task3 runtime. A live Python `3.9.18` import of pinned Echo `prediction_api.py` proved an independent Python `3.10.x` Task2 environment is required. These are two explicit role-bound runtimes, not automatic fallback candidates: each task invokes its fixed interpreter and fails if it is missing or incompatible. Install only proven missing packages/tools from exact cached sources with an auditable ledger, then complete live qualification. The current target image is `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae`; its digest and worker availability still require preflight evidence. The historical `v1.1-image-11c794ef` image is retained only as prior evidence and is not a current target. D27's probe-only isolated loader has now passed on one H800 and does not authorize a product-source edit, MemoryTracker bypass, empty JSON, or controller-only qualification. **D27 one-H800 is PASS; Echo exact-two-H800 and integrated B1 remain BLOCKED.** The unauthorized 2026-07-17 14:37:44 +08:00 submission consumed the prior live budget even though its Echo payload did not execute. D28 creates a separate conditional, currently unconsumed clean-retry budget: D28 synchronization, independent review, and a fresh predict-only command fully bound to the current target image, volume, workdir, interpreter, isolated source, helper, payload, artifact root, and exact resources (`--gpu=2 --cpu=4 --memory=8192 --charged-group=codesign --private-machine=group --positive-tags=h800 --backoff-limit=1`) must all pass first. Only then may one final exact-two-H800 live qualification run; there is no additional retry after it, and any new root-cause class stops execution. B2/B3/B4 remain blocked until integrated B1 passes; Phase 1 remains blocked until Gate B passes. Push, Release publication, asset upload, default-branch mutation, and submodule commit/gitlink changes remain prohibited.
+
+**D29 test-autonomy overlay (2026-07-19):** A failure whose scope is limited to tests, audits, schemas, validators, documentation, or AE control-plane orchestration is not a user-approval block. The agent may diagnose the root cause, make the smallest contract-preserving fix, and choose the next verification command autonomously when doing so advances the one-click AE scripts or the reusable pre-dataset. Every such repair must show RED→GREEN evidence, run the affected regression tests, and record the motivation, expectation, method, result, and numeric evidence. This overlay never authorizes weakening assertions or acceptance criteria, hiding checksum/provenance mismatches, adding fallback/source switching, or relabeling local/synthetic evidence as real qualification. A failure involving real GPU/image/quota/scheduler availability, actual product/runtime/workload correctness, or real pre-dataset data quality remains a hard block and must be reported without self-overriding.
+
+**D30 latest-user test-failure autonomy overlay (supersedes D29's narrow scope interpretation):** Any
+error or problem exposed by a test, validation, rehearsal, audit, or qualification check may be
+diagnosed, decided, and repaired autonomously when the work directly serves the one-click AE shell
+entries or the reusable pre-dataset. This includes a task-scoped implementation defect when the
+failing test establishes that the implementation change is required. The agent must keep the gate
+closed until the underlying problem is fixed and the affected check passes; D30 never permits
+weakening assertions/acceptance criteria, bypassing checksum/provenance or clean-source checks,
+adding fallback/source switching, relabeling synthetic evidence, or declaring a real qualification
+pass without real evidence. Actual external resource/authority failures, destructive or
+irreversible actions, external publication, and materially scope-changing refactors remain outside
+this autonomy boundary.
 
 **Observed external evidence after the pause (not an authorization):** the already-submitted `sc26-ae-b1-session15-20260717` RJob completed after the pause was recorded. Its dependency, CUDA/NVML, and toolchain gates passed, but the `MEMORY TRACKER CONTRACT` failed in the qualification probe with an existing `megatron.profiler` package-level circular import (`trace_decorator` requested while `megatron.profiler` is partially initialized). This evidence is recorded for plan review only. It does not close B1, does not authorize another RJob, and does not authorize a product-source edit. D27 resolves the branch selection in favor of a probe-only isolated loader; live H800 qualification remains pending and prohibited during the current pause.
 
@@ -106,6 +138,7 @@
 16. **Virtual node topology:** all Task3 scheduler/simulator invocations fix `LOCAL_SIZE=8`, matching the H800 platform, sim-engine hardware presets, and canonical analytical backend's 8-GPU-per-node model. The value is serialized in every outer topology manifest and is never inherited from a CLI default.
 17. **Run isolation:** Task1 and Task3 never write into a prior run directory. Every run ID is generated once, its destination must not exist, native CWD-relative outputs remain inside that run, and a model-level marker is published only after manifest verification. Failed or partial runs remain unverified and are never reused.
 18. **External publication gate:** local commits may proceed only after their phase gates, but every `git push`, default-branch change, GitHub Release creation/upload, or other external publication requires a separate explicit user approval naming the remote URL, branch/tag, commit SHA, visibility, and asset list. D1/D2 define the intended destination but do not waive this final side-effect approval.
+19. **Test-issue autonomy:** any defect exposed by a test, validation, rehearsal, audit, or qualification check may be self-repaired under D30 when it directly serves the one-click AE scripts or reusable pre-dataset, including a task-scoped implementation defect proven by that check. RED→GREEN, root-cause notes, affected regressions, and numeric evidence remain mandatory. No repair may relax acceptance, provenance, checksum, real-vs-synthetic boundaries, no-fallback rules, or pre-dataset quality; an unmet real gate remains closed until fixed and re-tested.
 
 ---
 
@@ -172,6 +205,7 @@ fresh_capture_gate = estimated_full_seconds <= 7200
 
 - The estimate basis is recorded as `estimate_basis_rank=0`. Because PP stages may differ, this formula is a user-selected gate rather than a claim of exact wall-clock prediction; measured full-capture time replaces the estimate when a full capture is performed.
 - If the estimate exceeds 7200 seconds, the release path does not attempt a full fresh Nsight capture and Task3 validation uses a complete prebaked bundle. This is a release-time decision recorded in the manifest/README, not a runtime fallback.
+- D16 gate fields are model-scoped: Qwen3-A30B and DeepSeek-V3 set `d16_gate_applicable=true`, use `estimate_rank_count=256`, and record the 7200-second result; GPT-175B sets `d16_gate_applicable=false`, uses its eight representative ranks for a diagnostic estimate, and omits the D16 threshold/result fields. Timing extracted from an already-running selected-rank capture is observational only; the release gate remains open until an independent rank-0-only preflight probe runs before the full-capture decision.
 
 ---
 
@@ -607,13 +641,16 @@ Exact operation names are `forward_step`, `backward_step`, and `optimizer_step`;
 - Modify: `task_memory/task_2026-07-15_sc26_ae_workflow/progress.md`
 - Create: `task_memory/task_2026-07-15_sc26_ae_workflow/container_dependency_inventory.md`
 
-- [x] Capture R1–R15 and D1–D28, with every raw item marked `[Original Request]`.
+- [x] Capture R1–R15 and D1–D30, with every raw item marked `[Original Request]`.
 - [x] Resolve source selection as explicit-only (D23 supersedes D22).
 - [x] Resolve image remediation as a replacement pinned image, with explicit current-container provisioning authorization and a separate dependency inventory (D24).
 - [x] Resolve one common scaling warmup/profile pair through D25 grilling: explicit warmup `3`, profile `1` for all three Task1 wrappers.
 - [x] Resolve I33 through D27: use a qualification-probe-only isolated loader, retain the H800 NVML/CUDA/non-empty JSON contract, and leave the product import path for B2 verification.
 - [x] Capture D28: disclose the interrupted unauthorized exact-two-H800 submission, distinguish the consumed prior budget from the new conditional clean-retry budget, and require independent review plus a fully-bound predict-only before one final live attempt.
+- [x] Capture D29: allow autonomous repair of test/audit/schema/validator/documentation/control-plane defects in service of the one-click AE workflow, while retaining RED→GREEN evidence and hard blocks for real qualification, workload, and pre-dataset failures.
 - [x] Record I13 portability, I14 setup source strictness, I15 overlap-mode requirements, and I16 node-topology contract risk.
+- [x] Synchronize D29's historical test-issue overlay and D30's latest broader test-failure autonomy,
+      acceptance boundary, and RED→GREEN evidence obligation across the active plan documents.
 
 ### Task A2: Author plan rewrite and self-review
 
@@ -642,7 +679,7 @@ stepcode claude --model 'claude-opus-4-6[1m]' --effort max -p -- "<review prompt
 - [x] Record the generated `.omx/artifacts/ask-claude-*.md` path and raw verdict in `review.md`.
 - [ ] For `APPROVE`, continue Gate A validation.
 - [x] For `WATCH`, amend the plan and record each watched risk plus verification gate.
-- [ ] For `BLOCK`, stop immediately and request user adjudication; do not self-override.
+- [ ] For a substantive independent-review `BLOCK`, stop immediately and request user adjudication; do not self-override. A problem exposed by a test/validation/rehearsal/qualification check is governed by D30 instead: repair it autonomously with preserved acceptance/provenance and RED→GREEN evidence, then re-run the affected review/test gate. D30 does not authorize weakening the contract, bypassing evidence, destructive action, external publication, or a materially scope-changing refactor.
 
 ### Task A4: Gate A document validation
 
@@ -756,6 +793,34 @@ This task is additive to Tasks A3/A5/A6. It records the post-D27 Gate B1 runtime
 - [x] Run fresh D1–D28 docs, issue-matrix, test-report, artifact/hash, Markdown-fence, whitespace, product-source scope, staged-path, and gitlink validation after the independent verdict is folded into `review.md`.
 - [x] Do not create the clean retry root, run the fully-bound predict-only, or submit the D28 live RJob during this plan-doc synchronization task. Those remain later Gate B1 execution actions after Task A7 review closure.
 
+### Task A8: D29 test-issue autonomy overlay synchronization
+
+This task changes only the governance boundary for test-serving work. It does not open Gate B, authorize a GPU/RJob, or qualify a pre-dataset.
+
+- [x] Record the user's D29 request in `requirements.md` with `[Original Request]`.
+- [x] State the autonomous repair scope explicitly: tests, audits, schemas, validators, documentation, and AE control-plane orchestration that directly serve the one-click scripts or reusable pre-dataset.
+- [x] Preserve the hard-block scope explicitly: real GPU/image/quota/scheduler availability, actual product/runtime/workload correctness, real pre-dataset data quality, security, destructive actions, and external publication.
+- [x] Require root-cause notes, observed RED, minimal contract-preserving repair, GREEN, affected regression tests, and numeric evidence for every self-repaired test issue; prohibit weakened assertions, fallback/source switching, provenance/checksum bypass, and synthetic-to-real relabeling.
+- [x] Reclassify the current state accurately: local test failures may be repaired autonomously; fresh real qualification and final pre-dataset remain incomplete and blocked.
+
+### Task A9: D30 latest test-failure autonomy overlay
+
+This addendum supersedes D29's narrow “test/control-plane only” interpretation for the current
+execution. It changes the approval handoff for test-detected work, not the acceptance target.
+
+- [x] Record the latest user instruction in `requirements.md` with `[Original Request]`.
+- [x] Allow autonomous diagnosis, decision-making, and repair for any problem exposed by a test,
+      validation, rehearsal, audit, or qualification check when it directly advances the one-click
+      AE shell entries or reusable pre-dataset.
+- [x] Include task-scoped implementation fixes when the failing test proves they are required;
+      keep the fix minimal, root-cause based, and within the approved AE scope.
+- [x] Keep every acceptance threshold, data-quality condition, checksum/provenance/clean-source
+      check, real-vs-synthetic evidence label, and no-fallback rule unchanged.
+- [x] Require RED→root cause→repair→GREEN, affected regressions, numeric evidence, and an updated
+      evidence class before promoting any gate.
+- [x] Keep actual external resource/authority failures, destructive or irreversible actions,
+      external publication, and materially scope-changing refactors outside this autonomy lane.
+
 ---
 
 ## 9. Phase 0 — Safety Baseline, Branches, and Worktree
@@ -849,13 +914,21 @@ Gate B satisfies R9 before any `SC26-AE/` infrastructure, source-script adaptati
 - `megatron/profiler/trace_memory.py` imports `pynvml` optionally and returns from the tracker thread when it is absent, while the caller still prints a data-saved message. Therefore `pynvml`/NVML is a required fail-fast image qualification item; a missing memory JSON cannot be treated as an optional warning.
 - Root cause: the pinned image neither activates the existing `megatron_env` by default nor contains the required Nsight toolchain. Separately, the current `codesign` quota cannot admit the required two-GPU Task2 probe.
 
-**Current D26 evidence superseding the historical B1 bullets above:**
+**Historical D26 evidence (superseded for the current quota status by D45):**
 
-- Fresh 1-GPU and 2-GPU predict-only checks both passed with `10` candidate H800 nodes; the old quota failure is not current.
+- At the time of D26, fresh 1-GPU and 2-GPU predict-only checks both passed with `10` candidate
+  H800 nodes. That historical result does not supersede the later D45 content-level quota check.
 - Fresh image-wide inventory proved `/opt/anaconda` and `myenv_yc` are absent. `/opt/conda/envs/megatron_env` is the only qualified Megatron runtime: Python `3.9.18`, torch `2.1.2`, torch CUDA `12.1`, CUDA available, H800, torchvision `0.16.2`, torchaudio `2.1.2`, and Transformer Engine `1.3.0+5b90b7f`.
 - The exact pinned `Echo-slowdown/training_testing/prediction_api.py` fails on Python `3.9.18` at `scaler_path: str | None` with `TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'`. Log SHA256=`0d987466665b72a8c37b26aa50828d3c05a32480c9a17af0224e22f8fc6033a5`. This proves the pinned Echo source and its `python=3.9` environment declaration conflict.
 - Canonical sim-engine sources guard PEP 604 annotations with `from __future__ import annotations`; Task3 remains Python-3.9-safe and uses the Megatron env. Task2 alone receives the separate Python `3.10.x` env. This avoids unnecessary Task2/Task3 dependency coupling and is a fixed routing contract, not a fallback.
 - GPU/CPU workers cannot reach `repo.anaconda.com`, while the CPU master can. Exact official conda/PyPI/NVIDIA/Ubuntu payloads are therefore frozen and hash-verified on the master, then installed offline on workers. A source failure stops; it never changes the selected source or version.
+
+**D45 current v1.2-ae predict-only evidence (2026-07-19):** the 1-GPU process exited `0`, while
+the exact 2-GPU process also returned CLI exit `0` but printed
+`fail to pass quota check: gpu : 129/128; current value + has used value: 129; total value: 128`.
+The authoritative semantic result is therefore **FAIL**, not PASS. No live RJob was submitted
+after this check. Echo exact-two-H800 and integrated Gate B1 remain BLOCKED; this external quota
+failure cannot be repaired by changing a test, lowering a threshold, or substituting one GPU.
 
 **D26 correction to the prior evidence:** the earlier probes were incomplete because they omitted `/opt/anaconda`; the fresh image-wide inventory now closes that gap and proves the historical `myenv_yc` reports came from another environment. The image does contain a usable Megatron runtime at `/opt/conda/envs/megatron_env`, but it cannot execute pinned Echo `prediction_api.py` because that source requires Python `3.10+`. The validated root cause is a two-part environment contract: retain the qualified Python-3.9 Megatron runtime and provision an exact Python-3.10 Echo runtime, while system Nsight/package gaps are repaired independently.
 
@@ -917,9 +990,9 @@ D28 creates one separate conditional clean-retry budget. It remains unconsumed u
 1. Independent Lane A/B/C audit and D28 cross-document synchronization are complete; the incident, duplicate CPU execution, unauthorized `rm -f`, source-binding correction, invalid early predict-only, and Team lifecycle cleanup are retained without euphemism.
 2. Independent StepCode Claude returns `APPROVE`, or returns `WATCH` whose plan-only remediations are applied and revalidated. `BLOCK` requires user adjudication and forbids execution.
 3. A new clean artifact root is created; the recovery root and the three earlier Echo roots remain immutable. The historical `logs/sc26_b1_echo_two_gpu_latest_path.txt` pointer is not rewritten.
-4. The fresh predict-only command includes the exact future live image `hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef`, `--volume /data:/data`, exact workdir, the new clean artifact root, fixed cp310 interpreter, isolated pinned Echo source, qualification helper/payload, `--gpu=2 --cpu=4 --memory=8192`, `--charged-group=codesign --private-machine=group --positive-tags=h800 --backoff-limit=1`, and the same final shell command as live. It must return process exit `0`, semantic exit `0`, no quota marker, and at least one H800 candidate with `available_gpu_count >= 2`.
+4. The fresh predict-only command includes the current target image `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae`, `--volume /data:/data`, exact workdir, the new clean artifact root, fixed cp310 interpreter, isolated pinned Echo source, qualification helper/payload, `--gpu=2 --cpu=4 --memory=8192`, `--charged-group=codesign --private-machine=group --positive-tags=h800 --backoff-limit=1`, and the same final shell command as live. It must return process exit `0`, semantic exit `0`, no quota marker, and at least one H800 candidate with `available_gpu_count >= 2`. Historical v1.1 commands remain immutable evidence and are not reused for this gate.
 5. Only after gates 1–4 may one final exact-two-H800 live qualification be submitted. Exactly two H800 devices and two distinct UUIDs are mandatory. All environment, train/save/reload, prediction, formula, artifact, exit-code, and inventory contracts must pass.
-6. There is no additional retry after the D28 live submission. A new root-cause class, any contract drift, or any incomplete evidence stops execution and returns to user adjudication; no fallback, partial pass, or scale factor is allowed.
+6. There is no additional retry after the D28 live submission. A new root-cause class, contract drift, or incomplete evidence involving actual external state stops execution and returns to user adjudication; any problem exposed by a test/validation/rehearsal/qualification check is handled under D30 with RED→GREEN repair and regression evidence when it serves the AE deliverables. No fallback, partial pass, or scale factor is allowed.
 
 ### Task B2: Run existing Task1 and inspect real outputs
 
@@ -1142,13 +1215,22 @@ per_rank_peak_allocated_mb
 maximum_peak_allocated_mb
 capture_id
 capture_elapsed_seconds
+d16_gate_applicable
+estimate_basis_rank
+estimate_rank_count
 single_rank_elapsed_seconds
 estimated_full_seconds
-fresh_capture_gate_threshold_seconds = 7200
-fresh_capture_gate_result = pass|prebaked_required
+fresh_capture_gate_threshold_seconds = 7200 (MoE only)
+fresh_capture_gate_result = pass|prebaked_required (MoE only)
 nsys_rep_path/sqlite_path when CAPTURE_NSYS=1
 file sizes and SHA256 values
 ```
+
+GPT-175B uses `d16_gate_applicable=false` and `estimate_rank_count=8` for its
+eight representative ranks; it must omit the two D16 gate fields. Qwen3-A30B
+and DeepSeek-V3 use `d16_gate_applicable=true` and the frozen `rank0 × 256`
+formula. An in-capture interval is diagnostic until an independent rank-0-only
+preflight probe is implemented and run before the full-capture decision.
 
 The two scaling fields must equal `3` and `1`, respectively, in both `logs/summary.log` and `capture_runtime` manifest metadata. Any missing value, duplicate conflicting value, or drift from D25 fails before marker publication.
 
@@ -1163,7 +1245,8 @@ The two scaling fields must equal `3` and `1`, respectively, in both `logs/summa
 
 - [ ] Run `QUICK=1 CAPTURE_NSYS=1` for each model on one H800 after setup.
 - [ ] For each MoE model, separately time rank 0 and compute `rank0_seconds × 256`.
-- [ ] If estimate `<=7200`, run one complete atomic selected-rank capture and record measured elapsed time. If `>7200`, record `prebaked_required` and do not start the full Nsight capture.
+- [ ] Run the MoE rank-0 timing as an independent preflight capture before starting the complete selected-rank capture; do not treat a rank interval extracted after the full loop as a gate decision.
+- [ ] If estimate `<=7200`, run one complete atomic selected-rank capture and record measured elapsed time. If `>7200`, record `prebaked_required` and do not start the **full 256-rank selected capture** (the wording does not prohibit a separate four-rank QUICK smoke, whose gate is observation-only).
 - [ ] The `>7200` result disables the reviewer-facing fresh full-capture path; it does not waive provenance. Phase 6 must still receive a complete author-prepared atomic capture or stop release packaging.
 - [ ] Verify trace count equals selected-rank count; memory JSON count equals selected-rank count; peak memory values are finite and >0; `.nsys-rep` and SQLite are nonempty when captured; every manifest checksum verifies.
 - [ ] Resolve I1 by attempting Task3 with the QUICK set. Only a complete 256-world-size simulation with valid report and slowdown blueprint coverage can justify changing the default MoE rank scope.
@@ -1633,7 +1716,7 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 | R14 | Setup entry and AE image | Setup integration/environment report |
 | R15 | Safety constraints/Phase 0 | Worktree status evidence |
 
-### Decisions D1–D28
+### Decisions D1–D30
 
 | ID | Covered by | Verification evidence |
 |----|------------|-----------------------|
@@ -1665,6 +1748,8 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 | D26 | Repair and qualify the current container using a complete conda inventory; do not wait for the future replacement image | `/opt/anaconda` plus `/opt/conda` inventory, canonical-env evidence, dependency ledger, live B1 qualification |
 | D27 | Use a qualification-probe-only isolated loader for I33 without changing product source or weakening the MemoryTracker JSON contract | Fresh H800 NVML/CUDA/non-empty JSON qualification in a new artifact root; B2 product import/runtime evidence |
 | D28 | Preserve the interrupted unauthorized submission and allow one conditional clean Echo retry | Independent D28 review, fully-bound predict-only, exactly one final live, and fail-fast stop on any new root-cause class |
+| D29 | Permit autonomous repair and decision-making for test/audit/schema/validator/documentation/control-plane defects when they directly serve the one-click AE workflow or reusable pre-dataset | RED→GREEN, root-cause/progress record, affected regression, numeric evidence, and preserved acceptance/checksum/provenance/real-vs-synthetic/no-fallback/data-quality boundaries |
+| D30 | Permit autonomous diagnosis, decision-making, and repair for any test/validation/rehearsal-exposed problem that directly serves the one-click AE scripts or reusable pre-dataset, including a task-scoped implementation defect proven by the check | RED→GREEN, root-cause/progress record, affected regression, numeric evidence, and unchanged acceptance/checksum/provenance/real-vs-synthetic/no-fallback/data-quality boundaries; no gate is promoted before the repaired check passes |
 
 ---
 
@@ -1684,20 +1769,375 @@ Use separate author/reviewer lanes for setup, Task1, Task2, scheduler/reporter, 
 12. The outer manifest uses relative paths, verifies every SHA256/size, and remains usable after relocating the bundle.
 13. D21 chooses exactly one canonical distribution path based on every staged regular file, including metadata. Release distribution, when selected, requires an explicit verified fetch before Task3; README matches the selected path.
 14. Unit, integration, e2e, affected regression, GPU smoke, and clean-clone rehearsals pass with evidence in the required test report.
-15. `review.md` contains author and independent reviews; any WATCH is tied to a test gate; no unresolved BLOCK remains.
+15. `review.md` contains author and independent reviews; any WATCH is tied to a test gate; no unresolved test/validation/rehearsal BLOCK remains after D30 self-repair, while any unmet real qualification or external-state condition is explicitly recorded and keeps the release gate closed.
 16. Prebaked verification accepts a historical producer main-repository commit that differs from consumer `HEAD` only when the distribution/nested manifests and payload hashes are internally consistent; fresh verification still binds to the current producer checkout.
 17. Task3 publishes only versioned verified run markers, records measured CPU peak RSS and tested memory allocation, and never overwrites a fresh run with a prebaked run or vice versa.
 18. No push, default-branch update, Release creation, or asset upload occurs without explicit approval of the exact external target and immutable identifiers.
-19. Root/source code changes remain minimal and traceable to R1–R15 or D1–D28; root legacy scheduler and protected overlap-review branch are untouched.
+19. Root/source code changes remain minimal and traceable to R1–R15 or D1–D30; root legacy scheduler and protected overlap-review branch are untouched.
 20. `container_dependency_inventory.md` distinguishes confirmed gaps from unqualified items, records every current-container install with exact source/version/command/status/path, and cannot be used as proof that the future replacement image is qualified. Final AE rehearsal uses a clean container from the user-supplied immutable internal image tag/digest.
 21. GPT-175B, Qwen3-A30B, and DeepSeek-V3 Task1 invocations explicitly pass `--scaling-min-warmup-iters=3 --scaling-profile-iters=1`; their summaries and manifests record the same effective values, and missing/conflicting/drifted values fail before marker publication.
 22. Current Gate B does not wait for a replacement image: the live worker inventory covers `/opt/anaconda/envs/myenv_yc` and `/opt/conda` candidates, all installed gaps are recorded and verified, and the future immutable image remains a separate final-release qualification.
 23. Task1 and Task3 always invoke the recorded Megatron Python `3.9.18`; Task2 always invokes the recorded Echo Python `3.10.x`. The pinned Echo `SlowdownPredictor` import, two-GPU CUDA count, torch/CUDA companion versions, `pip check`, and deterministic train/save/reload parity pass in the Echo env; the sim-engine predictor import and slowdown smoke pass in the Megatron env. No task probes or switches interpreters at runtime.
 24. The D27 qualification probe uses an isolated loader only in B1, writes a non-empty MemoryTracker JSON with positive finite NVML/CUDA metrics in a new H800 artifact root, and does not edit Megatron/Echo product source or bypass the memory contract. The current D27 root passes this criterion; B2 still independently validates the real product import/runtime path.
-25. D28 preserves the unauthorized submission as a consumed prior budget and non-qualification incident. Its new clean-retry budget is used at most once, only after independent review and a fully-bound predict-only PASS; any new root-cause class or incomplete evidence stops without fallback. B2/B3/B4 remain blocked until integrated B1 passes, and Phase 1 remains blocked until Gate B passes.
+25. D28 preserves the unauthorized submission as a consumed prior budget and non-qualification incident. Its new clean-retry budget is used at most once, only after independent review and a fully-bound predict-only PASS; any new real-qualification root-cause class or incomplete evidence stops without fallback, while test/control-plane defects follow D29/D30 and require RED→GREEN plus regression evidence. B2/B3/B4 remain blocked until integrated B1 passes, and Phase 1 remains blocked until Gate B passes.
+26. D29 permits agent-led repair and decision-making for test/audit/schema/validator/documentation/control-plane failures only when the repair directly serves the one-click AE scripts or reusable pre-dataset and preserves every acceptance, checksum, provenance, real-vs-synthetic, no-fallback, and data-quality boundary. Every repair is auditable through root-cause notes and fresh numeric test evidence; D30 is the current broader interpretation for all test-detected defects.
+27. D30 supersedes D29's narrow scope interpretation for the current run: any problem exposed by a test, validation, rehearsal, audit, or qualification check may be repaired and decided autonomously when it serves the one-click AE scripts or reusable pre-dataset, including a task-scoped implementation fix proven by the check. The corresponding gate remains closed until RED→GREEN/regression/numeric evidence is recorded; no assertion, threshold, provenance/checksum/data-quality/no-fallback boundary may be weakened.
 
 ---
 
 ## 22. Execution Handoff
 
-Gate A's D27/I33 and D28 addenda are independently approved and validated. D27 one-H800 passes with live NVML/CUDA/non-empty JSON evidence. Echo exact-two-H800 and integrated B1 remain blocked after three qualification-helper failures and the interrupted unauthorized submission. **The current plan-document stage is closed without creating the D28 root, running predict-only, submitting a live RJob, running B2/B3/B4, or beginning Phase 1 implementation.** In a later Gate B1 execution stage, the next action is a new clean root plus a fully-bound predict-only. Only a semantic PASS opens the single final exact-two-H800 live attempt. There is no additional retry; any new root-cause class, contract drift, incomplete evidence, or failure stops for user adjudication. Only integrated B1 PASS opens B2/B3/B4, and Phase 1 remains blocked until B5 closes Gate B. The unavailable replacement image remains only a future clean-container release gate. Any genuinely ambiguous material branch discovered after local fact-finding is resolved through one-question `grill-me`.
+Gate A's D27/I33 and D28 addenda are independently approved and validated. D27 one-H800 passes with live NVML/CUDA/non-empty JSON evidence. Echo exact-two-H800 and integrated B1 remain blocked after three qualification-helper failures and the interrupted unauthorized submission. **The current plan-document stage is closed without creating the D28 root, running predict-only, submitting a live RJob, running B2/B3/B4, or beginning Phase 1 implementation.** In a later Gate B1 execution stage, the next action is a new clean root plus a fully-bound predict-only. Only a semantic PASS opens the single final exact-two-H800 live attempt. There is no additional retry; actual external qualification/resource failures, contract drift, and incomplete evidence remain closed gates, while any problem exposed by a test/validation/rehearsal/qualification check may be repaired under D30 with RED→GREEN and regression evidence when it serves the AE deliverables. Only integrated B1 PASS opens B2/B3/B4, and Phase 1 remains blocked until B5 closes Gate B. The current qualification target is `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae`; its immutable digest and clean worker qualification remain unresolved, while all v1.1 references are historical evidence only. Any genuinely ambiguous material branch discovered after local fact-finding is resolved through one-question `grill-me`.
+
+---
+
+## 23. Superseding D42/D43 Current Handoff — 2026-07-19
+
+This section supersedes only the **current-action/status interpretation** in the older D28/B1
+handoff above. It does not rewrite, delete, or retroactively change any D27/D28 incident, verdict,
+artifact, or budget history. Its evidence source is the independent read-only D42/D43 audit:
+
+```text
+task_memory/task_2026-07-15_sc26_ae_workflow/test_report_2026-07-19_d42_retry1_evidence_audit.md
+SHA256=4f1f3a43c79fc1b6ec9c4798d3f6e1cd822e3d89bb096242e17c25b754994524
+```
+
+### 23.1 Current disposition
+
+| Item | Current disposition | What it means for this task |
+|------|---------------------|-----------------------------|
+| D42 Retry-1 live identity | `CONSUMED_TERMINAL_NO_REUSE` | The exact live identity completed and must never be resubmitted or treated as an unused slot. |
+| Old D28 replacement budget | `UNCONSUMED_SUPERSEDED_NOT_NEEDED` under the audited sibling D33 disposition | The sealed root contains no D28 charge. The old path is retired, not available for a new live run; any new live requires new explicit authority. |
+| Exact resource gate | `PASS` | Predict/live argv normalized `16/16` equal; exits=`0/0/0`; requested/visible H800=`2/2`; distinct UUIDs=`2`. |
+| D42/D43 narrow image functionality | `PASS_WITH_SOURCE_PROVENANCE_WATCH` | Qwen rank-0 Scaling smoke and the standalone Echo slowdown pipeline ran successfully, but this is not a clean-commit or full AE-chain qualification. |
+| Strict clean-source/clean-commit equivalence | `WATCH / PARTIAL` | Megatron controller status had `13` dirty paths without a bound diff; the Echo tar lacks a producer commit in the result JSON. |
+| Legacy integrated B1 release promotion | `NOT PROMOTED` | D42/D43 closes the narrow functional question only. The provenance gap prevents a clean-source Gate B/final-release PASS claim. |
+| Complete three-model-by-three-task pre-dataset | `BLOCK` | No model has a complete, atomic, release-qualified Task1→Task2→Task3 chain; the final reusable AE dataset is absent. |
+
+The D42 controller's `13` dirty paths and the active worktree's dirty `megatron-sim-engine`
+(`3` modified source files plus `3` untracked AE tests) are separate provenance facts. They must
+remain separately attributable and neither can be hidden behind the other's checksum inventory.
+
+### 23.2 Narrow evidence retained
+
+- Qwen: fake world=`8`, executed ranks=`[0]`, PP/TP/EP/DP=`4/1/2/2`, forward/backward/optimizer
+  counts=`1/1/1`, durations=`11.95/7.93/2.99 ms`, and one trace file=`4,248` bytes. The three
+  `525,622`-byte replay `.pt` files are not additional rank traces; memory/SQLite/NCU/Nsight
+  evidence remains `0/0/0/0`.
+- Echo: update/run exits=`0/0`, elapsed=`2/991 s`, rows=`727`, feature shape=`[727,8]`, validation
+  MSE=`0.0031091272501499075`, test MSE=`0.0033649328512874955`, reload match=`true`.
+- Inventory: listed files/bytes=`2,184/419,329,007`; duplicate/unsafe/missing/size/hash/unexpected/
+  symlink/special counts=`0/0/0/0/0/0/0/0`.
+
+These facts establish useful functional readiness of the image and scripts, not a complete atomic
+Task1→Task2→Task3 producer/consumer chain.
+
+### 23.3 Authorized continuation and stop boundary
+
+The immediate authorized lane is local, reversible AE workflow work:
+
+1. Continue one-click shell, test, schema, validator, documentation, and control-plane repairs under
+   D30 with root-cause RED→GREEN evidence and affected regressions; this includes a task-scoped
+   implementation repair when a test proves it is required for the AE deliverables.
+2. Fail fast when the active sim-engine source is dirty or bind the exact legitimate clean source
+   revision before publishing Task3 manifests; never record only the outer gitlink while executing
+   different nested bytes.
+3. Produce the missing real GPT-175B, Qwen3-A30B, and DeepSeek-V3 Task1→Task2→Task3 artifacts with
+   atomic identities, portable manifests, producer/consumer compatibility, size/SHA256 validation,
+   distribution checks, and data-quality metrics.
+4. Run the nine public shell entries in the final real-container/clean-clone matrix and archive the
+   complete qualification evidence.
+
+No new GPU/RJob is authorized by this append-only reconciliation. D30 permits autonomous repair of
+test/validation/rehearsal-detected defects, but does not waive real GPU/image/quota/scheduler,
+product/workload, data-quality, or provenance acceptance conditions. Until the steps above close,
+the only correct final status is `INCOMPLETE`; `AE-ready`, `release_pre_dataset`, clean-source Gate B
+PASS, and complete `3x3` qualification remain prohibited claims.
+
+## Current Setup Closure Addendum — 2026-07-19
+
+### Local setup/control-plane gate
+
+Task 1.1's local setup contract is now closed with synthetic evidence. The fixed-runtime verifier,
+explicit grouped-gemm source selection, installer status propagation, post-install backend check,
+and success marker are covered by the setup unit/integration tests and the affected regression
+matrix. The test-only grouped-gemm fixture seam RED was repaired under D30 and reran GREEN at 37/37.
+
+The corresponding report is:
+task_memory/task_2026-07-15_sc26_ae_workflow/test_report_2026-07-19_setup_runtime_verifier.md
+(SHA256=6df4fead17c8d34827604bdc3fe8040c429bb3758aed2f27cbad771b154113f4,
+bytes=7544, lines=174).
+
+### Provenance status correction
+
+I39 is CLOSED/RESOLVED for the current producer boundary. Outer commit
+c217ce93156e7c37e065da2989c1a482f12ecebc records gitlink
+39755169f73f6c748e8d7376c3a2158c6569436b, and nested status is clean. The historical I39 dirty
+worktree description remains append-only audit history; it is not a current blocker.
+
+### Remaining gate
+
+This closure does not open Gate B1, B2/B3/B4, or real release phases. Echo exact-two-H800,
+integrated B1, complete real 3-model×3-task chains, full-rank coverage, atomic provenance,
+portable checksum/data-quality manifests, and clean-clone replay remain required. The task remains
+INCOMPLETE; real pre-dataset is NOT QUALIFIED and AE-ready is NO.
+## Continuation Addendum — 2026-07-19 Session 42
+
+The D30 local autonomy lane was used to repair a test-environment portability defect: affected
+fixtures hard-coded /tmp even when SC26_AE_TMP_ROOT/TMPDIR was provided. The repair was limited to
+test temporary-root selection and did not alter any acceptance, threshold, provenance, source
+selection, or evidence-class rule.
+
+Local Phase 9 validation now has fresh evidence:
+
+- local contracts/Python/sealing: all commands exit 0; Python=60 passed in 76.24 s;
+- grouped-gemm setup=37/37;
+- GPT example integration=22/22;
+- public Task1/Task2/Task3 smoke and fresh chain pass;
+- clean-clone replay public entries=3/3/3 and all pinned clone statuses clean;
+- shell syntax=33; Python AST=27; git diff --check=PASS.
+
+This closes only the local synthetic/control-plane continuation check. Gate B1, real exact-two-H800
+qualification, complete real 3x3 chains, release distribution, and AE-ready remain blocked or
+unqualified according to the D45 semantic quota evidence and the existing plan.
+
+## Session 43 Documentation Reconciliation Addendum — 2026-07-19
+
+This append-only addendum resolves a documentation-state discrepancy found while resuming the
+Phase 7--9 audit. The older `phase7_9_acceptance_audit_2026-07-19.md` captured an earlier checkpoint
+where the canonical Phase 9 report had not yet been written. Later Session 43 work created the
+canonical report, completed the final local control-plane regression, and verified the current
+summary inventory. The older audit rows remain historical evidence; they are not deleted or
+rewritten.
+
+### Current local evidence boundary
+
+- Canonical aggregate report:
+  `task_memory/task_2026-07-15_sc26_ae_workflow/test_report_2026-07-15_sc26_ae_workflow.md`.
+- Latest detailed regression report:
+  `task_memory/task_2026-07-15_sc26_ae_workflow/test_report_2026-07-19_sc26_ae_final_regression.md`.
+- Local documentation/static gates are control-plane checks only; they do not qualify H800 runtime,
+  a real pre-dataset, or `AE-ready` status.
+- The current external D45 semantic result remains `gpu : 129/128` with CLI exit `0` and semantic
+  status `FAIL`; Echo exact-two-H800 and integrated Gate B1 remain blocked.
+
+### Phase status interpretation
+
+The local documentation and regression portion of Phase 9 is evidenced by the reports above, but the
+plan's global Phase 8/9 release gates remain blocked until immutable-image, exact-two-H800,
+issuer-governance, complete real 3x3 chain, distribution, and clean-clone requirements pass. This
+addendum therefore does not mark any globally blocked phase complete.
+
+## Session 43 I48 — Final-verifier harness quoting correction — 2026-07-19
+
+### Motivation
+
+The documentation reconciliation needed one definitive verifier command after the append-only
+updates. The first attempt contained a shell quoting defect in its own final `printf` statement, so
+its non-zero exit could not be used as evidence about the repository or the workflow.
+
+### Observed transient failure and root cause
+
+The command stopped with:
+
+```text
+/bin/bash: -c: line 32: unexpected EOF while looking for matching `''
+```
+
+The unmatched single quote was in the verifier harness's final `printf`, not in a repository test,
+fixture, producer, consumer, acceptance rule, or release artifact. No product command had failed.
+
+### Corrective method
+
+Keep the failed transcript as RED evidence, replace the malformed statement with the explicit,
+balanced form `printf '%s\\n' 'FINAL_DOC_VERIFICATION=PASS'`, and rerun the complete documentation
+contract, summary-inventory/hash, syntax, and `git diff --check` gate from the fixed temporary root.
+The repair is documentation-verifier-only and does not authorize a new GPU/RJob or alter any
+qualification boundary.
+
+### Verification state
+
+At this checkpoint the corrected verifier rerun is required before I48 can be closed. Until that
+rerun is read and archived, the global task remains `INCOMPLETE`, Gate B1 remains `BLOCKED`, and
+`real_pre_dataset`, `release_pre_dataset`, and `AE-ready` retain their existing statuses.
+
+### Second transient verifier failure discovered during I48 rerun
+
+The first corrected command reached the temporary-root scan only after passing every preceding
+check, then exited `1` without printing a count. The scan intentionally expects `rg` to find no
+hard-coded `/tmp` template. Under the verifier's `set -o pipefail`, that expected no-match return
+code (`rg` status `1`) made the `rg | wc -l` command fail the verifier before the count could be
+recorded. This is a second verifier-harness defect, not a repository or acceptance failure.
+
+The next attempt must use an explicit conditional that treats only `rg` status `1` as the verified
+zero-match case and propagates any other status. This preserves fail-fast behavior while making
+the no-match acceptance condition machine-auditable.
+
+## Session 43 I48 Final Local Documentation/Static Closure — 2026-07-19
+
+### Closure status
+
+I48 is CLOSED/RESOLVED for the local documentation/static verifier only. This closure does not
+complete the SC'26 AE release task and does not promote any local artifact to a real GPU or
+release-qualified evidence class.
+
+### Retained RED chain and root causes
+
+Three verifier-only RED events remain preserved as audit evidence:
+
+1. The initial command had an unmatched single quote in its final printf and exited 2.
+2. The first balanced rerun used an unguarded rg-to-wc pipeline under pipefail; the expected
+   no-match status 1 was therefore promoted to verifier exit 1.
+3. The first status-aware command accidentally broadened shell discovery to all of tests and
+   SC26-AE generated output, reporting 69 rather than the established 52-file static scope. Its
+   log is logs/final-doc-verification-20260719-session43-i48-status-aware.log, bytes=148,
+   SHA256=7f43991e021af9fdd006b40e7427cb8a7d92462a4ab2af869b49c01d35c778d8.
+
+The third event was a verifier scope-definition mismatch, not a syntax failure. The corrected
+scope matches the prior Session 43 gate: shell discovery covers SC26-AE, tests/unit,
+tests/integration, tests/e2e, and tools/ae; Python discovery covers SC26-AE/tools, tests/unit,
+tests/integration, tests/e2e, tests/performance, tools/ae, and pretrain_llama.py.
+
+### Status-aware GREEN evidence
+
+The scope-corrected verifier is retained at
+logs/final-doc-verification-20260719-session43-i48-status-aware-v2.log, bytes=628,
+SHA256=32878844222ac152d41b770f5fae3a78c5dbe4883c681bf56006c80fe7be1786.
+
+| Check | Observed result |
+|---|---:|
+| Documentation contract | PASS; public entries=9; paper suggestions=10 |
+| Shell syntax | PASS; files=52 |
+| Python syntax | PASS; files=35 |
+| Git diff check | PASS |
+| Current inventory hashes | PASS; rows=20 |
+| Current I48 document hashes | PASS; rows=7 |
+| Current-success markers | PASS; total=7; fresh=4; prebaked=3 |
+| Marker alias mismatch | 0 |
+| Hard-coded temporary templates | 0 |
+| Final verifier | PASS; exit=0 |
+
+### Plan consequence and remaining gates
+
+This closes only the local Phase 9 documentation/static harness item. The global plan remains
+INCOMPLETE. D45 still reports semantic quota failure gpu : 129/128 despite CLI exit 0; Gate B1
+remains BLOCKED; real_pre_dataset and release_pre_dataset remain NOT QUALIFIED; AE-ready remains
+NO. No new RJob, GPU allocation, source change, test-fixture change, or qualification action was
+performed.
+
+## Session 44 Documentation Consistency Closure — 2026-07-19
+
+The continuation audit's two local documentation defects are resolved. The first post-repair
+probe used an overly literal assertion and returned a verifier-only RED because the valid future
+text used bold markup rather than the exact string `I39 is CLOSED/RESOLVED`; the semantic probe was
+then corrected to require the I39 and `CLOSED/RESOLVED` status tokens plus the revalidation scope.
+
+The corrected probe reports duplicate lines=`0`, I39 closed status=`True`, revalidation scope=`True`,
+and exit=`0`. The focused and full local control-plane regressions also exit `0`; the static gate
+reports shell files=`52`, Python files=`35`, hard-coded temporary templates=`0`, and clean
+`git diff --check`. The grouped-gemm runtime test remains a known controller prerequisite block
+(`ModuleNotFoundError: grouped_gemm`, collection exit=`2`) and is not a qualification result.
+
+This closes the local documentation item only. Gate B1 remains `BLOCKED`,
+`real_pre_dataset`/`release_pre_dataset` remain `NOT QUALIFIED`, and `AE-ready` remains `NO`.
+
+### Post-closure I49 verifier identity
+
+The post-closure documentation verifier is retained at
+`logs/final-doc-verification-20260719-session44-i49-final.log`, bytes=`659`,
+SHA256=`97acda6299ac7ed3fddc13a521505d7a732ced564df425e2b2f7e3f191a9c3fe`. It exited `0` with
+public docs=`9/10`, shell/Python scopes=`52/35`, final document hash rows=`7`, current-success
+markers=`7` (`fresh=4`, `prebaked=3`), marker alias mismatch=`0`, hard-coded temporary templates=`0`,
+and `git diff --check`=`PASS`. The earlier verifier-only attempt is retained at
+`logs/final-doc-verification-20260719-session44-i49-attempt1.log`, bytes=`283`,
+SHA256=`447c882b3b825e49b8bd7d753e8e223a845ce3fc5596a73fd38bdf4d8bb1e997`.
+
+The verifier closes I49 only for local documentation/static control-plane evidence. Gate B1,
+real/release pre-datasets, issuer governance, and AE-ready remain blocked or unqualified.
+
+## Session 45 Control-Plane Audit Addendum — 2026-07-19
+
+### Scope and result
+
+A read-only audit was completed before any additional implementation or external execution. It
+reproduced the Task2 shared-pointer alias defect, recorded its minimal RED→GREEN repair, and
+inspected the Task1/Task2/Task3 producer, consumer, packaging, and sealer boundaries. The raw
+transcript is `logs/session45-control-plane-audit-raw.log` with SHA256
+`14342fc38a909854712de101518ccc7c39828e7a149b1d0fa8637a0a05d6c40a`.
+
+The audit opened/confirmed I51-I58 and F10-01--F10-12. These include incomplete source binding,
+missing MoE full-rank promotion, weak standalone artifact semantics, missing D16 output fields,
+contradictory qualified reuse/pointer publication, incomplete interpreter/provenance binding,
+trusted-input/snapshot gaps, package schema inconsistencies, and issuer authentication. They are
+architecture or release-governance changes, not documentation-only defects.
+
+### Gate state
+
+- I50 local checksum-alias repair: **complete with affected regression evidence**.
+- I51-I58: **open; no implementation authorized by this addendum**.
+- Gate B1: **BLOCKED**; D45 semantic quota remains `gpu : 129/128`.
+- `real_pre_dataset`, `release_pre_dataset`, and `AE-ready`: **NOT QUALIFIED / NO**.
+
+### Required design decisions before implementation
+
+1. Define a tracked immutable producer snapshot covering all AE wrappers, helpers, manifest tools,
+   and consumed Megatron bytes.
+2. Define `capture_scope` and exact model-specific rank promotion rules for Task1.
+3. Define the evidence state machine and canonical qualified Task2 pointer/ID publication protocol.
+4. Define fixed interpreter binding for every subordinate Echo module.
+5. Define a trusted-root/frozen-input snapshot seam for Task3 and packaging.
+6. Define schema-specific manifest semantics and an approved cryptographic issuer protocol.
+
+No later phase may mark these items complete by changing a label, copying a checksum, weakening a
+negative test, or substituting synthetic evidence.
+
+### Session 45 issue disposition matrix
+
+| Issue | Current status | Closure evidence required |
+|-------|----------------|---------------------------|
+| I50 | CLOSED locally | Both checksum aliases rejected/accepted consistently; affected regression exit `0` |
+| I51 | OPEN / BLOCK | Immutable tracked producer snapshot and pre/post byte identity |
+| I52 | OPEN / BLOCK | Exact MoE full-rank promotion gate and negative QUICK promotion tests |
+| I53 | OPEN / HIGH/WATCH | Trace/SQLite semantic validator, canonical `nsys` identity, and D16 fields |
+| I54 | OPEN / BLOCK | Approved evidence state machine and qualified pointer/ID publication |
+| I55 | OPEN / HIGH/BLOCK | Fixed nested Echo interpreter chain and outer producer binding |
+| I56 | OPEN / MEDIUM | Trusted-path and cross-file provenance identity tests |
+| I57 | OPEN / HIGH | Frozen Task3/package input snapshot and schema-consistent verification |
+| I58 | OPEN / BLOCK | Approved cryptographic issuer-authentication protocol |
+
+The matrix is a planning/status record only. It does not authorize implementation of the
+architecture or governance items and does not change the Gate B1 stop condition.
+
+## Session 56 Local Provenance Commit Checkpoint — 2026-07-20
+
+The local producer checkpoint must track exactly the V21-required evidence set, preserve all
+unrelated task logs as ignored runtime/history, and reproduce the strict verifier from a tree that
+contains only tracked bytes. Runtime copies below `SC26-AE/output/` are explicitly outside the
+source/static scope and must never be added merely to satisfy a local file count.
+
+The ordered gate is:
+
+1. resolve the V21 dependency graph and require `65` unique files: `6` task-root reports plus
+   exactly `59` logs;
+2. require the staged log set to equal that allowlist with missing=`0` and extra=`0`;
+3. preserve evidence bytes through the task-scoped archive whitespace attribute while retaining
+   normal whitespace checks for `SC26-AE/`, tests, and other source;
+4. run unit RED→GREEN coverage for runtime-output exclusion, then V21 from a clean tracked-tree
+   snapshot;
+5. obtain an independent follow-up verdict and stop on `BLOCK`;
+6. replace the sole current V21 verifier identity, rerun the final staged snapshot, and create only
+   a local Lore commit; and
+7. verify the actual committed clone without promoting any external qualification state.
+
+This checkpoint may close I59 locally only. I55 remains `OPEN / HIGH / BLOCK`; I53 remains
+`OPEN / HIGH / WATCH`; I54/I56 remain `PARTIAL / OPEN`; Gate B1 remains `BLOCKED`; both
+pre-datasets remain `NOT QUALIFIED`; `AE-ready=NO`; and the workflow remains `INCOMPLETE`.
+
+The penultimate staged tree `6c5cf790c62b021e1504621ae7489986a29990ec` was exported into a
+tracked-only Git snapshot and committed ephemerally as
+`26f89b4df53760df8c38ac9ab62bfcf4ff0d6349`. Its strict V21 replay exited `0` with artifact and
+document rows=`7/10`, supplemental identities=`64`, shell scope/syntax=`47/47`, Python
+scope/syntax=`36/36`, runtime-output exclusion=`1`, and `git diff --check=PASS`. This satisfies the
+local I59 closure gate. Final current-identity generation, exact-log restaging, final staged-tree
+replay, local Lore commit, and actual committed-clone verification remain mandatory provenance
+mechanics and do not change any external qualification status.

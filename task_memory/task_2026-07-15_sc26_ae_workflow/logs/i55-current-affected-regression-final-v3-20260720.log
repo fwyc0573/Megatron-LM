@@ -1,0 +1,143 @@
+ALTERNATE_FIXED_PATH_NEGATIVE=1
+interpreter binding sidecar is missing: /data/ycfeng/tmp/sc26-ae-task2-runtime-binding.JnxUTS/nested-chain-binding/reuse-matrix-run/interpreter_binding.json
+[ERROR] Task2 interpreter binding sidecar verification failed
+REUSE_MODE_MATRIX=valid-real-under-synthetic:pass,missing-sidecar:reject
+interpreter binding sidecar enables automatic fallback
+[ERROR] Task2 interpreter binding sidecar verification failed
+archived interpreter config size mismatch: kernel_metric/input/global_config.json
+[ERROR] Task2 interpreter binding sidecar verification failed
+Task2 provenance does not reference the current interpreter sidecar
+[ERROR] Task2 interpreter binding sidecar verification failed
+Task2 artifact manifest omits interpreter binding artifact: interpreter_binding.json
+[ERROR] Task2 interpreter binding sidecar verification failed
+nested python_path is unsafe: relative/python
+[ERROR] nested Echo interpreter validation failed
+nested interpreter config is not valid JSON: kernel_metric/input/global_config.json (Expecting property name enclosed in double quotes: line 1 column 2 (char 1))
+[ERROR] nested Echo interpreter validation failed
+nested interpreter config must be a JSON object: kernel_metric/input/global_config.json
+[ERROR] nested Echo interpreter validation failed
+nested python_path is unsafe: None
+[ERROR] nested Echo interpreter validation failed
+nested python_path is unsafe: 7
+[ERROR] nested Echo interpreter validation failed
+nested python_path is unsafe: /absolute/fixed/python 
+[ERROR] nested Echo interpreter validation failed
+nested python_path is unsafe: /absolute/fixed/python	
+[ERROR] nested Echo interpreter validation failed
+nested python_path is unsafe: /absolute/fixed/python
+[ERROR] nested Echo interpreter validation failed
+sidecar PATH identity differs from fixed interpreter
+[ERROR] Task2 interpreter binding sidecar verification failed
+archived interpreter config is missing: /data/ycfeng/tmp/sc26-ae-task2-runtime-binding.JnxUTS/nested-chain-binding/archive-shape/provenance/interpreter_configs/kernel_metric.global_config.json
+[ERROR] Task2 interpreter binding sidecar verification failed
+archived interpreter config is not a regular non-symlink file: /data/ycfeng/tmp/sc26-ae-task2-runtime-binding.JnxUTS/nested-chain-binding/archive-shape/provenance/interpreter_configs/kernel_metric.global_config.json
+[ERROR] Task2 interpreter binding sidecar verification failed
+duplicate JSON key: status
+[ERROR] Task2 interpreter binding sidecar verification failed
+duplicate JSON key: python_path
+[ERROR] Task2 interpreter binding sidecar verification failed
+duplicate JSON key: interpreter_binding
+[ERROR] Task2 interpreter binding sidecar verification failed
+Task2 artifact manifest contains duplicate file entries
+[ERROR] Task2 interpreter binding sidecar verification failed
+PARSER_NEGATIVES=11
+DUPLICATE_KEY_NEGATIVES=4
+SIDECAR_TAMPER_NEGATIVES=9
+PASS_COUNT=12
+PASS: Task2 default interpreter=/opt/conda/envs/echo_slowdown/bin/python and real runtime controls fail fast
+Evidence root: /data/ycfeng/tmp/sc26-ae-task2-runtime-binding.JnxUTS
+PASS_COUNT=5
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+[PASS] Task2 gpt175b predictor_run_id=snapshot-one (local evidence; no GPU qualification claim)
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+[INFO] Attached model qwen3_a30b to verified Task2 predictor_run_id=snapshot-one
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=12
+[PASS] Task2 dsv3 predictor_run_id=snapshot-two (local evidence; no GPU qualification claim)
+[ERROR] Echo-slowdown checkout is dirty: ?? dirty.txt
+[ERROR] Task2 evidence preserved at /data/ycfeng/tmp/sc26-ae-task2-unit.XQCxiO/output/_work/task2-failure-20260719T232041Z-2414709-11386
+[ERROR] new tracked path under excluded output contract: merge/output/new.csv
+[ERROR] Task2 evidence preserved at /data/ycfeng/tmp/sc26-ae-task2-unit.XQCxiO/output/_work/task2-failure-20260719T232041Z-2414728-9327
+PASS: synthetic snapshot/reuse/rebuild/dirty/new-path contracts
+Evidence root:
+/data/ycfeng/tmp/sc26-ae-task2-unit.XQCxiO
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[PASS] Task2 gpt175b predictor_run_id=integration-one (local evidence; no GPU qualification claim)
+PASS: canonical Task2 verification accepts qualified evidence
+ALTERNATE_MANIFEST_FILE_COUNT=19
+PASS: checksum-coherent alternate requested path is generic-verified but semantically rejected
+PASS: coherent tamper remains generic-manifest verified
+PASS: coherent semantic tamper fails before marker/pointer publication
+PASS: Task2 rejects an intermediate symlink escape in a model marker
+PASS: Task2 rejects an intermediate symlink escape in a shared pointer
+PASS: Task2 rejects a model marker whose predictor identity differs from its run path
+PASS: Task2 rejects a shared pointer with a mismatched artifact_manifest_sha256 alias
+PASS: Task2 rejects an unverified shared predictor pointer before attachment
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model qwen3_a30b to verified Task2 predictor_run_id=integration-one
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model dsv3 to verified Task2 predictor_run_id=integration-one
+PASS: Task2 snapshot-only execution, predictor identity, and provenance contract
+Evidence root:
+/data/ycfeng/tmp/sc26-ae-task2-integration.cyDQnZ
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[PASS] Task2 gpt175b predictor_run_id=integration-one (local evidence; no GPU qualification claim)
+PASS: canonical Task2 verification accepts qualified evidence
+ALTERNATE_MANIFEST_FILE_COUNT=19
+PASS: checksum-coherent alternate requested path is generic-verified but semantically rejected
+PASS: coherent tamper remains generic-manifest verified
+PASS: coherent semantic tamper fails before marker/pointer publication
+PASS: Task2 rejects an intermediate symlink escape in a model marker
+PASS: Task2 rejects an intermediate symlink escape in a shared pointer
+PASS: Task2 rejects a model marker whose predictor identity differs from its run path
+PASS: Task2 rejects a shared pointer with a mismatched artifact_manifest_sha256 alias
+PASS: Task2 rejects an unverified shared predictor pointer before attachment
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model qwen3_a30b to verified Task2 predictor_run_id=integration-one
+MANIFEST_STATUS=verified
+MANIFEST_FILE_COUNT=13
+[INFO] Attached model dsv3 to verified Task2 predictor_run_id=integration-one
+PASS: Task2 snapshot-only execution, predictor identity, and provenance contract
+Evidence root:
+/data/ycfeng/tmp/sc26-ae-task2-integration.ImUD6d
+PASS: public Task2 entries share the isolated synthetic contract test.
+TASK1_TRACE_FILES=4
+TASK1_MEMORY_JSON=4
+TASK2_DATASET_ROWS=2
+TASK2_AVERAGE_VALIDATION_MSE=3.0
+TASK2_TEST_MSE=0.5
+TASK2_MODEL_RELOAD_MAX_ABS_PREDICTION_DELTA=0.0
+TASK3_BACKWARD_CMD_UID_COUNT=4
+TASK3_RANK0_STEP_MS=22.5
+TASK3_FORWARD_MS=6.0
+TASK3_BACKWARD_MS=11.0
+TASK3_OPTIMIZER_MS=2.5
+TASK3_LOAD_S=0.125
+TASK3_EXECUTION_S=0.375
+TASK3_SIM_WALL_S=0.5
+TASK3_PROCESS_WALL_S=0.959155
+TASK3_PEAK_RSS_KIB=51452
+TASK3_PEAK_RSS_GIB=0.049068451
+TESTED_HOST_ALLOCATION_MIB=32
+PASS: Task1 capture, shared Task2 predictor, and fresh Task3 simulation formed one verified synthetic chain.
+CHAIN_PASS_COUNT=1
+EVIDENCE_CLASS=local_synthetic_not_gpu_qualification
+EVIDENCE_ROOT=/data/ycfeng/tmp/sc26-ae-fresh-chain.BQzB73
+........................................................................ [ 76%]
+......................                                                   [100%]
+94 passed in 4.56s

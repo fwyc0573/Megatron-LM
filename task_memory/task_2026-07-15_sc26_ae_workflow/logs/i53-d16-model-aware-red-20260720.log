@@ -1,0 +1,4 @@
+PASS: valid D16 timing metadata
+[ERROR] Task1 D16 metadata is missing fresh_capture_gate_threshold_seconds
+SYNTAX_RC=0
+TEST_RC=1

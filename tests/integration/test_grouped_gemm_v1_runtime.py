@@ -11,7 +11,8 @@ try:
     from grouped_gemm import ops
 except ImportError as exc:
     raise RuntimeError(
-        "grouped_gemm v1.0 is required; run tools/ae/setup_grouped_gemm_v1.sh first"
+        "grouped_gemm v1.0 is required; run "
+        "`GROUPED_GEMM_SOURCE=archive bash SC26-AE/setup.sh` first"
     ) from exc
 
 

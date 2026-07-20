@@ -17,6 +17,7 @@ readonly EXPECTED_TORCH_CUDA_VERSION="12.1"
 readonly EXPECTED_ABSL_PY_VERSION="2.3.1"
 
 BUILD_MODE=${GROUPED_GEMM_BUILD_MODE:-multiarch}
+SOURCE=${GROUPED_GEMM_SOURCE:-}
 PYTHON_BIN=${GROUPED_GEMM_PYTHON:-/opt/conda/envs/megatron_env/bin/python}
 LOG_DIR=${GROUPED_GEMM_LOG_DIR:-/tmp/grouped_gemm_v1_ae_logs}
 STATE_DIR=${GROUPED_GEMM_STATE_DIR:-/opt/conda/envs/megatron_env/share/grouped_gemm_ae}
@@ -43,6 +44,18 @@ require_manifest_value() {
     [[ $actual == "$expected" ]] || fail "Existing manifest mismatch for $key: expected '$expected', got '$actual'"
 }
 
+case $SOURCE in
+    vcs|archive)
+        ;;
+    "")
+        fail "GROUPED_GEMM_SOURCE must be set to 'vcs' or 'archive'"
+        ;;
+    *)
+        fail "Unsupported GROUPED_GEMM_SOURCE='$SOURCE'; expected 'vcs' or 'archive'"
+        ;;
+esac
+export GROUPED_GEMM_SOURCE="$SOURCE"
+
 case $BUILD_MODE in
     multiarch)
         export TORCH_CUDA_ARCH_LIST="$MULTIARCH_CUDA_ARCH_LIST"
@@ -66,6 +79,7 @@ LOG_FILE="$LOG_DIR/setup_grouped_gemm_v1_$(date +%Y%m%d_%H%M%S).log"
 echo "GROUPED_GEMM_TAG=$GROUPED_GEMM_TAG"
 echo "GROUPED_GEMM_COMMIT=$GROUPED_GEMM_COMMIT"
 echo "CUTLASS_COMMIT=$CUTLASS_COMMIT"
+echo "GROUPED_GEMM_SOURCE=$SOURCE"
 echo "BUILD_MODE=$BUILD_MODE"
 echo "TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST-unset}"
 echo "PYTHON_BIN=$PYTHON_BIN"
@@ -77,9 +91,19 @@ echo "LOG_FILE=$LOG_FILE"
 PYTHON_BIN_DIR=$(cd "$(dirname "$PYTHON_BIN")" && pwd)
 export PATH="$PYTHON_BIN_DIR:$PATH"
 echo "PYTHON_BIN_DIR=$PYTHON_BIN_DIR"
-for command_name in curl tar sha256sum nvcc g++ ninja nproc timeout; do
+for command_name in sha256sum nvcc g++ ninja nproc; do
     require_command "$command_name"
 done
+case $SOURCE in
+    vcs)
+        require_command timeout
+        ;;
+    archive)
+        for command_name in curl tar mktemp; do
+            require_command "$command_name"
+        done
+        ;;
+esac
 
 cpu_count=$(nproc)
 [[ $cpu_count =~ ^[1-9][0-9]*$ ]] || fail "nproc returned an invalid CPU count: '$cpu_count'"
@@ -152,6 +176,7 @@ if [[ -f $MANIFEST_PATH ]]; then
     require_manifest_value TORCH_VERSION "$torch_version"
     require_manifest_value TORCH_CUDA_VERSION "$torch_cuda_version"
     require_manifest_value ABSL_PY_VERSION "$EXPECTED_ABSL_PY_VERSION"
+    require_manifest_value SOURCE_METHOD "$SOURCE"
     import_output=$("$PYTHON_BIN" -c '
 # AE_IMPORT_QUERY
 import importlib.metadata
@@ -181,68 +206,62 @@ if "$PYTHON_BIN" -m pip show grouped_gemm >/dev/null 2>&1; then
     fail "grouped_gemm is already installed without the AE manifest; refusing to overwrite an unverified package"
 fi
 
-echo "PRIMARY_INSTALL_COMMAND=$PYTHON_BIN -m pip install $GROUPED_GEMM_VCS_URL"
-set +e
-PIP_NO_BUILD_ISOLATION=1 PIP_NO_CACHE_DIR=1 \
-    timeout --signal=TERM --kill-after=30s "${VCS_TIMEOUT_SECONDS}s" \
-    "$PYTHON_BIN" -m pip install "$GROUPED_GEMM_VCS_URL" 2>&1 | tee -a "$LOG_FILE"
-vcs_pipeline_status=("${PIPESTATUS[@]}")
-vcs_status=${vcs_pipeline_status[0]}
-tee_status=${vcs_pipeline_status[1]}
-set -e
-echo "VCS_INSTALL_EXIT_STATUS=$vcs_status"
-echo "VCS_LOG_EXIT_STATUS=$tee_status"
-((tee_status == 0)) || fail "Failed to persist the VCS installation log: $LOG_FILE"
+source_method=$SOURCE
+case $SOURCE in
+    vcs)
+        echo "VCS_INSTALL_COMMAND=$PYTHON_BIN -m pip install $GROUPED_GEMM_VCS_URL"
+        set +e
+        PIP_NO_BUILD_ISOLATION=1 PIP_NO_CACHE_DIR=1 \
+            timeout --signal=TERM --kill-after=30s "${VCS_TIMEOUT_SECONDS}s" \
+            "$PYTHON_BIN" -m pip install "$GROUPED_GEMM_VCS_URL" 2>&1 | tee -a "$LOG_FILE"
+        vcs_pipeline_status=("${PIPESTATUS[@]}")
+        vcs_status=${vcs_pipeline_status[0]}
+        vcs_tee_status=${vcs_pipeline_status[1]}
+        set -e
+        echo "VCS_INSTALL_EXIT_STATUS=$vcs_status"
+        echo "VCS_LOG_EXIT_STATUS=$vcs_tee_status"
+        ((vcs_tee_status == 0)) || fail "Failed to persist the VCS installation log: $LOG_FILE"
+        ((vcs_status == 0)) || exit "$vcs_status"
+        ;;
+    archive)
+        build_root=$(mktemp -d "${TMPDIR:-/tmp}/grouped_gemm_v1_build.XXXXXX")
+        source_dir="$build_root/source"
+        grouped_gemm_archive="$build_root/grouped_gemm-v1.0.tar.gz"
+        cutlass_archive="$build_root/cutlass-$CUTLASS_COMMIT.tar.gz"
+        mkdir -p "$source_dir/third_party/cutlass"
 
-source_method=vcs
-source_recovery_used=false
-if ((vcs_status != 0)); then
-    source_method=exact_tag_archives
-    source_recovery_used=true
-    echo "SOURCE_RECOVERY_USED=true"
+        curl -L --fail --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 2 \
+            "$GROUPED_GEMM_ARCHIVE_URL" -o "$grouped_gemm_archive"
+        if ! printf '%s  %s\n' "$GROUPED_GEMM_ARCHIVE_SHA256" "$grouped_gemm_archive" | sha256sum -c -; then
+            fail "grouped_gemm source integrity verification failed"
+        fi
+        tar -xzf "$grouped_gemm_archive" --strip-components=1 -C "$source_dir"
 
-    if "$PYTHON_BIN" -m pip show grouped_gemm >/dev/null 2>&1; then
-        fail "The failed VCS install left an unexpected grouped_gemm installation; refusing source recovery"
-    fi
+        curl -L --fail --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 2 \
+            "$CUTLASS_ARCHIVE_URL" -o "$cutlass_archive"
+        if ! printf '%s  %s\n' "$CUTLASS_ARCHIVE_SHA256" "$cutlass_archive" | sha256sum -c -; then
+            fail "CUTLASS source integrity verification failed"
+        fi
+        tar -xzf "$cutlass_archive" --strip-components=1 -C "$source_dir/third_party/cutlass"
 
-    build_root=$(mktemp -d "${TMPDIR:-/tmp}/grouped_gemm_v1_build.XXXXXX")
-    source_dir="$build_root/source"
-    grouped_gemm_archive="$build_root/grouped_gemm-v1.0.tar.gz"
-    cutlass_archive="$build_root/cutlass-$CUTLASS_COMMIT.tar.gz"
-    mkdir -p "$source_dir/third_party/cutlass"
+        [[ -f $source_dir/setup.py ]] || fail "Exact grouped_gemm source is missing setup.py"
+        [[ -f $source_dir/third_party/cutlass/include/cutlass/cutlass.h ]] || fail "Pinned CUTLASS source is incomplete"
+        grep -Fq 'name="grouped_gemm"' "$source_dir/setup.py" || fail "Unexpected grouped_gemm setup.py content"
+        grep -Fq '::cutlass::arch::Sm80' "$source_dir/csrc/grouped_gemm.cu" || fail "Unexpected grouped_gemm CUDA source content"
 
-    curl -L --fail --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 2 \
-        "$GROUPED_GEMM_ARCHIVE_URL" -o "$grouped_gemm_archive"
-    if ! printf '%s  %s\n' "$GROUPED_GEMM_ARCHIVE_SHA256" "$grouped_gemm_archive" | sha256sum -c -; then
-        fail "grouped_gemm source integrity verification failed"
-    fi
-    tar -xzf "$grouped_gemm_archive" --strip-components=1 -C "$source_dir"
-
-    curl -L --fail --connect-timeout 10 --max-time 300 --retry 2 --retry-delay 2 \
-        "$CUTLASS_ARCHIVE_URL" -o "$cutlass_archive"
-    if ! printf '%s  %s\n' "$CUTLASS_ARCHIVE_SHA256" "$cutlass_archive" | sha256sum -c -; then
-        fail "CUTLASS source integrity verification failed"
-    fi
-    tar -xzf "$cutlass_archive" --strip-components=1 -C "$source_dir/third_party/cutlass"
-
-    [[ -f $source_dir/setup.py ]] || fail "Exact grouped_gemm source is missing setup.py"
-    [[ -f $source_dir/third_party/cutlass/include/cutlass/cutlass.h ]] || fail "Pinned CUTLASS source is incomplete"
-    grep -Fq 'name="grouped_gemm"' "$source_dir/setup.py" || fail "Unexpected grouped_gemm setup.py content"
-    grep -Fq '::cutlass::arch::Sm80' "$source_dir/csrc/grouped_gemm.cu" || fail "Unexpected grouped_gemm CUDA source content"
-
-    echo "SOURCE_INSTALL_COMMAND=$PYTHON_BIN -m pip install --no-build-isolation --no-cache-dir $source_dir"
-    set +e
-    "$PYTHON_BIN" -m pip install --no-build-isolation --no-cache-dir "$source_dir" 2>&1 | tee -a "$LOG_FILE"
-    source_pipeline_status=("${PIPESTATUS[@]}")
-    source_install_status=${source_pipeline_status[0]}
-    source_tee_status=${source_pipeline_status[1]}
-    set -e
-    echo "SOURCE_INSTALL_EXIT_STATUS=$source_install_status"
-    echo "SOURCE_LOG_EXIT_STATUS=$source_tee_status"
-    ((source_tee_status == 0)) || fail "Failed to persist the source installation log: $LOG_FILE"
-    ((source_install_status == 0)) || exit "$source_install_status"
-fi
-echo "SOURCE_RECOVERY_USED=$source_recovery_used"
+        echo "SOURCE_INSTALL_COMMAND=$PYTHON_BIN -m pip install --no-build-isolation --no-cache-dir $source_dir"
+        set +e
+        "$PYTHON_BIN" -m pip install --no-build-isolation --no-cache-dir "$source_dir" 2>&1 | tee -a "$LOG_FILE"
+        source_pipeline_status=("${PIPESTATUS[@]}")
+        source_install_status=${source_pipeline_status[0]}
+        source_tee_status=${source_pipeline_status[1]}
+        set -e
+        echo "SOURCE_INSTALL_EXIT_STATUS=$source_install_status"
+        echo "SOURCE_LOG_EXIT_STATUS=$source_tee_status"
+        ((source_tee_status == 0)) || fail "Failed to persist the source installation log: $LOG_FILE"
+        ((source_install_status == 0)) || exit "$source_install_status"
+        ;;
+esac
 
 verification_output=$(
     "$PYTHON_BIN" -c '

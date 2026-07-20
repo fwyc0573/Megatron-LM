@@ -4,6 +4,13 @@
 
 | Date       | Summary of Changes            |
 |------------|-------------------------------|
+| 2026-07-20 | Recorded the penultimate tracked-snapshot V21 PASS and local I59 closure; final identity/commit replay remains mandatory |
+| 2026-07-20 | Added Session 56 staged-audit/runtime-output scope findings, task-archive whitespace handling, and independent follow-up `APPROVE` |
+| 2026-07-20 | Recorded the D31 exact V21 log-tracking boundary and the D32 cleanup of reviewer-generated nested `.omc/` runtime state |
+| 2026-07-19 | Recorded Session 45 audit boundaries: no GPU/RJob/publication, raw producer overlay is not a pinned release source, and qualified lifecycle changes require an approved design |
+| 2026-07-19 | Recorded /tmp inode exhaustion and the verified SC26_AE_TMP_ROOT/TMPDIR execution contract |
+| 2026-07-19 | Added D30 latest-user gate: any test/validation/rehearsal-exposed AE defect may be self-repaired with evidence, without weakening acceptance or release boundaries |
+| 2026-07-19 | Recorded D29 test-issue self-repair scope, evidence obligations, and hard-block boundaries |
 | 2026-07-17 | Added D28 Gate B1 split verdict, incident boundaries, conditional clean-retry contract, and Team lifecycle note |
 | 2026-07-17 | Recorded the D27 probe-only MemoryTracker qualification boundary and B2 product-path obligation |
 | 2026-07-17 | Recorded cp310 offline qualification evidence and CPU-master CUDA boundary |
@@ -27,6 +34,7 @@
 - `ep` 在本 codebase 语境一般指 embedding parallel；expert parallel 用 `exp`（CLI `--fake-exp`）。目录名里 `ep2`/`expn8` 之类需按上下文甄别。
 
 ## Environment / infra quirks
+- **Current AE qualification target (2026-07-19):** use `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae` for any new preflight, predict-only, or live qualification command. Resolve and record its immutable digest before treating it as qualified; tag availability is not evidence. The `v1.1-image-11c794ef` entry immediately below is historical evidence only and must not be reused as the current target.
 - Historical AE image: `hub.i.basemind.com/mg-echo/megatron-h800:v1.1-image-11c794ef`；它在 Gate B B1 失败，不能作为最终 release image。现有补齐入口 `tools/ae/setup_grouped_gemm_v1.sh`（幂等，manifest at `$STATE_DIR/manifest.env`；装 grouped_gemm v1.0 + absl-py==2.3.1；期望 Python 3.9.18 / torch 2.1.2 / CUDA 12.1，失配即 fail-fast）。
 - GPU worker: 按 `/data/ycfeng/stepfun-env-handbook/guidence.md`，rlaunch 验证组合 `--charged-group=codesign --private-machine=group --positive-tags=h800`，`--backoff-limit>0`，大额申请前 `--predict-only`。
 - Gate B 2026-07-16 实测：1-GPU predict-only exit `0`，候选 H800 nodes=`6`，最大候选 GPUs=`8`；2-GPU predict-only 的 CLI exit 也是 `0`，但 quota 输出为 `129/128`，必须按内容判 FAIL。
@@ -142,3 +150,81 @@
 - If the fully-bound predict-only passes, exactly one final exact-two-H800 live attempt may run. A new root-cause class, contract drift, missing evidence, or failure stops immediately; no retry, source/version switch, partial pass, or calibration factor is allowed.
 - Team `sc26-ae-gate-b1-recov-65f35581` is now `missing` because worker-2 invoked `orphan-cleanup` while tasks were pending. Do not reconstruct task JSON or attribute native Lane C to dead worker-3. Lane C reviewer identity is `/root/verifier_lane_c`.
 - B2/B3/B4 remain blocked until integrated B1 passes. Phase 1–9 remain blocked until Gate B passes. This plan-review stage must not create the D28 root, run predict-only, submit an RJob, or start product implementation.
+
+## D29 test-issue autonomy notes (2026-07-19)
+
+- A test-shaped failure is self-repairable only when its root cause is confined to an AE test, audit, schema, validator, documentation, or control-plane orchestration surface and the repair directly advances the one-click scripts or reusable pre-dataset.
+- Each self-repair must follow: reproduce RED; identify root cause; apply the smallest contract-preserving fix; observe GREEN; run affected regression tests; record command, exit status, and numeric evidence. Do not hide a failure by weakening assertions or changing the acceptance threshold.
+- D29 does not permit fallback/source switching, checksum or provenance bypass, synthetic-to-real relabeling, or changes to real-vs-synthetic boundaries. Real GPU/image/quota/scheduler, product/runtime/workload correctness, real pre-dataset quality, security, destructive, and external-publication failures remain hard blocks.
+- Current evidence remains incomplete for real AE release: D27 one-H800=`PASS`; Echo exact-two-H800=`BLOCK`; integrated B1=`BLOCK`; fresh real pre-dataset=`NOT QUALIFIED`. Local test repairs may continue without changing that status.
+
+## D30 latest test-failure autonomy notes (2026-07-19)
+
+- The latest user instruction supersedes D29's narrow root-cause scope: any problem exposed by a
+  test, validation, rehearsal, audit, or qualification check may be diagnosed, decided, and repaired
+  autonomously when it directly serves the one-click AE shell entries or reusable pre-dataset.
+- This includes a task-scoped implementation or runtime-control repair when the failing check proves
+  it is required. It does not include weakening assertions, changing acceptance thresholds, bypassing
+  checksum/provenance/clean-source checks, adding fallback/source switching, or relabeling evidence.
+- A failed real/data-quality check remains an unmet gate until the underlying defect is fixed and the
+  check passes. Actual external resource/authority problems, destructive or irreversible actions,
+  external publication, and materially scope-changing refactors remain outside this autonomy lane.
+- Every D30 repair records motivation, expectation, observed RED/root cause, minimal method, GREEN,
+  affected regression commands and exit codes, numeric evidence, and the resulting evidence class.
+## Operational Note — 2026-07-19 Temporary Root
+
+The controller's /tmp inode allocation is exhausted (IUse=100%) even though byte capacity remains.
+For all SC26-AE test/rehearsal commands use:
+
+    export SC26_AE_TMP_ROOT=/data/ycfeng/sc26-ae-test-tmp
+    export TMPDIR=/data/ycfeng/sc26-ae-test-tmp
+
+The affected fixtures now honor this contract. Do not remove files from /tmp without explicit
+permission. This environment note does not change the real qualification or release gates.
+
+## Session 45 operational notes — control-plane audit
+
+- The current outer `HEAD` does not contain the untracked `SC26-AE/` producer overlay. Treat all
+  local Task1/Task2/Task3 scripts and tools as non-release bytes until a tracked/snapshotted source
+  identity is established.
+- The nested `megatron-sim-engine` is currently clean and matches the outer gitlink; this closes
+  only the current I39 discrepancy and does not repair the separate AE producer provenance gaps.
+- Do not start GPU/RJob or external publication while I51-I58 and CR-01 remain open. A real run
+  would produce evidence that the current control plane cannot yet classify or hand off safely.
+- The fixed temporary root remains `/data/ycfeng/sc26-ae-test-tmp` via `SC26_AE_TMP_ROOT`/`TMPDIR`
+  for local tests; do not use inode-exhausted `/tmp` templates.
+
+## Session 56 operational notes — V21 clean-clone provenance
+
+- The independent StepCode Claude review identified a real clean-clone defect: the V21 verifier
+  resolves required supplemental and marker evidence from the task `logs/` directory, while the
+  repository-level `logs/` ignore rule excludes those files by default.
+- D31 authorizes tracking only the verifier-required log set. Keep unrelated historical/runtime
+  logs ignored; do not unignore or stage the entire task log directory.
+- The pre-reconciliation required set contains `59` log files totaling `228,172` bytes: `58`
+  supplemental/marker logs plus the sole current V21 verifier identity. Replacing the current
+  verifier identity during reconciliation must preserve the exact required-set cardinality rather
+  than retain both old and new current identities.
+- The independent reviewer created
+  `megatron-sim-engine/.omc/state/sessions/97724d0a-b8ba-42b6-9d32-779f923ff2d7/last-tool-error-state.json`
+  while attempting to read a main-repository entry point from the nested working directory. D32
+  authorized deleting that transient runtime state. It was removed, and the nested HEAD and outer
+  gitlink both remain `39755169f73f6c748e8d7376c3a2158c6569436b` with an empty nested status.
+- Do not use ignore rules to conceal future nested runtime state. Any new dirty path must be
+  diagnosed and resolved explicitly before the provenance gate.
+- Historical test transcripts and Markdown archive records may contain whitespace that is part of
+  the recorded bytes. The root `.gitattributes` exemption is deliberately limited to this one task
+  archive; do not extend it to `SC26-AE/`, tests, tools, or general source.
+- V21 source enumeration must exclude `SC26-AE/output/`. That directory contains ignored runtime
+  copies and may exist on an exercised controller but not in a clean clone; including it makes the
+  static scope state-dependent. The current tracked source scope is shell `47` and Python `36`.
+- Candidate and penultimate tracked-snapshot V21 runs passed with exit `0`, and the independent
+  follow-up verdict is `APPROVE`. The penultimate tree is
+  `6c5cf790c62b021e1504621ae7489986a29990ec`; its ephemeral snapshot commit is
+  `26f89b4df53760df8c38ac9ab62bfcf4ff0d6349`. This closes I59 locally. Final authoritative
+  hashes/current identity, exact-log restaging, the final staged replay, local Lore commit, and
+  actual committed-clone replay remain required before reporting the provenance checkpoint complete.
+- A root `.omc/` directory already existed with two small session error records dated 2026-07-18;
+  it is excluded by the repository's Git info exclude, contains `881` bytes, and is not staged. It
+  is distinct from the D32-authorized nested path and was not removed. The nested
+  `megatron-sim-engine/.omc` remains absent.

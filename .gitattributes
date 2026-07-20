@@ -1,0 +1,3 @@
+# Preserve task evidence bytes exactly; captured logs and Markdown archives may
+# contain whitespace that is semantically part of the recorded transcript.
+task_memory/task_2026-07-15_sc26_ae_workflow/** -whitespace
