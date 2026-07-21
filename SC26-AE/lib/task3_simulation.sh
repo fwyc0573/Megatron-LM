@@ -1775,6 +1775,44 @@ for current_root, directory_names, file_names in os.walk(root, followlinks=False
 PY
 }
 
+
+# Reuse rank-0 NCU/NSYS kernel timing for all fake-rank DDP triggers.
+task3_expand_rank0_slowdown_blueprints() {
+    local assets_dir="${TASK3_SLOWDOWN_ASSETS_DIR}"
+    local trace_dir="${TASK3_SIMULATOR_TRACE_DIR}"
+    local provenance_path="${TASK3_PROVENANCE_DIR}/slowdown_blueprint_expansion.json"
+    "${TASK3_META_PYTHON}" - "${assets_dir}" "${trace_dir}" "${provenance_path}" <<'PY2'
+import copy,json,pathlib,re,sys
+assets=pathlib.Path(sys.argv[1]).resolve(strict=True); traces=pathlib.Path(sys.argv[2]).resolve(strict=True); out=pathlib.Path(sys.argv[3]); bp_path=assets/'backward_kernel_blueprints.json'; bp=json.loads(bp_path.read_text())
+if not isinstance(bp,dict) or not bp: raise SystemExit('[ERROR] rank-0 slowdown blueprints must be non-empty')
+source_uid,source_bp=next(iter(bp.items())); field=re.compile(r'(?:^|,)([A-Za-z_]+)=([^,)]*)'); back=re.compile(r'^rank:([0-9]+):backward_step\((.*)\)$'); triggers={}; context={}
+for f in sorted(traces.glob('*.txt')):
+ lines=f.read_text().splitlines()
+ for line in lines:
+  if ':ddp_grad_comm(' in line:
+   d=dict(field.findall(line.split('ddp_grad_comm(',1)[1])); t=d.get('trigger_cmd_uid'); c=d.get('comm_uid')
+   if t and c and c not in triggers.setdefault(t,[]): triggers[t].append(c)
+  m=back.match(line)
+  if m:
+   d=dict(field.findall(m.group(2))); uid=d.get('cmd_uid')
+   if uid: context[uid]={'rank':int(m.group(1)),'stage_id':int(d.get('stage_id',0)),'batch_id':int(d.get('batch_id',0)),'mg_state':d.get('mg_state','steady')}
+if not triggers: raise SystemExit('[ERROR] no DDP slowdown triggers found in simulator trace directory')
+expanded={}
+for uid,comm_uids in sorted(triggers.items()):
+ item=copy.deepcopy(source_bp); ctx=context.get(uid,{})
+ for k in ('rank','stage_id','batch_id','mg_state'):
+  if k in ctx: item[k]=ctx[k]
+ markers=list(item.get('launch_markers',[]))
+ if len(markers) < len(comm_uids):
+  raise SystemExit(f'[ERROR] rank-0 slowdown marker count {len(markers)} is smaller than trigger {uid} marker count {len(comm_uids)}')
+ markers=markers[:len(comm_uids)]
+ for marker,comm in zip(markers,comm_uids): marker['comm_uid']=comm
+ item['launch_markers']=markers; expanded[uid]=item
+bp_path.write_text(json.dumps(expanded,indent=2,sort_keys=True)+'\n'); out.parent.mkdir(parents=True,exist_ok=True); out.write_text(json.dumps({'schema_version':'sc26-ae-task3-rank0-slowdown-expansion-v1','scope':'global_rank_0','source_blueprint_cmd_uid':source_uid,'source_blueprint_count':len(bp),'expanded_blueprint_count':len(expanded),'expanded_trigger_cmd_uids':sorted(expanded),'trace_dir':str(traces),'mapping':'rank-0 NCU/NSYS kernel blueprint reused per trigger; DDP marker identities preserved'},indent=2,sort_keys=True)+'\n')
+print(f'SLOWDOWN_BLUEPRINT_EXPANSION_COUNT={len(expanded)}')
+PY2
+}
+
 task3_materialize_slowdown_assets() {
     local resolved_json=$1
     task3_verify_input_expectations "${resolved_json}" materialize before
@@ -1922,11 +1960,53 @@ for stage in range(pp):
 PY
 }
 
+
+# Expand PP×EP representative traces to the simulator's full fake world.
+task3_materialize_simulator_trace() {
+    local trace_dir="${TASK3_TRACE_DIR}"
+    local simulator_dir="${TASK3_RUN_ROOT}/simulator_trace"
+    local expansion_metadata="${TASK3_RUN_ROOT}/provenance/simulator_trace_expansion.json"
+    [[ -d "${trace_dir}" ]] || task3_error "Canonical Task3 trace directory is missing: ${trace_dir}"
+    local trace_count
+    trace_count=$(find "${trace_dir}" -maxdepth 1 -type f -name '*.txt' -printf '.' | wc -c)
+    if (( trace_count == TASK3_WORLD_SIZE )); then TASK3_SIMULATOR_TRACE_DIR="${trace_dir}"; return 0; fi
+    if [[ "${TASK3_MODEL_KEY}" != qwen3_a30b ]] || (( trace_count != TASK3_PP * TASK3_EXP )); then
+        task3_error "Simulator trace inventory mismatch: observed=${trace_count}, expected world=${TASK3_WORLD_SIZE} or Qwen PP×EP=${TASK3_PP}×${TASK3_EXP}."
+    fi
+    [[ ! -e "${simulator_dir}" && ! -L "${simulator_dir}" ]] || task3_error "Simulator trace destination already exists: ${simulator_dir}"
+    mkdir -p "${simulator_dir}"
+    "${TASK3_META_PYTHON}" - "${trace_dir}" "${simulator_dir}" "${TASK3_WORLD_SIZE}" "${TASK3_PP}" "${TASK3_TP}" "${TASK3_DP}" "${TASK3_EXP}" "${expansion_metadata}" <<'PY2'
+import json,pathlib,re,sys
+src=pathlib.Path(sys.argv[1]).resolve(strict=True); dst=pathlib.Path(sys.argv[2]).resolve(); world,pp,tp,dp,exp=map(int,sys.argv[3:8]); meta=pathlib.Path(sys.argv[8])
+files=sorted(src.glob('*.txt')); reps={}; pat=re.compile(r'_rank([0-9]+)(?:_[^/]*)?\.txt$')
+for f in files:
+ m=pat.search(f.name)
+ if not m: raise SystemExit(f'representative trace filename lacks rank identity: {f}')
+ r=int(m.group(1)); key=(r//(tp*dp),(r%(tp*dp))//tp)
+ if key in reps: raise SystemExit(f'duplicate PP×EP representative for {key}: {f}')
+ reps[key]=(r,f)
+if len(files)!=pp*exp: raise SystemExit(f'representative trace count changed during expansion: {len(files)}')
+for target in range(world):
+ key=(target//(tp*dp),(target%(tp*dp))//tp)
+ if key not in reps: raise SystemExit(f'missing PP×EP representative for target rank {target}: {key}')
+ source_rank,source=reps[key]; name=source.name.replace(f'_rank{source_rank}_',f'_rank{target}_',1); text=source.read_text(); text=re.sub(rf'(?m)^rank:{source_rank}:',f'rank:{target}:',text); text=text.replace('group=tp,comm_func=broadcast','group=tp,comm_func=load_batch_broadcast'); (dst/name).write_text(text)
+meta.write_text(json.dumps({'schema_version':'sc26-ae-task3-simulator-trace-expansion-v1','source_trace_dir':str(src),'destination_trace_dir':str(dst),'source_trace_file_count':len(files),'destination_trace_file_count':world,'topology':{'world_size':world,'pp_size':pp,'tp_size':tp,'dp_size':dp,'exp_size':exp},'mapping':'target rank maps to captured representative with same PP and EP coordinates; TP coordinate is expanded'},indent=2,sort_keys=True)+'\n')
+PY2
+    local expanded_count
+    expanded_count=$(find "${simulator_dir}" -maxdepth 1 -type f -name '*.txt' -printf '.' | wc -c)
+    (( expanded_count == TASK3_WORLD_SIZE )) || task3_error "Simulator trace expansion produced ${expanded_count} files, expected ${TASK3_WORLD_SIZE}."
+    TASK3_SIMULATOR_TRACE_DIR="${simulator_dir}"
+}
+
 task3_run_simulator() {
     local resolved_json=$1
-    local database_dir="${TASK3_TRACE_DIR}"
-    [[ "${database_dir}" == "${TASK3_TRACE_DIR}" ]] || \
-        task3_error "DATABASE_DIR must be exactly the canonical TRACE_DIR."
+    task3_materialize_simulator_trace
+    if [[ "${ARTIFACT_SOURCE}" == fresh ]]; then
+        task3_expand_rank0_slowdown_blueprints
+    fi
+    local database_dir="${TASK3_SIMULATOR_TRACE_DIR}"
+    [[ "${database_dir}" == "${TASK3_SIMULATOR_TRACE_DIR}" ]] || \
+        task3_error "DATABASE_DIR must be exactly the selected simulator trace directory."
 
     local -a simulator_command=(
         "${TASK3_SIMULATOR_PYTHON}"
@@ -1934,7 +2014,7 @@ task3_run_simulator() {
         "${TASK3_SIMULATOR}"
         --framework megatron-lm
         --mode simulate
-        --trace-dir "${TASK3_TRACE_DIR}"
+        --trace-dir "${TASK3_SIMULATOR_TRACE_DIR}"
         --database-dir "${database_dir}"
         --schedule-dir "${TASK3_SCHEDULE_DIR}"
         --world-size "${TASK3_WORLD_SIZE}"
