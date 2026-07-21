@@ -38,6 +38,23 @@ task3_execution_evidence() {
     esac
 }
 
+task3_validate_fixed_interpreter() {
+    local requested_path=$1
+    local canonical_path
+    canonical_path=$(realpath -e -- "${requested_path}" 2>/dev/null) || \
+        {
+            task3_error \
+                "Fixed real-mode Task3 interpreter must be an executable regular file: ${requested_path}"
+            return 1
+        }
+    [[ -f "${canonical_path}" && ! -L "${canonical_path}" && -x "${canonical_path}" ]] || \
+        {
+            task3_error \
+                "Fixed real-mode Task3 interpreter must be an executable regular file: ${requested_path}"
+            return 1
+        }
+}
+
 task3_bind_interpreters() {
     local fixed_python=/opt/conda/envs/megatron_env/bin/python
     local meta_overridden=0
@@ -65,12 +82,7 @@ task3_bind_interpreters() {
             fi
             TASK3_META_PYTHON=${fixed_python}
             TASK3_SIMULATOR_PYTHON=${fixed_python}
-            [[ -f "${fixed_python}" && ! -L "${fixed_python}" && -x "${fixed_python}" ]] || \
-                {
-                    task3_error \
-                        "Fixed real-mode Task3 interpreter must be an executable regular file: ${fixed_python}"
-                    return 1
-                }
+            task3_validate_fixed_interpreter "${fixed_python}" || return 1
             ;;
         synthetic)
             TASK3_META_PYTHON=${TASK3_META_PYTHON:-python3}
@@ -88,6 +100,50 @@ task3_safe_id() {
     local value=$2
     [[ "${value}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || \
         task3_error "${variable_name} must be a path-free identifier: ${value}"
+}
+
+# Prepare a builder-only trace directory containing the global rank-0 files.
+# The scheduler still consumes the complete Task1 trace directory.
+task3_prepare_rank0_slowdown_trace() {
+    local source_dir=$1
+    local destination_dir=$2
+
+    "${TASK3_META_PYTHON:-python3}" - "${source_dir}" "${destination_dir}" <<'PY'
+import pathlib
+import re
+import shutil
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+if source.is_symlink() or not source.is_dir():
+    raise SystemExit(f"[ERROR] slowdown source trace directory is invalid: {source}")
+if destination.exists() or destination.is_symlink():
+    raise SystemExit(f"[ERROR] slowdown rank-0 trace destination already exists: {destination}")
+destination.mkdir(parents=True, exist_ok=False)
+rank_pattern = re.compile(r"(?:^|_)rank([0-9]+)(?:_|\.)")
+copied = []
+for path in sorted(source.iterdir()):
+    if path.is_symlink() or not path.is_file():
+        raise SystemExit(f"[ERROR] slowdown source trace contains a non-regular file: {path}")
+    if path.suffix != ".txt":
+        continue
+    match = rank_pattern.search(path.name)
+    if match is None:
+        raise SystemExit(f"[ERROR] cannot determine rank from slowdown trace: {path}")
+    if int(match.group(1)) == 0:
+        target = destination / path.name
+        shutil.copyfile(path, target)
+        copied.append(target)
+if not copied:
+    raise SystemExit("[ERROR] slowdown trace directory contains no global rank-0 trace")
+for path in destination.iterdir():
+    match = rank_pattern.search(path.name)
+    if match is None or int(match.group(1)) != 0:
+        raise SystemExit(f"[ERROR] rank-0 slowdown trace directory contains a non-rank-0 file: {path}")
+print("SLOWDOWN_TRACE_RANK_SCOPE=global_rank_0")
+print(f"SLOWDOWN_TRACE_FILE_COUNT={len(copied)}")
+PY
 }
 
 task3_assert_output_subtree_safe() {
@@ -148,10 +204,10 @@ task3_load_model_config() {
         qwen3_a30b)
             TASK3_PROFILE=full
             TASK3_WORLD_SIZE=256
-            TASK3_PP=4
+            TASK3_PP=8
             TASK3_TP=8
-            TASK3_DP=8
-            TASK3_EXP=8
+            TASK3_DP=4
+            TASK3_EXP=4
             TASK3_NUM_EXPERTS=128
             TASK3_GLOBAL_BATCH_SIZE=128
             TASK3_SEQ_LEN=256
@@ -295,6 +351,10 @@ task3_assign_resolved_fields() {
     TASK3_CAPTURE_ID=$(task3_json_field "${resolved_json}" capture_id)
     TASK3_PREDICTOR_RUN_ID=$(task3_json_field "${resolved_json}" predictor_run_id)
     TASK3_TRACE_DIR=$(task3_json_field "${resolved_json}" trace_dir)
+    TASK3_NCU_METRICS_SOURCE=$(task3_json_field "${resolved_json}" ncu_metrics_source)
+    TASK3_SLOWDOWN_TRACE_SOURCE_DIR=$(task3_json_field "${resolved_json}" slowdown_trace_source_dir)
+    TASK3_SLOWDOWN_TRACE_SCOPE=$(task3_json_field "${resolved_json}" slowdown_trace_scope)
+    TASK3_SLOWDOWN_TRACE_RANK_IDS=$(task3_json_field "${resolved_json}" slowdown_trace_rank_ids)
     TASK3_NSYS_SQLITE=$(task3_json_field "${resolved_json}" nsys_sqlite)
     TASK3_NCU_METRICS_CSV=$(task3_json_field "${resolved_json}" ncu_metrics_csv)
     TASK3_MODEL_PATH=$(task3_json_field "${resolved_json}" model_path)
@@ -306,13 +366,232 @@ task3_assign_resolved_fields() {
 
     task3_safe_id capture_id "${TASK3_CAPTURE_ID}"
     task3_safe_id predictor_run_id "${TASK3_PREDICTOR_RUN_ID}"
+    case "${TASK3_NCU_METRICS_SOURCE}" in
+        task1_rank0|synthetic_fixture_compatibility)
+            ;;
+        *)
+            task3_error "Task3 NCU metrics source is invalid: ${TASK3_NCU_METRICS_SOURCE}"
+            ;;
+    esac
+    if [[ "${TASK3_EXECUTION_MODE:-real}" == real &&
+        "${TASK3_NCU_METRICS_SOURCE}" != task1_rank0 ]]; then
+        task3_error "Real Task3 requires Task1 rank-0 NCU metrics provenance."
+    fi
     ae_require_dir "${TASK3_TRACE_DIR}"
+    ae_require_dir "${TASK3_SLOWDOWN_TRACE_SOURCE_DIR}"
+    [[ "${TASK3_SLOWDOWN_TRACE_SCOPE}" == "global_rank_0" ]] || \
+        task3_error "Task3 slowdown trace scope must be global_rank_0."
+    [[ "${TASK3_SLOWDOWN_TRACE_RANK_IDS}" == "[0]" ]] || \
+        task3_error "Task3 slowdown trace rank ids must be [0]."
     ae_require_file "${TASK3_NSYS_SQLITE}"
     ae_require_file "${TASK3_NCU_METRICS_CSV}"
     ae_require_file "${TASK3_MODEL_PATH}"
     ae_require_file "${TASK3_SCALER_PATH}"
     ae_require_file "${TASK3_SOURCE_TASK1_MANIFEST}"
     ae_require_file "${TASK3_SOURCE_TASK2_MANIFEST}"
+}
+
+task3_verify_input_expectations() {
+    local resolved_json=$1
+    local consumer=$2
+    local phase=$3
+
+    "${TASK3_META_PYTHON}" - "${resolved_json}" "${consumer}" "${phase}" <<'PY'
+import hashlib
+import json
+import os
+import pathlib
+import re
+import stat
+import sys
+
+resolved_path = pathlib.Path(sys.argv[1])
+consumer = sys.argv[2]
+phase = sys.argv[3]
+
+
+def fail(message):
+    raise SystemExit(
+        f"[ERROR] Task3 input expectation drift ({consumer}/{phase}): {message}"
+    )
+
+
+def digest(path):
+    value = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            value.update(chunk)
+    return value.hexdigest()
+
+
+def verify_entry(entry, label, expected_path_text=None):
+    if not isinstance(entry, dict) or set(entry) != {"path", "size_bytes", "sha256"}:
+        fail(f"{label} expectation schema is invalid")
+    path_text = entry.get("path")
+    size_bytes = entry.get("size_bytes")
+    sha256 = entry.get("sha256")
+    if not isinstance(path_text, str) or not path_text:
+        fail(f"{label} expectation path is invalid")
+    if isinstance(size_bytes, bool) or not isinstance(size_bytes, int) or size_bytes < 0:
+        fail(f"{label} expectation size is invalid")
+    if not isinstance(sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", sha256):
+        fail(f"{label} expectation SHA256 is invalid")
+    path = pathlib.Path(path_text)
+    if expected_path_text is not None and path != pathlib.Path(expected_path_text):
+        fail(f"{label} expectation path differs from the resolved input")
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        fail(f"{label} is missing: {path}: {exc}")
+    if not path.is_absolute() or path != resolved or path.is_symlink() or not path.is_file():
+        fail(f"{label} is no longer a canonical regular file: {path}")
+    if path.stat().st_size != size_bytes:
+        fail(f"{label} size changed: {path}")
+    if digest(path) != sha256:
+        fail(f"{label} checksum changed: {path}")
+    return path
+
+
+def verify_trace_inventory(entries, trace_dir_text):
+    if not isinstance(entries, list) or not entries:
+        fail("trace file expectations must be a non-empty array")
+    trace_dir = pathlib.Path(trace_dir_text)
+    try:
+        resolved_trace_dir = trace_dir.resolve(strict=True)
+    except OSError as exc:
+        fail(f"trace directory is missing: {trace_dir}: {exc}")
+    if (
+        not trace_dir.is_absolute()
+        or trace_dir != resolved_trace_dir
+        or trace_dir.is_symlink()
+        or not trace_dir.is_dir()
+    ):
+        fail(f"trace directory is no longer canonical: {trace_dir}")
+    expected_paths = {
+        verify_entry(entry, f"trace file {index}")
+        for index, entry in enumerate(entries)
+    }
+    observed_paths = set()
+    for path in trace_dir.glob("*.txt"):
+        if path.is_symlink() or not path.is_file():
+            fail(f"trace directory contains a non-regular trace file: {path}")
+        observed_paths.add(path.resolve(strict=True))
+    if observed_paths != expected_paths:
+        fail(
+            "trace inventory changed: "
+            f"missing={sorted(str(path) for path in expected_paths - observed_paths)}, "
+            f"unexpected={sorted(str(path) for path in observed_paths - expected_paths)}"
+        )
+
+
+def regular_inventory(root):
+    result = set()
+    for current_root, directory_names, file_names in os.walk(root, followlinks=False):
+        current = pathlib.Path(current_root)
+        for name in directory_names:
+            path = current / name
+            mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+                fail(f"source assets contain a non-directory or symlink: {path}")
+        for name in file_names:
+            path = current / name
+            mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+                fail(f"source assets contain a non-regular file or symlink: {path}")
+            result.add(path.resolve(strict=True))
+    return result
+
+
+def verify_source_assets(entries, source_assets_dir_text):
+    if not isinstance(entries, list) or not entries:
+        fail("source asset expectations must be a non-empty array")
+    root = pathlib.Path(source_assets_dir_text)
+    try:
+        resolved_root = root.resolve(strict=True)
+    except OSError as exc:
+        fail(f"source assets directory is missing: {root}: {exc}")
+    if not root.is_absolute() or root != resolved_root or root.is_symlink() or not root.is_dir():
+        fail(f"source assets directory is no longer canonical: {root}")
+    expected_paths = {
+        verify_entry(entry, f"source asset {index}")
+        for index, entry in enumerate(entries)
+    }
+    observed_paths = regular_inventory(root)
+    if observed_paths != expected_paths:
+        fail(
+            "source asset inventory changed: "
+            f"missing={sorted(str(path) for path in expected_paths - observed_paths)}, "
+            f"unexpected={sorted(str(path) for path in observed_paths - expected_paths)}"
+        )
+
+
+try:
+    payload = json.loads(resolved_path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as exc:
+    fail(f"cannot load resolved input snapshot: {exc}")
+if not isinstance(payload, dict) or payload.get("schema_version") != "sc26-ae-task3-resolved-inputs-v1":
+    fail("resolved input snapshot schema is invalid")
+source = payload.get("artifact_source")
+if source not in {"fresh", "prebaked"}:
+    fail("resolved artifact source is invalid")
+if consumer not in {"evidence", "materialize", "simulator"}:
+    fail(f"unsupported consumer: {consumer}")
+if phase not in {"before", "after"}:
+    fail(f"unsupported verification phase: {phase}")
+
+expectations = payload.get("input_expectations")
+required_keys = {
+    "trace_files",
+    "nsys_sqlite",
+    "ncu_metrics_csv",
+    "model_path",
+    "scaler_path",
+    "task1_manifest",
+    "task2_manifest",
+    "distribution_manifest",
+    "source_assets",
+}
+if not isinstance(expectations, dict) or set(expectations) != required_keys:
+    fail("input expectation snapshot schema is invalid")
+
+if consumer in {"evidence", "simulator"} or (consumer == "materialize" and source == "fresh"):
+    verify_trace_inventory(expectations["trace_files"], payload.get("trace_dir"))
+
+scalar_fields = {
+    "nsys_sqlite": "nsys_sqlite",
+    "ncu_metrics_csv": "ncu_metrics_csv",
+    "model_path": "model_path",
+    "scaler_path": "scaler_path",
+    "task1_manifest": "task1_manifest",
+    "task2_manifest": "task2_manifest",
+}
+if consumer == "evidence":
+    selected = tuple(scalar_fields)
+elif consumer == "materialize" and source == "fresh":
+    selected = ("nsys_sqlite", "ncu_metrics_csv", "model_path", "scaler_path")
+elif consumer == "simulator":
+    selected = ("model_path", "scaler_path")
+else:
+    selected = ()
+for key in selected:
+    verify_entry(expectations[key], key, payload.get(scalar_fields[key]))
+
+distribution_expectation = expectations["distribution_manifest"]
+if consumer == "evidence" and source == "prebaked":
+    verify_entry(
+        distribution_expectation,
+        "distribution_manifest",
+        payload.get("distribution_manifest"),
+    )
+elif source == "fresh" and distribution_expectation is not None:
+    fail("fresh inputs must not contain a distribution manifest expectation")
+
+source_asset_expectations = expectations["source_assets"]
+if consumer == "materialize" and source == "prebaked":
+    verify_source_assets(source_asset_expectations, payload.get("source_assets_dir"))
+elif source == "fresh" and source_asset_expectations != []:
+    fail("fresh inputs must not contain source asset expectations")
+PY
 }
 
 task3_resolve_fresh() {
@@ -415,6 +694,29 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def observed_expectation(path, label):
+    resolved = path.resolve(strict=True)
+    if path != resolved or path.is_symlink() or not path.is_file():
+        fail(f"{label} is not a canonical regular file: {path}")
+    return {
+        "path": str(path),
+        "size_bytes": path.stat().st_size,
+        "sha256": digest(path),
+    }
+
+
+def manifest_expectation(root, relative, entries, label):
+    entry = entries.get(relative)
+    if entry is None:
+        fail(f"{label} is absent from the verified artifact manifest: {relative}")
+    path = resolve_inside(root, relative, label)
+    return {
+        "path": str(path),
+        "size_bytes": entry["size_bytes"],
+        "sha256": entry["sha256"],
+    }
+
+
 def verify_manifest(root, path, label):
     module_spec = importlib.util.spec_from_file_location(
         f"sc26_ae_manifest_{label}", artifact_tool_path
@@ -490,8 +792,11 @@ if task1_manifest.get("precision") != "bf16" or task1_manifest.get("mock_data") 
 if task1_manifest.get("ddp_overlap") is not True:
     fail("Task1 DDP overlap provenance is missing")
 task1_evidence = task1_manifest.get("execution_evidence")
-if execution_mode == "real" and task1_evidence != "real_single_h800_qualified":
-    fail("Task1 manifest lacks real_single_h800_qualified execution evidence")
+if execution_mode == "real" and task1_evidence not in {
+    "real_single_h800_qualified",
+    "runtime_measurement_requires_external_single_gpu_qualification",
+}:
+    fail("Task1 manifest lacks valid real runtime execution evidence")
 if execution_mode == "synthetic" and task1_evidence not in {
     None,
     "local_synthetic_fixture",
@@ -500,7 +805,11 @@ if execution_mode == "synthetic" and task1_evidence not in {
 }:
     fail("Task1 execution evidence class is invalid")
 
-task1_files = [entry.get("path") for entry in task1_manifest.get("files", [])]
+task1_file_entries = {
+    safe_relative(entry.get("path"), "Task1 artifact path"): entry
+    for entry in task1_manifest.get("files", [])
+}
+task1_files = [path.as_posix() for path in task1_file_entries]
 trace_rel_paths = [
     safe_relative(path, "Task1 trace path")
     for path in task1_files
@@ -550,6 +859,27 @@ if len(sqlite_rel_paths) != 1:
     fail("Task1 manifest must contain exactly one Nsight SQLite artifact")
 nsys_sqlite = resolve_inside(task1_run, sqlite_rel_paths[0], "Task1 Nsight SQLite")
 
+task1_ncu_rel_paths = [
+    safe_relative(path, "Task1 NCU feature path")
+    for path in task1_files
+    if isinstance(path, str)
+    and path == "ncu/kernel_metric_output.csv"
+]
+task1_ncu_provenance = task1_manifest.get("ncu_feature_provenance")
+if execution_mode == "real":
+    if len(task1_ncu_rel_paths) != 1:
+        fail("Real Task3 requires exactly one Task1 rank-0 NCU feature CSV")
+    if not isinstance(task1_ncu_provenance, dict):
+        fail("Real Task3 requires Task1 NCU feature provenance")
+    if task1_ncu_provenance.get("enabled") is not True:
+        fail("Task1 NCU feature provenance is not enabled")
+    if task1_ncu_provenance.get("rank_scope") != "global_rank_0":
+        fail("Task1 NCU feature provenance rank scope is invalid")
+    if task1_ncu_provenance.get("rank_ids") != [0]:
+        fail("Task1 NCU feature provenance rank ids are invalid")
+    if task1_ncu_provenance.get("physical_gpu_count") != 1:
+        fail("Task1 NCU feature provenance physical GPU count must equal one")
+
 predictor_marker = load_object(predictor_marker_path, "Task2 shared predictor marker")
 if predictor_marker.get("schema_version") != "sc26-ae-task2-shared-pointer-v1":
     fail("Task2 shared predictor marker schema is invalid")
@@ -581,8 +911,11 @@ if task2_manifest.get("predictor_run_id") != predictor_run_id:
 if task2_manifest.get("source_commits") != expected_commits:
     fail("Fresh Task2 producer commits differ from the current checkout")
 task2_evidence = task2_manifest.get("execution_evidence")
-if execution_mode == "real" and task2_evidence != "real_exact_two_h800_qualified":
-    fail("Task2 manifest lacks real_exact_two_h800_qualified execution evidence")
+if execution_mode == "real" and task2_evidence not in {
+    "real_exact_two_h800_qualified",
+    "runtime_measurement_requires_external_two_gpu_qualification",
+}:
+    fail("Task2 manifest lacks valid real runtime execution evidence")
 if execution_mode == "synthetic" and task2_evidence not in {
     "local_synthetic_not_two_gpu_qualification",
     "runtime_measurement_requires_external_two_gpu_qualification",
@@ -595,14 +928,39 @@ required_task2_paths = {
     "model_path": pathlib.PurePosixPath("training_testing/output/xgb_model.json"),
     "scaler_path": pathlib.PurePosixPath("training_testing/output/standard_scaler.json"),
 }
-listed_task2_paths = {
-    safe_relative(entry.get("path"), "Task2 artifact path")
+task2_file_entries = {
+    safe_relative(entry.get("path"), "Task2 artifact path"): entry
     for entry in task2_manifest.get("files", [])
 }
+listed_task2_paths = set(task2_file_entries)
 for label, path in required_task2_paths.items():
     if path not in listed_task2_paths:
         fail(f"Task2 manifest is missing required {label}: {path}")
 
+model_path = resolve_inside(
+    task2_run,
+    required_task2_paths["model_path"],
+    "Task2 model",
+)
+scaler_path = resolve_inside(
+    task2_run,
+    required_task2_paths["scaler_path"],
+    "Task2 scaler",
+)
+if task1_ncu_rel_paths:
+    ncu_metrics_path = resolve_inside(task1_run, task1_ncu_rel_paths[0], "Task1 NCU metrics")
+    ncu_metrics_relative = task1_ncu_rel_paths[0].as_posix()
+    ncu_metrics_source = "task1_rank0"
+else:
+    if execution_mode == "real":
+        fail("Task1 rank-0 NCU feature CSV is missing")
+    ncu_metrics_path = resolve_inside(
+        task2_run,
+        pathlib.PurePosixPath("merge/input/kernel_metric_output.csv"),
+        "synthetic fixture NCU metrics",
+    )
+    ncu_metrics_relative = "merge/input/kernel_metric_output.csv"
+    ncu_metrics_source = "synthetic_fixture_compatibility"
 payload = {
     "schema_version": "sc26-ae-task3-resolved-inputs-v1",
     "artifact_source": "fresh",
@@ -610,9 +968,10 @@ payload = {
     "predictor_run_id": predictor_run_id,
     "trace_dir": str(trace_dir),
     "nsys_sqlite": str(nsys_sqlite),
-    "ncu_metrics_csv": str(resolve_inside(task2_run, required_task2_paths["ncu_metrics_csv"], "Task2 NCU metrics")),
-    "model_path": str(resolve_inside(task2_run, required_task2_paths["model_path"], "Task2 model")),
-    "scaler_path": str(resolve_inside(task2_run, required_task2_paths["scaler_path"], "Task2 scaler")),
+    "ncu_metrics_csv": str(ncu_metrics_path) if ncu_metrics_path is not None else "",
+    "ncu_metrics_source": ncu_metrics_source,
+    "model_path": str(model_path),
+    "scaler_path": str(scaler_path),
     "task1_manifest": str(task1_manifest_path),
     "task2_manifest": str(task2_manifest_path),
     "distribution_manifest": "",
@@ -621,9 +980,55 @@ payload = {
     "task2_root": str(task2_run),
     "trace_dir_relative": trace_dir.relative_to(task1_run).as_posix(),
     "nsys_sqlite_relative": nsys_sqlite.relative_to(task1_run).as_posix(),
-    "ncu_metrics_relative": required_task2_paths["ncu_metrics_csv"].as_posix(),
+    "ncu_metrics_relative": ncu_metrics_relative,
+    "slowdown_trace_source_dir": str(trace_dir),
+    "slowdown_trace_scope": "global_rank_0",
+    "slowdown_trace_rank_ids": [0],
     "model_relative": required_task2_paths["model_path"].as_posix(),
     "scaler_relative": required_task2_paths["scaler_path"].as_posix(),
+    "input_expectations": {
+        "trace_files": [
+            manifest_expectation(task1_run, path, task1_file_entries, "Task1 trace")
+            for path in sorted(trace_rel_paths, key=lambda value: value.as_posix())
+        ],
+        "nsys_sqlite": manifest_expectation(
+            task1_run,
+            sqlite_rel_paths[0],
+            task1_file_entries,
+            "Task1 Nsight SQLite",
+        ),
+        "ncu_metrics_csv": (
+            manifest_expectation(
+                task1_run,
+                task1_ncu_rel_paths[0],
+                task1_file_entries,
+                "Task1 NCU metrics",
+            )
+            if task1_ncu_rel_paths
+            else manifest_expectation(
+                task2_run,
+                required_task2_paths["ncu_metrics_csv"],
+                task2_file_entries,
+                "synthetic fixture NCU metrics",
+            )
+        ),
+        "model_path": manifest_expectation(
+            task2_run,
+            required_task2_paths["model_path"],
+            task2_file_entries,
+            "Task2 model",
+        ),
+        "scaler_path": manifest_expectation(
+            task2_run,
+            required_task2_paths["scaler_path"],
+            task2_file_entries,
+            "Task2 scaler",
+        ),
+        "task1_manifest": observed_expectation(task1_manifest_path, "Task1 manifest"),
+        "task2_manifest": observed_expectation(task2_manifest_path, "Task2 manifest"),
+        "distribution_manifest": None,
+        "source_assets": [],
+    },
 }
 pathlib.Path(output_text).write_text(
     json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -650,7 +1055,8 @@ task3_resolve_prebaked() {
         "${model_key}" "${TASK3_PROFILE}" "${TASK3_WORLD_SIZE}" \
         "${TASK3_LOCAL_SIZE}" "${TASK3_PP}" "${TASK3_TP}" "${TASK3_DP}" \
         "${TASK3_EXP}" "${TASK3_ECHO_COMMIT}" "${TASK3_SIM_COMMIT}" \
-        "${TASK3_EXECUTION_MODE}" "${resolved_json}" <<'PY'
+        "${TASK3_EXECUTION_MODE}" "${TASK3_ALLOW_FUNCTIONAL_PREBAKED:-0}" \
+        "${resolved_json}" <<'PY'
 import hashlib
 import importlib.util
 import json
@@ -675,8 +1081,13 @@ import sys
     echo_commit,
     sim_commit,
     execution_mode,
+    allow_functional_prebaked_text,
     output_text,
 ) = sys.argv[1:]
+
+if allow_functional_prebaked_text not in {"0", "1"}:
+    raise SystemExit("[ERROR] TASK3_ALLOW_FUNCTIONAL_PREBAKED must be 0 or 1")
+allow_functional_prebaked = allow_functional_prebaked_text == "1"
 
 prebaked_root_path = pathlib.Path(prebaked_root_text)
 if prebaked_root_path.is_symlink():
@@ -729,6 +1140,29 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def observed_expectation(path, label):
+    resolved = path.resolve(strict=True)
+    if path != resolved or path.is_symlink() or not path.is_file():
+        fail(f"{label} is not a canonical regular file: {path}")
+    return {
+        "path": str(path),
+        "size_bytes": path.stat().st_size,
+        "sha256": digest(path),
+    }
+
+
+def manifest_expectation(root, relative, entries, label):
+    entry = entries.get(relative)
+    if entry is None:
+        fail(f"{label} is absent from the verified artifact manifest: {relative}")
+    path = resolve_inside(root, relative, label)
+    return {
+        "path": str(path),
+        "size_bytes": entry["size_bytes"],
+        "sha256": entry["sha256"],
+    }
+
+
 def require_execution_evidence(payload, label, required_real, allowed_synthetic):
     observed = payload.get("execution_evidence")
     if execution_mode == "real":
@@ -736,7 +1170,10 @@ def require_execution_evidence(payload, label, required_real, allowed_synthetic)
             fail(f"{label} lacks {required_real} execution evidence")
         return
     if execution_mode == "synthetic":
-        if observed not in set(allowed_synthetic) | {required_real}:
+        allowed = set(allowed_synthetic) | {required_real}
+        if allow_functional_prebaked:
+            allowed.add("functional_prebaked_not_release_qualified")
+        if observed not in allowed:
             fail(f"{label} execution evidence class is invalid: {observed}")
         return
     fail(f"unsupported Task3 execution mode: {execution_mode}")
@@ -787,10 +1224,21 @@ expected_topology = {
     "exp": int(exp_text),
 }
 distribution = load_object(distribution_manifest_path, "distribution manifest")
-if distribution.get("schema_version") != "sc26-ae-distribution-manifest-v1":
+distribution_schema = distribution.get("schema_version")
+functional_distribution = distribution_schema == "sc26-ae-functional-distribution-manifest-v1"
+if distribution_schema not in {
+    "sc26-ae-distribution-manifest-v1",
+    "sc26-ae-functional-distribution-manifest-v1",
+}:
     fail("distribution manifest schema is invalid")
 if distribution.get("artifact_source") != "prebaked":
     fail("distribution manifest artifact_source must be prebaked")
+if functional_distribution:
+    if not allow_functional_prebaked or execution_mode != "synthetic":
+        fail(
+            "functional prebaked input requires TASK3_ALLOW_FUNCTIONAL_PREBAKED=1 "
+            "and TASK3_EXECUTION_MODE=synthetic"
+        )
 require_execution_evidence(
     distribution,
     "distribution manifest",
@@ -837,13 +1285,22 @@ if listed_paths != inventory - {"distribution_manifest.json"}:
     )
 
 bundles = distribution.get("bundles")
-if not isinstance(bundles, dict) or set(bundles) != {
+expected_bundle_keys = {
+    "gpt175b",
+    "qwen3_a30b",
+    "shared_task2",
+} if functional_distribution else {
     "gpt175b",
     "qwen3_a30b",
     "dsv3",
     "shared_task2",
-}:
-    fail("distribution manifest bundles must contain all three models and shared_task2")
+}
+if not isinstance(bundles, dict) or set(bundles) != expected_bundle_keys:
+    fail(
+        "distribution manifest bundles must contain exactly {}".format(
+            sorted(expected_bundle_keys)
+        )
+    )
 
 
 def bundle_entry(key):
@@ -917,7 +1374,11 @@ if shared_entry.get("predictor_run_id") != predictor_run_id:
 if shared_manifest.get("source_commits") != shared_entry.get("producer_commits"):
     fail("shared Task2 producer commits differ between distribution and nested manifest")
 
-model_files = [safe_relative(entry.get("path"), "prebaked model artifact path") for entry in model_manifest.get("files", [])]
+model_file_entries = {
+    safe_relative(entry.get("path"), "prebaked model artifact path"): entry
+    for entry in model_manifest.get("files", [])
+}
+model_files = list(model_file_entries)
 trace_rel_paths = [
     path
     for path in model_files
@@ -934,10 +1395,34 @@ trace_dir = next(iter(trace_parents))
 if set(trace_dir.glob("*.txt")) != set(trace_paths):
     fail("prebaked trace directory contains files outside the nested manifest")
 
+slowdown_trace_rel_paths = [
+    path
+    for path in model_files
+    if path.as_posix().startswith("slowdown_trace_rank0/") and path.as_posix().endswith(".txt")
+]
+if execution_mode == "real" and not slowdown_trace_rel_paths:
+    fail("Real prebaked Task3 requires a rank-0 slowdown trace directory")
+if slowdown_trace_rel_paths:
+    slowdown_trace_paths = [
+        resolve_inside(model_root, path, "prebaked rank-0 slowdown trace")
+        for path in slowdown_trace_rel_paths
+    ]
+    slowdown_trace_source_dir = slowdown_trace_paths[0].parent
+    if set(slowdown_trace_source_dir.glob("*.txt")) != set(slowdown_trace_paths):
+        fail("prebaked rank-0 slowdown trace directory contains unlisted files")
+else:
+    slowdown_trace_source_dir = trace_dir
+
 sqlite_rel_paths = [path for path in model_files if path.as_posix().endswith(".sqlite")]
 if len(sqlite_rel_paths) != 1:
     fail("prebaked model manifest must contain exactly one Nsight SQLite artifact")
 nsys_sqlite = resolve_inside(model_root, sqlite_rel_paths[0], "prebaked Nsight SQLite")
+
+model_ncu_rel_paths = [
+    path for path in model_files if path.as_posix() == "ncu/kernel_metric_output.csv"
+]
+if (execution_mode == "real" or functional_distribution) and len(model_ncu_rel_paths) != 1:
+    fail("Prebaked Task3 requires the Task1 rank-0 NCU feature CSV")
 
 assets_rel = pathlib.PurePosixPath("slowdown_assets")
 assets_root = resolve_inside(model_root, assets_rel, "prebaked slowdown assets", directory=True)
@@ -951,10 +1436,11 @@ if not required_asset_paths.issubset(set(model_files)):
 for path in required_asset_paths:
     resolve_inside(model_root, path, "prebaked slowdown asset")
 
-shared_files = {
-    safe_relative(entry.get("path"), "prebaked shared Task2 artifact path")
+shared_file_entries = {
+    safe_relative(entry.get("path"), "prebaked shared Task2 artifact path"): entry
     for entry in shared_manifest.get("files", [])
 }
+shared_files = set(shared_file_entries)
 required_shared_paths = {
     "ncu_metrics_csv": pathlib.PurePosixPath("merge/input/kernel_metric_output.csv"),
     "model_path": pathlib.PurePosixPath("training_testing/output/xgb_model.json"),
@@ -964,6 +1450,41 @@ for label, path in required_shared_paths.items():
     if path not in shared_files:
         fail(f"prebaked shared Task2 manifest is missing required {label}: {path}")
 
+if model_ncu_rel_paths:
+    ncu_metrics_path = resolve_inside(model_root, model_ncu_rel_paths[0], "prebaked Task1 NCU metrics")
+    ncu_metrics_source = "task1_rank0"
+    ncu_metrics_relative = model_ncu_rel_paths[0].as_posix()
+elif functional_distribution:
+    fail("functional prebaked Task3 cannot use a shared Task2 NCU fallback")
+else:
+    ncu_metrics_path = resolve_inside(
+        shared_root,
+        required_shared_paths["ncu_metrics_csv"],
+        "synthetic fixture NCU metrics",
+    )
+    ncu_metrics_source = "synthetic_fixture_compatibility"
+    ncu_metrics_relative = required_shared_paths["ncu_metrics_csv"].as_posix()
+model_path = resolve_inside(
+    shared_root,
+    required_shared_paths["model_path"],
+    "prebaked model",
+)
+scaler_path = resolve_inside(
+    shared_root,
+    required_shared_paths["scaler_path"],
+    "prebaked scaler",
+)
+source_asset_paths = sorted(
+    (
+        path
+        for path in model_file_entries
+        if path.parts and path.parts[0] == assets_rel.as_posix()
+    ),
+    key=lambda value: value.as_posix(),
+)
+if not source_asset_paths:
+    fail("prebaked slowdown asset inventory is empty")
+
 payload = {
     "schema_version": "sc26-ae-task3-resolved-inputs-v1",
     "artifact_source": "prebaked",
@@ -971,9 +1492,10 @@ payload = {
     "predictor_run_id": predictor_run_id,
     "trace_dir": str(trace_dir),
     "nsys_sqlite": str(nsys_sqlite),
-    "ncu_metrics_csv": str(resolve_inside(shared_root, required_shared_paths["ncu_metrics_csv"], "prebaked NCU metrics")),
-    "model_path": str(resolve_inside(shared_root, required_shared_paths["model_path"], "prebaked model")),
-    "scaler_path": str(resolve_inside(shared_root, required_shared_paths["scaler_path"], "prebaked scaler")),
+    "ncu_metrics_csv": str(ncu_metrics_path),
+    "ncu_metrics_source": ncu_metrics_source,
+    "model_path": str(model_path),
+    "scaler_path": str(scaler_path),
     "task1_manifest": str(model_manifest_path),
     "task2_manifest": str(shared_manifest_path),
     "distribution_manifest": str(distribution_manifest_path.resolve(strict=True)),
@@ -982,10 +1504,64 @@ payload = {
     "task2_root": str(shared_root),
     "trace_dir_relative": trace_dir.relative_to(model_root).as_posix(),
     "nsys_sqlite_relative": nsys_sqlite.relative_to(model_root).as_posix(),
-    "ncu_metrics_relative": required_shared_paths["ncu_metrics_csv"].as_posix(),
+    "ncu_metrics_relative": ncu_metrics_relative,
+    "slowdown_trace_source_dir": str(slowdown_trace_source_dir),
+    "slowdown_trace_scope": "global_rank_0",
+    "slowdown_trace_rank_ids": [0],
     "model_relative": required_shared_paths["model_path"].as_posix(),
     "scaler_relative": required_shared_paths["scaler_path"].as_posix(),
     "distribution_id": distribution_id,
+    "input_expectations": {
+        "trace_files": [
+            manifest_expectation(model_root, path, model_file_entries, "prebaked trace")
+            for path in sorted(trace_rel_paths, key=lambda value: value.as_posix())
+        ],
+        "nsys_sqlite": manifest_expectation(
+            model_root,
+            sqlite_rel_paths[0],
+            model_file_entries,
+            "prebaked Nsight SQLite",
+        ),
+        "ncu_metrics_csv": manifest_expectation(
+            model_root if model_ncu_rel_paths else shared_root,
+            model_ncu_rel_paths[0] if model_ncu_rel_paths else required_shared_paths["ncu_metrics_csv"],
+            model_file_entries if model_ncu_rel_paths else shared_file_entries,
+            "prebaked Task1 NCU metrics" if model_ncu_rel_paths else "synthetic fixture NCU metrics",
+        ),
+        "model_path": manifest_expectation(
+            shared_root,
+            required_shared_paths["model_path"],
+            shared_file_entries,
+            "prebaked model",
+        ),
+        "scaler_path": manifest_expectation(
+            shared_root,
+            required_shared_paths["scaler_path"],
+            shared_file_entries,
+            "prebaked scaler",
+        ),
+        "task1_manifest": observed_expectation(
+            model_manifest_path,
+            "prebaked model manifest",
+        ),
+        "task2_manifest": observed_expectation(
+            shared_manifest_path,
+            "prebaked shared Task2 manifest",
+        ),
+        "distribution_manifest": observed_expectation(
+            distribution_manifest_path.resolve(strict=True),
+            "distribution manifest",
+        ),
+        "source_assets": [
+            manifest_expectation(
+                model_root,
+                path,
+                model_file_entries,
+                "prebaked slowdown asset",
+            )
+            for path in source_asset_paths
+        ],
+    },
 }
 pathlib.Path(output_text).write_text(
     json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1007,6 +1583,7 @@ task3_prepare_run() {
     TASK3_RUN_ROOT="${TASK3_TASK_DIR}/runs/${TASK3_SIMULATION_RUN_ID}"
     TASK3_WORK_ROOT="${output_root}/_work/task3.${TASK3_SIMULATION_RUN_ID}"
     TASK3_SCHEDULE_DIR="${TASK3_RUN_ROOT}/schedule"
+    TASK3_SLOWDOWN_TRACE_DIR="${TASK3_RUN_ROOT}/slowdown_trace_rank0"
     TASK3_SLOWDOWN_ASSETS_DIR="${TASK3_RUN_ROOT}/slowdown_assets"
     TASK3_LOG_DIR="${TASK3_RUN_ROOT}/logs"
     TASK3_RUNTIME_DIR="${TASK3_RUN_ROOT}/runtime"
@@ -1030,10 +1607,29 @@ task3_prepare_run() {
         "${TASK3_WORK_ROOT}"
 }
 
+task3_materialize_slowdown_trace() {
+    local resolved_json=$1
+
+    [[ ! -e "${TASK3_SLOWDOWN_TRACE_DIR}" && ! -L "${TASK3_SLOWDOWN_TRACE_DIR}" ]] || \
+        task3_error "Task3 slowdown trace destination already exists: ${TASK3_SLOWDOWN_TRACE_DIR}"
+    task3_record_command slowdown_trace \
+        task3_prepare_rank0_slowdown_trace \
+        "${TASK3_SLOWDOWN_TRACE_SOURCE_DIR}" "${TASK3_SLOWDOWN_TRACE_DIR}"
+    task3_prepare_rank0_slowdown_trace \
+        "${TASK3_SLOWDOWN_TRACE_SOURCE_DIR}" "${TASK3_SLOWDOWN_TRACE_DIR}" \
+        >"${TASK3_LOG_DIR}/slowdown_trace.log"
+    ae_require_dir "${TASK3_SLOWDOWN_TRACE_DIR}"
+    local -a trace_files=("${TASK3_SLOWDOWN_TRACE_DIR}"/*.txt)
+    [[ -f "${trace_files[0]}" ]] || \
+        task3_error "Task3 rank-0 slowdown trace materialization produced no .txt files"
+    task3_verify_input_expectations "${resolved_json}" materialize after
+}
+
 task3_write_input_evidence() {
     local resolved_json=$1
     local evidence_path="${TASK3_PROVENANCE_DIR}/input_evidence.json"
 
+    task3_verify_input_expectations "${resolved_json}" evidence before
     cp -- "${resolved_json}" "${TASK3_PROVENANCE_DIR}/resolved_inputs.json"
     cp -- "${TASK3_SOURCE_TASK1_MANIFEST}" "${TASK3_PROVENANCE_DIR}/task1_manifest.json"
     cp -- "${TASK3_SOURCE_TASK2_MANIFEST}" "${TASK3_PROVENANCE_DIR}/task2_manifest.json"
@@ -1046,6 +1642,8 @@ task3_write_input_evidence() {
         "${evidence_path}" "${TASK3_MODEL_KEY}" "${ARTIFACT_SOURCE}" \
         "${TASK3_SIMULATION_RUN_ID}" "${TASK3_CAPTURE_ID}" \
         "${TASK3_PREDICTOR_RUN_ID}" "${TASK3_TRACE_DIR}" \
+        "${TASK3_SLOWDOWN_TRACE_DIR}" "${TASK3_SLOWDOWN_TRACE_SCOPE}" \
+        "${TASK3_SLOWDOWN_TRACE_RANK_IDS}" \
         "${TASK3_NSYS_SQLITE}" "${TASK3_NCU_METRICS_CSV}" \
         "${TASK3_MODEL_PATH}" "${TASK3_SCALER_PATH}" \
         "${TASK3_SOURCE_TASK1_MANIFEST}" "${TASK3_SOURCE_TASK2_MANIFEST}" \
@@ -1063,6 +1661,9 @@ import sys
     capture_id,
     predictor_run_id,
     trace_dir_text,
+    slowdown_trace_dir_text,
+    slowdown_trace_scope,
+    slowdown_trace_rank_ids_text,
     nsys_text,
     ncu_text,
     model_text,
@@ -1086,6 +1687,18 @@ trace_dir = pathlib.Path(trace_dir_text).resolve(strict=True)
 trace_files = sorted(trace_dir.glob("*.txt"))
 if not trace_files:
     raise SystemExit("[ERROR] canonical Task3 trace directory contains no .txt files")
+slowdown_trace_dir = pathlib.Path(slowdown_trace_dir_text).resolve(strict=True)
+slowdown_trace_files = sorted(slowdown_trace_dir.glob("*.txt"))
+if not slowdown_trace_files:
+    raise SystemExit("[ERROR] rank-0 slowdown trace directory contains no .txt files")
+if any(path.is_symlink() or not path.is_file() for path in slowdown_trace_files):
+    raise SystemExit("[ERROR] rank-0 slowdown trace directory contains a non-regular file")
+try:
+    slowdown_rank_ids = json.loads(slowdown_trace_rank_ids_text)
+except json.JSONDecodeError as exc:
+    raise SystemExit(f"[ERROR] slowdown trace rank ids are invalid JSON: {exc}")
+if slowdown_trace_scope != "global_rank_0" or slowdown_rank_ids != [0]:
+    raise SystemExit("[ERROR] slowdown trace provenance must describe global rank 0 only")
 payload = {
     "schema_version": "sc26-ae-task3-input-evidence-v1",
     "model": model,
@@ -1095,6 +1708,10 @@ payload = {
     "predictor_run_id": predictor_run_id,
     "trace_file_count": len(trace_files),
     "trace_files": [evidence(str(path)) for path in trace_files],
+    "slowdown_trace_scope": slowdown_trace_scope,
+    "slowdown_trace_rank_ids": slowdown_rank_ids,
+    "slowdown_trace_file_count": len(slowdown_trace_files),
+    "slowdown_trace_files": [evidence(str(path)) for path in slowdown_trace_files],
     "nsys_sqlite": evidence(nsys_text),
     "ncu_metrics_csv": evidence(ncu_text),
     "slowdown_model": evidence(model_text),
@@ -1108,6 +1725,7 @@ pathlib.Path(output_text).write_text(
     json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
 )
 PY
+    task3_verify_input_expectations "${resolved_json}" evidence after
 }
 
 task3_record_command() {
@@ -1158,12 +1776,14 @@ PY
 }
 
 task3_materialize_slowdown_assets() {
+    local resolved_json=$1
+    task3_verify_input_expectations "${resolved_json}" materialize before
     if [[ "${ARTIFACT_SOURCE}" == fresh ]]; then
         local -a builder_command=(
             "${TASK3_SIMULATOR_PYTHON}"
             -B
             "${TASK3_BUILDER}"
-            --trace-dir "${TASK3_TRACE_DIR}"
+            --trace-dir "${TASK3_SLOWDOWN_TRACE_DIR}"
             --nsys-sqlite "${TASK3_NSYS_SQLITE}"
             --ncu-metrics-csv "${TASK3_NCU_METRICS_CSV}"
             --label-prefix cmd_trace
@@ -1183,6 +1803,7 @@ task3_materialize_slowdown_assets() {
             "${TASK3_SOURCE_ASSETS_DIR}" >"${TASK3_LOG_DIR}/builder.log"
     fi
     task3_validate_slowdown_assets "${TASK3_SLOWDOWN_ASSETS_DIR}"
+    task3_verify_input_expectations "${resolved_json}" materialize after
 }
 
 task3_generate_schedule() {
@@ -1302,6 +1923,7 @@ PY
 }
 
 task3_run_simulator() {
+    local resolved_json=$1
     local database_dir="${TASK3_TRACE_DIR}"
     [[ "${database_dir}" == "${TASK3_TRACE_DIR}" ]] || \
         task3_error "DATABASE_DIR must be exactly the canonical TRACE_DIR."
@@ -1332,12 +1954,14 @@ task3_run_simulator() {
         --report-model "${TASK3_MODEL_KEY}"
         --artifact-source "${ARTIFACT_SOURCE}"
     )
+    task3_verify_input_expectations "${resolved_json}" simulator before
     task3_record_command simulator "${simulator_command[@]}"
     (
         cd -- "${TASK3_RUNTIME_DIR}"
         SIMULATOR_HARDWARE_TYPE="${SIMULATOR_HARDWARE_TYPE}" \
             "${simulator_command[@]}"
     ) >"${TASK3_LOG_DIR}/simulator.log" 2>&1
+    task3_verify_input_expectations "${resolved_json}" simulator after
 }
 
 task3_validate_report() {
@@ -1432,7 +2056,8 @@ task3_write_outer_manifest() {
         "${TASK3_ECHO_COMMIT}" "${TASK3_SIM_COMMIT}" \
         "${TASK3_WORLD_SIZE}" "${TASK3_LOCAL_SIZE}" "${TASK3_PP}" \
         "${TASK3_TP}" "${TASK3_DP}" "${TASK3_EXP}" "${TASK3_PROFILE}" \
-        "${TASK3_EXECUTION_EVIDENCE}" <<'PY'
+        "${TASK3_EXECUTION_EVIDENCE}" "${TASK3_SLOWDOWN_TRACE_SCOPE}" \
+        "${TASK3_SLOWDOWN_TRACE_RANK_IDS}" "${TASK3_NCU_METRICS_SOURCE}" <<'PY'
 import json
 import pathlib
 import sys
@@ -1455,7 +2080,20 @@ import sys
     exp,
     profile,
     execution_evidence,
+    slowdown_trace_scope,
+    slowdown_trace_rank_ids_text,
+    ncu_metrics_source,
 ) = sys.argv[1:]
+try:
+    slowdown_trace_rank_ids = json.loads(slowdown_trace_rank_ids_text)
+except json.JSONDecodeError as exc:
+    raise SystemExit(f"[ERROR] Task3 slowdown trace rank ids are invalid JSON: {exc}")
+if slowdown_trace_scope != "global_rank_0" or slowdown_trace_rank_ids != [0]:
+    raise SystemExit("[ERROR] Task3 manifest slowdown trace provenance must describe global rank 0 only")
+if ncu_metrics_source not in {"task1_rank0", "synthetic_fixture_compatibility"}:
+    raise SystemExit(f"[ERROR] Task3 manifest NCU metrics source is invalid: {ncu_metrics_source}")
+if execution_evidence != "local_synthetic_not_gpu_qualification" and ncu_metrics_source != "task1_rank0":
+    raise SystemExit("[ERROR] Real Task3 manifest requires Task1 rank-0 NCU provenance")
 payload = {
     "schema_version": "sc26-ae-artifact-manifest-v1",
     "model": model,
@@ -1484,6 +2122,9 @@ payload = {
     "overlap_mode": "on",
     "database_is_trace_dir": True,
     "execution_evidence": execution_evidence,
+    "slowdown_trace_scope": slowdown_trace_scope,
+    "slowdown_trace_rank_ids": slowdown_trace_rank_ids,
+    "ncu_metrics_source": ncu_metrics_source,
 }
 pathlib.Path(output_text).write_text(
     json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1537,7 +2178,8 @@ task3_publish_marker() {
         "${TASK3_MODEL_KEY}" "${ARTIFACT_SOURCE}" \
         "${TASK3_SIMULATION_RUN_ID}" "${TASK3_CAPTURE_ID}" \
         "${TASK3_PREDICTOR_RUN_ID}" "${TASK3_MANIFEST_SHA256}" \
-        "${TASK3_EXECUTION_EVIDENCE}" <<'PY'
+        "${TASK3_EXECUTION_EVIDENCE}" "${TASK3_SLOWDOWN_TRACE_SCOPE}" \
+        "${TASK3_SLOWDOWN_TRACE_RANK_IDS}" "${TASK3_NCU_METRICS_SOURCE}" <<'PY'
 import json
 import pathlib
 import sys
@@ -1553,7 +2195,18 @@ import sys
     predictor_run_id,
     manifest_sha256,
     execution_evidence,
+    slowdown_trace_scope,
+    slowdown_trace_rank_ids_text,
+    ncu_metrics_source,
 ) = sys.argv[1:]
+try:
+    slowdown_trace_rank_ids = json.loads(slowdown_trace_rank_ids_text)
+except json.JSONDecodeError as exc:
+    raise SystemExit(f"[ERROR] Task3 marker slowdown trace rank ids are invalid JSON: {exc}")
+if slowdown_trace_scope != "global_rank_0" or slowdown_trace_rank_ids != [0]:
+    raise SystemExit("[ERROR] Task3 marker slowdown trace provenance must describe global rank 0 only")
+if ncu_metrics_source not in {"task1_rank0", "synthetic_fixture_compatibility"}:
+    raise SystemExit(f"[ERROR] Task3 marker NCU metrics source is invalid: {ncu_metrics_source}")
 task_dir = pathlib.Path(task_dir_text).resolve(strict=True)
 run_root = pathlib.Path(run_root_text).resolve(strict=True)
 expected = task_dir / "runs" / simulation_run_id
@@ -1572,6 +2225,12 @@ if manifest_payload.get("execution_evidence") != execution_evidence:
     raise SystemExit(
         "[ERROR] Task3 marker evidence does not match its artifact manifest"
     )
+if manifest_payload.get("slowdown_trace_scope") != slowdown_trace_scope:
+    raise SystemExit("[ERROR] Task3 marker slowdown trace scope does not match its artifact manifest")
+if manifest_payload.get("slowdown_trace_rank_ids") != slowdown_trace_rank_ids:
+    raise SystemExit("[ERROR] Task3 marker slowdown trace ranks do not match its artifact manifest")
+if manifest_payload.get("ncu_metrics_source") != ncu_metrics_source:
+    raise SystemExit("[ERROR] Task3 marker NCU source does not match its artifact manifest")
 payload = {
     "schema_version": "sc26-ae-task3-run-marker-v1",
     "task": "task3",
@@ -1584,6 +2243,9 @@ payload = {
     "manifest_sha256": manifest_sha256,
     "artifact_manifest_sha256": manifest_sha256,
     "execution_evidence": execution_evidence,
+    "slowdown_trace_scope": slowdown_trace_scope,
+    "slowdown_trace_rank_ids": slowdown_trace_rank_ids,
+    "ncu_metrics_source": ncu_metrics_source,
     "verified": True,
 }
 pathlib.Path(marker_text).write_text(
@@ -1600,6 +2262,11 @@ ae_run_task3() {
 
     TASK3_EXECUTION_MODE=${TASK3_EXECUTION_MODE:-real}
     ae_require_enum TASK3_EXECUTION_MODE "${TASK3_EXECUTION_MODE}" real synthetic
+    TASK3_ALLOW_FUNCTIONAL_PREBAKED=${TASK3_ALLOW_FUNCTIONAL_PREBAKED:-0}
+    ae_require_enum TASK3_ALLOW_FUNCTIONAL_PREBAKED "${TASK3_ALLOW_FUNCTIONAL_PREBAKED}" 0 1
+    if [[ "${TASK3_ALLOW_FUNCTIONAL_PREBAKED}" == "1" && "${ARTIFACT_SOURCE}" != "prebaked" ]]; then
+        task3_error "TASK3_ALLOW_FUNCTIONAL_PREBAKED=1 requires ARTIFACT_SOURCE=prebaked."
+    fi
     TASK3_EXECUTION_EVIDENCE=$(task3_execution_evidence)
     [[ -n "${SIMULATOR_HARDWARE_TYPE:-}" ]] || \
         task3_error "SIMULATOR_HARDWARE_TYPE is required for Task3 CPU execution."
@@ -1649,10 +2316,11 @@ ae_run_task3() {
             ;;
     esac
 
+    task3_materialize_slowdown_trace "${resolved_json}"
     task3_write_input_evidence "${resolved_json}"
-    task3_materialize_slowdown_assets
+    task3_materialize_slowdown_assets "${resolved_json}"
     task3_generate_schedule
-    task3_run_simulator
+    task3_run_simulator "${resolved_json}"
     task3_validate_report
     task3_write_outer_manifest
     task3_publish_marker

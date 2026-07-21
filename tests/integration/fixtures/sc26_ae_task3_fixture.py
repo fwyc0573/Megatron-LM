@@ -16,6 +16,7 @@ import json
 import os
 import pathlib
 import resource
+import shutil
 import stat
 import subprocess
 import sys
@@ -30,13 +31,19 @@ MODEL_SPECS: Mapping[str, Mapping[str, Any]] = {
     },
     "qwen3_a30b": {
         "profile": "full",
-        "topology": {"world_size": 256, "local_size": 8, "pp": 4, "tp": 8, "dp": 8, "exp": 8},
+        "topology": {"world_size": 256, "local_size": 8, "pp": 8, "tp": 8, "dp": 4, "exp": 4},
     },
     "dsv3": {
         "profile": "smoke",
         "topology": {"world_size": 256, "local_size": 8, "pp": 4, "tp": 8, "dp": 8, "exp": 8},
     },
 }
+
+# The public fake-level AE workflow intentionally packages only the two
+# representative models.  Keep the historical DeepSeek fixture above for
+# compatibility tests, but expose a separate source builder for the active
+# GPT-175B + Qwen3-A3B bundle.
+FUNCTIONAL_MODELS = ("gpt175b", "qwen3_a30b")
 
 
 def stable_json(path: pathlib.Path, payload: Any) -> None:
@@ -308,6 +315,239 @@ def build_fresh_inputs(repo_root: pathlib.Path, output_root: pathlib.Path, model
         "output_root": str(output_root),
         "model": model,
         "capture_id": capture_id,
+        "predictor_run_id": predictor_run_id,
+    }
+
+
+def build_functional_source(repo_root: pathlib.Path, output_root: pathlib.Path) -> Dict[str, Any]:
+    """Create a two-model fake-level source tree for functional packaging tests.
+
+    This fixture mirrors the producer contract rather than the release
+    qualification contract: GPT-175B has one representative rank per PP stage,
+    Qwen3-A3B has one representative rank per PP stage and EP group, and each
+    model carries its own rank-0-only NCU feature CSV.  All evidence remains
+    explicitly synthetic.
+    """
+
+    output_root.mkdir(parents=True, exist_ok=False)
+    module = load_manifest_module(repo_root)
+    commits = source_commits(repo_root)
+    predictor_run_id = "synthetic-functional-predictor"
+
+    # Shared Task2 predictor inputs are intentionally model-independent.  The
+    # functional package verifier still requires this bundle to be present,
+    # while rejecting any attempt to use its NCU CSV as a model Task1 feature.
+    task2_root = output_root / "_shared/task2/runs" / predictor_run_id
+    write_text(task2_root / "merge/input/kernel_metric_output.csv", "Kernel Name,SM\nsynthetic,1\n")
+    stable_json(task2_root / "training_testing/output/xgb_model.json", {"synthetic": True})
+    stable_json(task2_root / "training_testing/output/standard_scaler.json", {"synthetic": True})
+    task2_manifest = create_manifest(
+        module,
+        task2_root,
+        {
+            "schema_version": "sc26-ae-artifact-manifest-v1",
+            "model": "shared_task2",
+            "task": "task2",
+            "artifact_source": "fresh",
+            "predictor_run_id": predictor_run_id,
+            "source_commits": commits,
+            "execution_evidence": "local_synthetic_not_two_gpu_qualification",
+        },
+    )
+    stable_json(
+        output_root / "_shared/task2/predictor_marker.json",
+        {
+            "schema_version": "sc26-ae-task2-shared-pointer-v1",
+            "predictor_run_id": predictor_run_id,
+            "run_path": f"_shared/task2/runs/{predictor_run_id}",
+            "manifest_sha256": sha256(task2_manifest),
+            "artifact_manifest_sha256": sha256(task2_manifest),
+            "verified": True,
+        },
+    )
+
+    for model in FUNCTIONAL_MODELS:
+        specification = MODEL_SPECS[model]
+        capture_id = f"synthetic-{model}-functional-capture"
+        task1_dir = output_root / model / "task1"
+        task1_root = task1_dir / "runs" / capture_id
+        if model == "gpt175b":
+            rank_ids = [0, 128, 256, 384, 512, 640, 768, 896]
+        else:
+            # rank = pp_stage * tp * dp + exp_rank * tp
+            rank_ids = [pp * 8 * 4 + exp * 8 for pp in range(8) for exp in range(4)]
+        # The trace and memory inventories are deliberately small files so the
+        # test remains fast while preserving the exact producer cardinality.
+        for rank in rank_ids:
+            write_text(
+                task1_root / "runtime/profiler_log/synthetic" / f"rank{rank}.txt",
+                trace_text(rank),
+            )
+            stable_json(
+                task1_root / "memory_traces_scaling" / f"memory_trace_rank{rank}.json",
+                {
+                    "0": {
+                        "samples": [
+                            {
+                                "timestamp_s": 0.1,
+                                "reserved_memory_MB": 100.0,
+                                "allocated_memory_MB": 80.0,
+                            }
+                        ],
+                        "peak_allocated_MB": 90.0,
+                        "theoretical_memory_MB": 120.0,
+                    }
+                },
+            )
+        # Task3 consumes a workload-aligned rank-0 feature.  It must live in
+        # each model's Task1 run; the shared Task2 CSV is not an acceptable
+        # substitute for the functional package.
+        write_text(
+            task1_root / "ncu/kernel_metric_output.csv",
+            "Kernel Name,Metric Value\nsynthetic_rank0_kernel,1.0\n",
+        )
+        stable_json(
+            task1_root / "nsys/capture.sqlite",
+            {"synthetic": True, "model": model},
+        )
+        task1_metadata = json.loads((task1_root / "artifact_manifest.json").read_text(encoding="utf-8")) if (task1_root / "artifact_manifest.json").exists() else {
+            "schema_version": "sc26-ae-artifact-manifest-v1",
+            "model": model,
+            "task": "task1",
+            "artifact_source": "fresh",
+            "capture_id": capture_id,
+            "source_commits": commits,
+            "simulation_topology": specification["topology"],
+            "capture_runtime": {
+                "physical_gpu_count": 1,
+                "fake_gpus_per_node": 8,
+                "scaling_min_warmup_iters": 3,
+                "scaling_profile_iters": 1,
+            },
+            "profile": specification["profile"],
+            "precision": "bf16",
+            "mock_data": True,
+            "ddp_overlap": True,
+            "execution_evidence": "local_synthetic_not_gpu_qualification",
+        }
+        # The initial manifest is not emitted until all rank files and feature
+        # metadata are present, ensuring its inventory/checksums are complete.
+        task1_metadata.pop("files", None)
+        task1_metadata.update(
+            {
+                "capture_summary": {
+                    "capture_scope": (
+                        "representative"
+                        if model == "gpt175b"
+                        else "representative_ep"
+                        if model == "qwen3_a30b"
+                        else "full"
+                    ),
+                    "selected_rank_ids": rank_ids,
+                    "selected_rank_count": len(rank_ids),
+                    "trace_file_count": len(rank_ids),
+                    "memory_json_count": len(rank_ids),
+                },
+                "ncu_feature_provenance": {
+                    "rank_scope": "global_rank_0",
+                    "rank_ids": [0],
+                    "physical_gpu_count": 1,
+                    "missing_kernel_count": 0,
+                },
+            }
+        )
+        task1_manifest = create_manifest(module, task1_root, task1_metadata)
+        stable_json(
+            task1_dir / "capture_marker.json",
+            {
+                "schema_version": "sc26-ae-task1-capture-marker-v1",
+                "model": model,
+                "capture_id": capture_id,
+                "run_path": f"runs/{capture_id}",
+                "manifest_sha256": sha256(task1_manifest),
+                "artifact_manifest_sha256": sha256(task1_manifest),
+                "verified": True,
+            },
+        )
+
+        simulation_run_id = f"synthetic-{model}-functional-task3"
+        task3_dir = output_root / model / "task3"
+        task3_root = task3_dir / "runs" / simulation_run_id
+        slowdown_assets(task3_root / "slowdown_assets", model)
+        for stage in range(specification["topology"]["pp"]):
+            write_text(
+                task3_root / "schedule" / f"stage{stage}_scheduling_plan.txt",
+                f"stage:{stage}:forward_step(batch_id=0, input__dtype=torch.bfloat16)\n",
+            )
+        stable_json(
+            task3_root / "report.json",
+            {
+                "schema_version": "sc26-ae-rank0-report-v1",
+                "model": model,
+                "artifact_source": "fresh",
+                "rank_id": 0,
+                "rank0_step_time_ms": 18.5 if model == "gpt175b" else 24.5,
+                "rank0_forward_step_duration_sum_ms": 5.0 if model == "gpt175b" else 6.5,
+                "rank0_backward_step_duration_sum_ms": 9.0 if model == "gpt175b" else 12.0,
+                "rank0_optimizer_step_duration_sum_ms": 2.0 if model == "gpt175b" else 3.0,
+            },
+        )
+        write_text(task3_root / "report.md", f"# Synthetic functional report ({model})\n")
+        stable_json(
+            task3_root / "provenance/input_evidence.json",
+            {
+                "schema_version": "sc26-ae-task3-input-evidence-v1",
+                "model": model,
+                "artifact_source": "fresh",
+                "capture_id": capture_id,
+                "predictor_run_id": predictor_run_id,
+            },
+        )
+        shutil.copy2(task1_manifest, task3_root / "provenance/task1_manifest.json")
+        shutil.copy2(task2_manifest, task3_root / "provenance/task2_manifest.json")
+        task3_manifest = create_manifest(
+            module,
+            task3_root,
+            {
+                "schema_version": "sc26-ae-artifact-manifest-v1",
+                "model": model,
+                "task": "task3",
+                "artifact_source": "fresh",
+                "capture_id": capture_id,
+                "predictor_run_id": predictor_run_id,
+                "simulation_run_id": simulation_run_id,
+                "source_commits": commits,
+                "simulation_topology": specification["topology"],
+                "profile": specification["profile"],
+                "precision": "bf16",
+                "ddp_overlap": True,
+                "communication_backend": "analytical",
+                "overlap_mode": "on",
+                "database_is_trace_dir": True,
+                "execution_evidence": "local_synthetic_not_gpu_qualification",
+            },
+        )
+        stable_json(
+            task3_dir / "run_marker.json",
+            {
+                "schema_version": "sc26-ae-task3-run-marker-v1",
+                "task": "task3",
+                "model": model,
+                "artifact_source": "fresh",
+                "simulation_run_id": simulation_run_id,
+                "capture_id": capture_id,
+                "predictor_run_id": predictor_run_id,
+                "run_path": f"runs/{simulation_run_id}",
+                "manifest_sha256": sha256(task3_manifest),
+                "artifact_manifest_sha256": sha256(task3_manifest),
+                "execution_evidence": "local_synthetic_not_gpu_qualification",
+                "verified": True,
+            },
+        )
+
+    return {
+        "output_root": str(output_root),
+        "models": list(FUNCTIONAL_MODELS),
         "predictor_run_id": predictor_run_id,
     }
 
@@ -674,6 +914,10 @@ def parser() -> argparse.ArgumentParser:
     fresh.add_argument("--output-root", type=pathlib.Path, required=True)
     fresh.add_argument("--model", choices=sorted(MODEL_SPECS), required=True)
 
+    functional = subparsers.add_parser("functional-source")
+    functional.add_argument("--repo-root", type=pathlib.Path, required=True)
+    functional.add_argument("--output-root", type=pathlib.Path, required=True)
+
     tools = subparsers.add_parser("tools")
     tools.add_argument("--output-root", type=pathlib.Path, required=True)
 
@@ -694,6 +938,14 @@ def main() -> int:
         print(
             json.dumps(
                 build_fresh_inputs(args.repo_root.resolve(), args.output_root, args.model),
+                sort_keys=True,
+            )
+        )
+        return 0
+    if args.command == "functional-source":
+        print(
+            json.dumps(
+                build_functional_source(args.repo_root.resolve(), args.output_root),
                 sort_keys=True,
             )
         )

@@ -54,6 +54,7 @@ DO_TRACE=${DO_TRACE:-True}
 ADVANCED_DIAGNOSTICS=${ADVANCED_DIAGNOSTICS:-0}
 LR=${LR:-1.2e-4}
 MIN_LR=${MIN_LR:-1.2e-5}
+LR_WARMUP_ITERS=${LR_WARMUP_ITERS:-1}
 MOE_TOKEN_DISPATCHER_TYPE=${MOE_TOKEN_DISPATCHER_TYPE:-alltoall}
 SCALING_COMM_ADJACENT_COPY_ITERS=${SCALING_COMM_ADJACENT_COPY_ITERS:-0}
 SCALING_DISABLE_DDP_WRAP=${SCALING_DISABLE_DDP_WRAP:-0}
@@ -79,7 +80,9 @@ if [[ "${MODEL_PROFILE}" == "full" ]]; then
   NUM_LAYERS=48
   HIDDEN_SIZE=2048
   NUM_HEADS=32
-  NUM_QUERY_GROUPS=4
+  # TP=8 requires the GQA groups to partition evenly in scaling mode.  This
+  # matches the validated Qwen3-A3B wall-clock workload configuration.
+  NUM_QUERY_GROUPS=8
   FFN_HIDDEN_SIZE=6144
   NUM_EXPERTS=128
   MOE_FFN_HIDDEN_SIZE=768
@@ -240,7 +243,7 @@ COMMON_ARGS=(
   --min-lr "${MIN_LR}"
   --lr-decay-style cosine
   --lr-decay-iters "${TRAIN_ITERS}"
-  --lr-warmup-iters 1
+  --lr-warmup-iters "${LR_WARMUP_ITERS}"
   --attention-dropout 0.0
   --hidden-dropout 0.0
   --weight-decay 0.1

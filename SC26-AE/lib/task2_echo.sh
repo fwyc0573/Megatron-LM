@@ -73,6 +73,7 @@ TASK2_WORK_ROOT=""
 TASK2_RUN_ROOT=""
 TASK2_SOURCE_ROOT=""
 TASK2_ECHO_COMMIT=""
+TASK2_MAIN_COMMIT=""
 TASK2_COMMIT_PROVENANCE=""
 TASK2_VERIFIED_MANIFEST_SHA256=""
 TASK2_FIXED_CANONICAL_PATH=""
@@ -408,6 +409,7 @@ task2_attach_interpreter_provenance() {
     "$TASK2_META_PYTHON" - "$provenance" "$sidecar" <<'PY'
 import hashlib
 import json
+import os
 import pathlib
 import sys
 
@@ -938,7 +940,10 @@ task2_gitlink_commit() {
         expected=$TASK2_EXPECTED_COMMIT
         TASK2_COMMIT_PROVENANCE="explicit_test_gitlink_override"
     else
-        expected=$(git -C "$TASK2_REPO_ROOT" rev-parse HEAD:Echo-slowdown 2>/dev/null) || {
+        [[ "$TASK2_MAIN_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+            task2_error "main-repository commit is unavailable for Echo-slowdown gitlink validation"; return 1;
+        }
+        expected=$(git -C "$TASK2_REPO_ROOT" rev-parse "${TASK2_MAIN_COMMIT}:Echo-slowdown" 2>/dev/null) || {
             task2_error "cannot resolve main-repository Echo-slowdown gitlink commit"; return 1;
         }
         TASK2_COMMIT_PROVENANCE="main_repository_gitlink"
@@ -957,6 +962,68 @@ task2_assert_source_clean() {
     [[ -z "$status" ]] || {
         task2_error "Echo-slowdown checkout is dirty: ${status}"; return 1;
     }
+}
+
+task2_assert_outer_source_provenance() {
+    local expected_commit=$1
+    local relative expected_blob actual_blob object_type working_path
+    # Keep this list synchronized with tests/unit/test_sc26_ae_task2_source_provenance.sh.
+    local -a source_files=(
+        SC26-AE/task2_gpt175b.sh
+        SC26-AE/task2_dsv3.sh
+        SC26-AE/task2_qwen3_a30b.sh
+        SC26-AE/lib/common.sh
+        SC26-AE/lib/task2_echo.sh
+        SC26-AE/tools/artifact_manifest.py
+        SC26-AE/tools/echo_metrics.py
+    )
+
+    [[ -d "${TASK2_REPO_ROOT}/.git" || -f "${TASK2_REPO_ROOT}/.git" ]] || {
+        task2_error "Task2 outer source provenance root is not a Git repository: ${TASK2_REPO_ROOT}"
+        return 1
+    }
+    [[ "${expected_commit}" =~ ^[0-9a-f]{40}$ ]] || {
+        task2_error "Task2 outer source provenance commit is invalid: ${expected_commit}"
+        return 1
+    }
+
+    for relative in "${source_files[@]}"; do
+        working_path="${TASK2_REPO_ROOT}/${relative}"
+        [[ -f "${working_path}" && ! -L "${working_path}" ]] || {
+            task2_error "Task2 load-bearing outer source is not a regular file: ${relative}"
+            return 1
+        }
+        expected_blob=$(git -C "${TASK2_REPO_ROOT}" rev-parse \
+            "${expected_commit}:${relative}" 2>/dev/null) || {
+            task2_error "Task2 outer source is not tracked by pinned HEAD: ${relative}"
+            return 1
+        }
+        object_type=$(git -C "${TASK2_REPO_ROOT}" cat-file -t "${expected_blob}" 2>/dev/null) || {
+            task2_error "Cannot inspect pinned Task2 outer source object: ${relative}"
+            return 1
+        }
+        [[ "${object_type}" == blob ]] || {
+            task2_error "Pinned Task2 outer source is not a file: ${relative}"
+            return 1
+        }
+        actual_blob=$(git -C "${TASK2_REPO_ROOT}" hash-object --no-filters \
+            "${working_path}" 2>/dev/null) || {
+            task2_error "Cannot hash Task2 working-tree outer source: ${relative}"
+            return 1
+        }
+        [[ "${actual_blob}" == "${expected_blob}" ]] || {
+            task2_error "Task2 tracked outer blob mismatch: ${relative}"
+            return 1
+        }
+    done
+}
+
+task2_maybe_assert_outer_source_provenance() {
+    if [[ "${TASK2_SKIP_OUTER_SOURCE_PROVENANCE:-0}" == "1" ]]; then
+        printf '[WARN] Task2 outer source provenance hash gate bypassed explicitly for runtime smoke; output remains non-qualified.\n' >&2
+        return 0
+    fi
+    task2_assert_outer_source_provenance "$1"
 }
 
 task2_is_excluded() {
@@ -1075,6 +1142,7 @@ task2_write_provenance() {
         "$TASK2_COMMIT_PROVENANCE" "$TASK2_MODE" "${CUDA_VISIBLE_DEVICES:-}" "$TASK2_REBUILD" \
         "$TASK2_SOURCE_ROOT" "$TASK2_RUN_COMMAND" "$TASK2_UPDATE_COMMAND" <<'PY'
 import json
+import os
 import pathlib
 import sys
 from datetime import datetime, timezone
@@ -1101,6 +1169,15 @@ payload = {
     "generated_utc": datetime.now(timezone.utc).isoformat(),
     "historical_outputs_excluded_at_archive_time": True,
     "automatic_fallback": False,
+    "outer_source_provenance": {
+        "checked": os.environ.get("TASK2_SKIP_OUTER_SOURCE_PROVENANCE", "0") == "0",
+        "bypassed": os.environ.get("TASK2_SKIP_OUTER_SOURCE_PROVENANCE", "0") == "1",
+        "reason": (
+            "explicit_runtime_smoke_bypass_dirty_worktree"
+            if os.environ.get("TASK2_SKIP_OUTER_SOURCE_PROVENANCE", "0") == "1"
+            else None
+        ),
+    },
 }
 output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -1163,10 +1240,12 @@ task2_write_artifact_manifest() {
     local file_list="${TASK2_WORK_ROOT}/artifact_manifest_files.txt"
     local megatron_commit sim_engine_commit
 
-    megatron_commit=$(git -C "$TASK2_REPO_ROOT" rev-parse HEAD 2>/dev/null) || {
-        task2_error "cannot resolve Megatron-LM source commit for artifact manifest"; return 1;
+    megatron_commit=$TASK2_MAIN_COMMIT
+    [[ "$megatron_commit" =~ ^[0-9a-f]{40}$ ]] || {
+        task2_error "recorded Megatron-LM source commit is invalid for artifact manifest"; return 1;
     }
-    sim_engine_commit=$(git -C "$TASK2_REPO_ROOT" rev-parse HEAD:megatron-sim-engine 2>/dev/null) || {
+    sim_engine_commit=$(git -C "$TASK2_REPO_ROOT" rev-parse \
+        "${TASK2_MAIN_COMMIT}:megatron-sim-engine" 2>/dev/null) || {
         task2_error "cannot resolve megatron-sim-engine source commit for artifact manifest"; return 1;
     }
     "$TASK2_META_PYTHON" - "$metadata_file" "$megatron_commit" "$TASK2_ECHO_COMMIT" \
@@ -1228,10 +1307,12 @@ task2_verify_run() {
     }
     task2_validate_binding_sidecar "$run_root" || return 1
     local megatron_commit sim_engine_commit
-    megatron_commit=$(git -C "$TASK2_REPO_ROOT" rev-parse HEAD 2>/dev/null) || {
-        task2_error "cannot resolve current Megatron-LM commit while verifying Task2 bundle"; return 1;
+    megatron_commit=$TASK2_MAIN_COMMIT
+    [[ "$megatron_commit" =~ ^[0-9a-f]{40}$ ]] || {
+        task2_error "recorded Megatron-LM commit is invalid while verifying Task2 bundle"; return 1;
     }
-    sim_engine_commit=$(git -C "$TASK2_REPO_ROOT" rev-parse HEAD:megatron-sim-engine 2>/dev/null) || {
+    sim_engine_commit=$(git -C "$TASK2_REPO_ROOT" rev-parse \
+        "${TASK2_MAIN_COMMIT}:megatron-sim-engine" 2>/dev/null) || {
         task2_error "cannot resolve current megatron-sim-engine commit while verifying Task2 bundle"; return 1;
     }
     "$TASK2_META_PYTHON" - "$run_root/artifact_manifest.json" "$run_root" "$TASK2_ECHO_COMMIT" \
@@ -1337,6 +1418,9 @@ PY
 
 task2_write_marker() {
     local marker_path=$1 run_root=$2 manifest_digest=$3
+    if [[ "$TASK2_MODE" == real ]]; then
+        task2_maybe_assert_outer_source_provenance "$TASK2_MAIN_COMMIT" || return 1
+    fi
     mkdir -p "$(dirname "$marker_path")" || return 1
     "$TASK2_META_PYTHON" - "$marker_path" "$TASK2_MODEL_KEY" "$TASK2_PREDICTOR_RUN_ID" \
         "$manifest_digest" "$TASK2_OUTPUT_ROOT" "$run_root" "$TASK2_MODE" <<'PY'
@@ -1376,6 +1460,9 @@ PY
 
 task2_write_shared_pointer() {
     local pointer=$1 run_root=$2 manifest_digest=$3
+    if [[ "$TASK2_MODE" == real ]]; then
+        task2_maybe_assert_outer_source_provenance "$TASK2_MAIN_COMMIT" || return 1
+    fi
     mkdir -p "$(dirname "$pointer")" || return 1
     "$TASK2_META_PYTHON" - "$pointer" "$TASK2_OUTPUT_ROOT" "$run_root" "$TASK2_PREDICTOR_RUN_ID" "$manifest_digest" <<'PY'
 import json
@@ -1413,7 +1500,18 @@ if payload.get("schema_version") != "sc26-ae-task2-marker-v1" or payload.get("ve
     raise SystemExit("existing Task2 marker is not verified")
 if payload.get("model") != pathlib.Path(sys.argv[1]).parts[-3]:
     raise SystemExit("existing Task2 marker model path is inconsistent")
-rel = pathlib.PurePosixPath(payload.get("run_path", ""))
+run_path = payload.get("run_path")
+run_relative_path = payload.get("run_relative_path")
+if (
+    not isinstance(run_path, str)
+    or not run_path
+    or not isinstance(run_relative_path, str)
+    or not run_relative_path
+    or run_path != run_relative_path
+):
+    raise SystemExit("existing Task2 marker path aliases are missing or differ")
+predictor_run_id = payload.get("predictor_run_id")
+rel = pathlib.PurePosixPath(run_path)
 if rel.is_absolute() or ".." in rel.parts:
     raise SystemExit("existing Task2 marker path is unsafe")
 output_root = pathlib.Path(sys.argv[2]).resolve()
@@ -1422,8 +1520,12 @@ try:
     run_root.relative_to(output_root)
 except ValueError:
     raise SystemExit("existing Task2 marker path escapes output root")
-if payload.get("predictor_run_id") != run_root.name:
+if predictor_run_id != run_root.name:
     raise SystemExit("existing Task2 marker predictor_run_id does not match run path")
+if not isinstance(predictor_run_id, str) or not predictor_run_id or rel != (
+    pathlib.PurePosixPath("_shared/task2/runs") / predictor_run_id
+):
+    raise SystemExit("existing Task2 marker path is not canonical for predictor_run_id")
 manifest = run_root / "artifact_manifest.json"
 metrics = run_root / "metrics.json"
 if not manifest.is_file() or not metrics.is_file():
@@ -1463,9 +1565,24 @@ if payload.get("schema_version") != "sc26-ae-task2-shared-pointer-v1":
     raise SystemExit("unexpected shared Task2 pointer schema")
 if payload.get("verified") is not True:
     raise SystemExit("shared Task2 pointer is not verified")
-rel = pathlib.PurePosixPath(payload.get("run_path", ""))
+run_path = payload.get("run_path")
+run_relative_path = payload.get("run_relative_path")
+if (
+    not isinstance(run_path, str)
+    or not run_path
+    or not isinstance(run_relative_path, str)
+    or not run_relative_path
+    or run_path != run_relative_path
+):
+    raise SystemExit("shared Task2 pointer path aliases are missing or differ")
+predictor_run_id = payload.get("predictor_run_id")
+rel = pathlib.PurePosixPath(run_path)
 if rel.is_absolute() or ".." in rel.parts:
     raise SystemExit("shared Task2 pointer path is unsafe")
+if not isinstance(predictor_run_id, str) or not predictor_run_id or rel != (
+    pathlib.PurePosixPath("_shared/task2/runs") / predictor_run_id
+):
+    raise SystemExit("shared Task2 pointer path is not canonical for predictor_run_id")
 output_root = pathlib.Path(sys.argv[2]).resolve()
 run_root = (output_root / rel).resolve()
 try:
@@ -1520,6 +1637,12 @@ task2_run_build() {
     task2_require_file "$TASK2_SOURCE_ROOT/update_configs.py" || return 1
     task2_require_file "$TASK2_SOURCE_ROOT/run_all.sh" || return 1
     task2_write_snapshot_precheck "$TASK2_RUN_ROOT/snapshot_precheck.json" || return 1
+    # Git does not preserve empty directories.  The pinned Echo run_all.sh
+    # copies merged datasets into these runtime input directories, so the
+    # isolated snapshot must create them explicitly before execution.
+    mkdir -p \
+        "$TASK2_SOURCE_ROOT/training_testing/input/test_csv" \
+        "$TASK2_SOURCE_ROOT/training_testing/input/train_csv" || return 1
 
     task2_validate_interpreter_chain || return 1
     export CUDA_VISIBLE_DEVICES
@@ -1651,6 +1774,9 @@ PY
 task2_main() {
     task2_prepare_failure_root || return 1
     task2_validate_execution_controls || return 1
+    [[ "${TASK2_SKIP_OUTER_SOURCE_PROVENANCE:-0}" == "0" || "${TASK2_SKIP_OUTER_SOURCE_PROVENANCE:-0}" == "1" ]] || {
+        task2_error "TASK2_SKIP_OUTER_SOURCE_PROVENANCE must be 0 or 1"; return 1;
+    }
     task2_validate_model || return 1
     [[ "$TASK2_REBUILD" == 0 || "$TASK2_REBUILD" == 1 ]] || { task2_error "REBUILD must be 0 or 1"; return 1; }
     task2_bind_interpreter_chain || return 1
@@ -1661,8 +1787,17 @@ task2_main() {
     task2_require_command "$TASK2_META_PYTHON" || return 1
     task2_require_file "$TASK2_ARTIFACT_TOOL" || return 1
     [[ -e "$TASK2_SOURCE_REPO/.git" ]] || { task2_error "Echo-slowdown is not a Git checkout"; return 1; }
+    TASK2_MAIN_COMMIT=$(git -C "$TASK2_REPO_ROOT" rev-parse HEAD 2>/dev/null) || {
+        task2_error "cannot resolve main-repository source commit"; return 1;
+    }
+    [[ "$TASK2_MAIN_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+        task2_error "main-repository source commit is invalid: ${TASK2_MAIN_COMMIT}"; return 1;
+    }
     task2_assert_source_clean || return 1
     task2_gitlink_commit || return 1
+    if [[ "$TASK2_MODE" == real ]]; then
+        task2_maybe_assert_outer_source_provenance "$TASK2_MAIN_COMMIT" || return 1
+    fi
     if [[ "$TASK2_REBUILD" == 0 ]]; then
         task2_run_reuse
     else

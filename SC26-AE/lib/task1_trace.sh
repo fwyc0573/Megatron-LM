@@ -19,7 +19,24 @@ ae_task1_selected_ranks() {
         gpt175b)
             printf '%s\n' '0,128,256,384,512,640,768,896'
             ;;
-        qwen3_a30b|dsv3)
+        qwen3_a30b)
+            if [[ "${quick}" == "1" ]]; then
+                printf '%s\n' '0,8,16,24'
+                return 0
+            fi
+            local pp_stage exp_rank
+            for ((pp_stage = 0; pp_stage < 8; pp_stage++)); do
+                for ((exp_rank = 0; exp_rank < 4; exp_rank++)); do
+                    ranks+=("$((pp_stage * 8 * 4 + exp_rank * 8))")
+                done
+            done
+            local joined
+            IFS=,
+            joined="${ranks[*]}"
+            unset IFS
+            printf '%s\n' "${joined}"
+            ;;
+        dsv3)
             if [[ "${quick}" == "1" ]]; then
                 printf '%s\n' '0,64,128,192'
                 return 0
@@ -50,7 +67,14 @@ ae_task1_capture_scope() {
             # set rather than a 1024-rank capture.
             printf '%s\n' 'representative'
             ;;
-        qwen3_a30b|dsv3)
+        qwen3_a30b)
+            if [[ "${quick}" == "1" ]]; then
+                printf '%s\n' 'quick'
+            else
+                printf '%s\n' 'representative_ep'
+            fi
+            ;;
+        dsv3)
             if [[ "${quick}" == "1" ]]; then
                 printf '%s\n' 'quick'
             else
@@ -86,24 +110,28 @@ ae_task1_load_config() {
             AE_T1_NUM_MICROBATCHES=48
             AE_T1_GLOBAL_BATCH_SIZE=768
             AE_T1_FAKE_GPUS_PER_NODE=8
+            AE_T1_TRANSFORMER_IMPL=local
             ;;
         qwen3_a30b)
             AE_T1_SOURCE_SCRIPT="${repo_root}/examples/pretrain_qwen3_30b_a3b_moe.sh"
             AE_T1_PROFILE=full
             AE_T1_WORLD_SIZE=256
             AE_T1_LOCAL_SIZE=8
-            AE_T1_PP=4
+            AE_T1_PP=8
             AE_T1_TP=8
-            AE_T1_DP=8
-            AE_T1_EXP=8
+            AE_T1_DP=4
+            AE_T1_EXP=4
             AE_T1_NUM_EXPERTS=128
             AE_T1_LAYERS=48
             AE_T1_HIDDEN_SIZE=2048
             AE_T1_SEQ_LEN=256
             AE_T1_MICRO_BATCH_SIZE=1
-            AE_T1_NUM_MICROBATCHES=16
+            # Preserve global batch size 128 after changing DP from 8 to 4:
+            # 32 microbatches * micro batch 1 * DP 4 = 128.
+            AE_T1_NUM_MICROBATCHES=32
             AE_T1_GLOBAL_BATCH_SIZE=128
             AE_T1_FAKE_GPUS_PER_NODE=256
+            AE_T1_TRANSFORMER_IMPL=transformer_engine
             ;;
         dsv3)
             AE_T1_SOURCE_SCRIPT="${repo_root}/examples/pretrain_deepseek_v3_moe.sh"
@@ -122,6 +150,7 @@ ae_task1_load_config() {
             AE_T1_NUM_MICROBATCHES=16
             AE_T1_GLOBAL_BATCH_SIZE=128
             AE_T1_FAKE_GPUS_PER_NODE=256
+            AE_T1_TRANSFORMER_IMPL=local
             ;;
         *)
             ae_die "Unknown Task1 model key: ${model_key}"
@@ -150,12 +179,19 @@ ae_task1_assert_source_provenance() {
         return 1
     }
     source_relative=${AE_T1_SOURCE_SCRIPT#"${repo_root}/"}
+    # Keep this list synchronized with every load-bearing Task1 producer entry and helper.
     source_files+=(
         "${source_relative}"
         pretrain_llama.py
         megatron/training/training.py
         megatron/profiler/cmd.py
         megatron/training/arguments.py
+        SC26-AE/task1_gpt175b.sh
+        SC26-AE/task1_dsv3.sh
+        SC26-AE/task1_qwen3_a30b.sh
+        SC26-AE/lib/common.sh
+        SC26-AE/lib/task1_trace.sh
+        SC26-AE/tools/artifact_manifest.py
     )
 
     for relative in "${source_files[@]}"; do
@@ -473,11 +509,20 @@ ae_task1_write_rank_loop() {
         printf 'export MICRO_BATCH_SIZE=%q\n' "${AE_T1_MICRO_BATCH_SIZE}"
         printf 'export NUM_MICBATCH=%q\n' "${AE_T1_NUM_MICROBATCHES}"
         printf 'export GLOBAL_BATCH_SIZE=%q\n' "${AE_T1_GLOBAL_BATCH_SIZE}"
+        if [[ "${model_key}" == "qwen3_a30b" ]]; then
+            # Scaling Task1 profiles one iteration, so a one-step warmup would
+            # equal the decay horizon and violate the scheduler contract.
+            printf 'export LR_WARMUP_ITERS=0\n'
+        fi
         printf 'export SEQ_LEN=%q\n' "${AE_T1_SEQ_LEN}"
+        printf 'export TRANSFORMER_IMPL=%q\n' "${AE_T1_TRANSFORMER_IMPL}"
         printf 'export BASE_PATH=%q\n' "$(ae_repo_root)"
         printf 'export LOG_ROOT=%q\n' "${runtime_dir}/source_logs"
         case "${model_key}" in
-            qwen3_a30b)
+            gpt175b|qwen3_a30b)
+                # Dense GPT and Qwen source scripts consume FAKE_RANK_ORDER.
+                # The NCU caller passes the literal singleton FAKE_RANK_ORDER=0;
+                # normal Task1 tracing passes the selected representative list.
                 printf 'export FAKE_RANK_ORDER=%q\n' "${selected_ranks}"
                 ;;
             dsv3)
@@ -736,8 +781,8 @@ if capture_nsys_text not in {"0", "1"}:
     raise SystemExit("[ERROR] D16 preflight capture_nsys must be 0 or 1")
 if gate_enforced_text not in {"0", "1"}:
     raise SystemExit("[ERROR] D16 preflight gate_enforced must be 0 or 1")
-if requested_capture_scope not in {"quick", "full"}:
-    raise SystemExit("[ERROR] D16 preflight requested_capture_scope must be quick or full")
+if requested_capture_scope not in {"quick", "full", "representative_ep"}:
+    raise SystemExit("[ERROR] D16 preflight requested_capture_scope is invalid")
 if gate_decision_applied_text not in {"0", "1"}:
     raise SystemExit("[ERROR] D16 preflight gate_decision_applied must be 0 or 1")
 if gate_decision_applied_text != gate_enforced_text:
@@ -963,8 +1008,8 @@ if (
     raise SystemExit("[ERROR] D16 preflight must contain exactly fake rank 0")
 if payload["d16_gate_applicable"] is not True:
     raise SystemExit("[ERROR] D16 preflight requires d16_gate_applicable=true")
-if payload["requested_capture_scope"] not in {"quick", "full"}:
-    raise SystemExit("[ERROR] D16 preflight requested_capture_scope must be quick or full")
+if payload["requested_capture_scope"] not in {"quick", "full", "representative_ep"}:
+    raise SystemExit("[ERROR] D16 preflight requested_capture_scope is invalid")
 if not isinstance(payload["d16_gate_enforced"], bool):
     raise SystemExit("[ERROR] D16 preflight d16_gate_enforced must be boolean")
 if not isinstance(payload["gate_decision_applied"], bool):
@@ -1066,7 +1111,8 @@ ae_task1_write_metadata_and_summary() {
         "${d16_gate_decision_applied}" \
         "${AE_T1_PROFILE}" "${AE_T1_WORLD_SIZE}" "${AE_T1_LOCAL_SIZE}" \
         "${AE_T1_PP}" "${AE_T1_TP}" "${AE_T1_DP}" "${AE_T1_EXP}" \
-        "${AE_T1_FAKE_GPUS_PER_NODE}" "${AE_T1_GLOBAL_BATCH_SIZE}" <<'PY'
+        "${AE_T1_FAKE_GPUS_PER_NODE}" "${AE_T1_GLOBAL_BATCH_SIZE}" \
+        "${AE_TASK1_SKIP_SOURCE_PROVENANCE:-0}" <<'PY'
 import json
 import math
 import pathlib
@@ -1103,11 +1149,14 @@ import sys
     exp_text,
     fake_node_text,
     global_batch_text,
+    source_provenance_bypass_text,
 ) = sys.argv[1:]
 inventory = json.loads(pathlib.Path(inventory_text).read_text(encoding="utf-8"))
 selected = [int(value) for value in selected_csv.split(",")]
 capture_nsys = capture_nsys_text == "1"
 expected_global_batch_size = int(global_batch_text)
+if source_provenance_bypass_text not in {"0", "1"}:
+    raise SystemExit("[ERROR] Task1 source-provenance bypass must be 0 or 1")
 try:
     single_rank_elapsed_seconds = float(single_rank_elapsed_text)
 except ValueError as exc:
@@ -1310,6 +1359,15 @@ metadata = {
     "mock_data": True,
     "ddp_overlap": True,
     "execution_evidence": execution_evidence,
+    "source_provenance": {
+        "checked": source_provenance_bypass_text == "0",
+        "bypassed": source_provenance_bypass_text == "1",
+        "reason": (
+            "explicit_runtime_smoke_bypass_dirty_worktree"
+            if source_provenance_bypass_text == "1"
+            else None
+        ),
+    },
     "capture_summary": capture_summary,
 }
 pathlib.Path(metadata_text).write_text(
@@ -1339,6 +1397,8 @@ summary_lines = [
     f"single_rank_elapsed_seconds={single_rank_elapsed_seconds:.9f}",
     f"estimated_full_seconds={estimated_full_seconds:.9f}",
     f"execution_evidence={execution_evidence}",
+    f"source_provenance_checked={'false' if source_provenance_bypass_text == '1' else 'true'}",
+    f"source_provenance_bypassed={'true' if source_provenance_bypass_text == '1' else 'false'}",
     f"capture_scope={capture_scope}",
 ]
 if d16_gate_applicable:
@@ -1667,8 +1727,9 @@ ae_task1_publish_marker() {
     local capture_id=$4
     local manifest_path=$5
     local marker_path=$6
+    local ncu_feature_csv=${7:-}
 
-    "${python_bin}" - "${task_dir}" "${model_key}" "${capture_id}" "${manifest_path}" "${marker_path}" <<'PY'
+    "${python_bin}" - "${task_dir}" "${model_key}" "${capture_id}" "${manifest_path}" "${marker_path}" "${ncu_feature_csv}" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -1679,6 +1740,7 @@ model = sys.argv[2]
 capture_id = sys.argv[3]
 manifest_path = pathlib.Path(sys.argv[4]).resolve(strict=True)
 marker_path = pathlib.Path(sys.argv[5])
+ncu_feature_csv_text = sys.argv[6]
 run_root = manifest_path.parent
 expected_run_root = task_dir / "runs" / capture_id
 if run_root != expected_run_root:
@@ -1694,6 +1756,22 @@ payload = {
     "artifact_manifest_sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
     "verified": True,
 }
+if ncu_feature_csv_text:
+    ncu_feature_csv = pathlib.Path(ncu_feature_csv_text).resolve(strict=True)
+    if ncu_feature_csv.is_symlink() or not ncu_feature_csv.is_file():
+        raise SystemExit("[ERROR] Task1 marker NCU feature CSV is invalid")
+    try:
+        ncu_feature_csv.relative_to(run_root)
+    except ValueError as exc:
+        raise SystemExit("[ERROR] Task1 marker NCU feature CSV escapes the run") from exc
+    payload.update(
+        {
+            "ncu_feature_scope": "global_rank_0",
+            "ncu_feature_rank_ids": [0],
+            "ncu_feature_csv_path": ncu_feature_csv.relative_to(run_root).as_posix(),
+            "ncu_feature_csv_sha256": hashlib.sha256(ncu_feature_csv.read_bytes()).hexdigest(),
+        }
+    )
 marker_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 }
@@ -1999,9 +2077,12 @@ PY
 
 ae_run_task1() {
     local model_key=${1:-}
-    local repo_root quick capture_nsys test_mode scale_gpu selected_ranks capture_scope
-    local python_bin real_torchrun nsys_bin capture_id task_dir run_root work_root
+    local repo_root quick capture_nsys capture_ncu selected_capture_nsys test_mode scale_gpu selected_ranks capture_scope
+    local enforce_d16
+    local python_bin real_torchrun nsys_bin ncu_bin capture_id task_dir run_root work_root
+    local ncu_capture_root ncu_work_root
     local execution_evidence main_commit echo_commit sim_commit output_root
+    local skip_source_provenance
     local preflight_capture_id preflight_root preflight_work_root preflight_report
     local preflight_gate preflight_gate_enforced preflight_gate_applied
     local preflight_report_sha256 preflight_rank0_elapsed_seconds
@@ -2010,10 +2091,27 @@ ae_run_task1() {
     repo_root=$(ae_repo_root) || return 1
     quick=${QUICK:-0}
     capture_nsys=${CAPTURE_NSYS:-0}
+    capture_ncu=${CAPTURE_NCU:-0}
+    selected_capture_nsys=${capture_nsys}
     test_mode=${AE_TASK1_TEST_MODE:-0}
+    # Fake-level AE runs must complete the requested rank loop.  The 7200 s
+    # D16 estimate is a release-qualification check and is therefore opt-in
+    # for real runs; test mode retains the historical matrix coverage.
+    enforce_d16=${AE_TASK1_ENFORCE_D16:-0}
+    skip_source_provenance=${AE_TASK1_SKIP_SOURCE_PROVENANCE:-0}
     ae_require_enum QUICK "${quick}" 0 1 || return 1
     ae_require_enum CAPTURE_NSYS "${capture_nsys}" 0 1 || return 1
+    ae_require_enum CAPTURE_NCU "${capture_ncu}" 0 1 || return 1
     ae_require_enum AE_TASK1_TEST_MODE "${test_mode}" 0 1 || return 1
+    ae_require_enum AE_TASK1_ENFORCE_D16 "${enforce_d16}" 0 1 || return 1
+    ae_require_enum AE_TASK1_SKIP_SOURCE_PROVENANCE "${skip_source_provenance}" 0 1 || return 1
+    if [[ "${test_mode}" == "1" && "${skip_source_provenance}" == "1" ]]; then
+        ae_die "AE_TASK1_SKIP_SOURCE_PROVENANCE is only valid for real runtime smoke." || return 1
+    fi
+    if [[ "${test_mode}" == "0" && "${capture_ncu}" != "1" ]]; then
+        ae_die "CAPTURE_NCU=1 is required for real Task1 runs so Task3 has workload-aligned kernel features." || return 1
+    fi
+    export AE_TASK1_SKIP_SOURCE_PROVENANCE=${skip_source_provenance}
     execution_evidence=$(ae_task1_execution_evidence "${test_mode}") || return 1
     ae_task1_load_config "${model_key}" "${repo_root}" || return 1
     scale_gpu=$(ae_task1_resolve_gpu) || return 1
@@ -2044,7 +2142,11 @@ ae_run_task1() {
 
     if [[ "${test_mode}" == "0" ]]; then
         main_commit=$(git -C "${repo_root}" rev-parse HEAD) || return 1
-        ae_task1_assert_source_provenance "${repo_root}" "${main_commit}" || return 1
+        if [[ "${skip_source_provenance}" == "0" ]]; then
+            ae_task1_assert_source_provenance "${repo_root}" "${main_commit}" || return 1
+        else
+            printf '[WARN] Task1 source provenance hash gate bypassed explicitly for runtime smoke; output remains non-qualified.\n' >&2
+        fi
     fi
     ae_require_file "${python_bin}" || return 1
     [[ -x "${python_bin}" ]] || ae_die "Megatron Python is not executable: ${python_bin}" || return 1
@@ -2060,6 +2162,16 @@ ae_run_task1() {
         fi
         ae_require_file "${nsys_bin}" || return 1
         [[ -x "${nsys_bin}" ]] || ae_die "Nsight Systems is not executable: ${nsys_bin}" || return 1
+    fi
+    if [[ "${capture_ncu}" == "1" ]]; then
+        if [[ "${test_mode}" == "1" ]]; then
+            ncu_bin=${AE_NCU_BIN:?AE_NCU_BIN is required for test-mode Nsight Compute capture}
+        else
+            ae_require_command ncu || return 1
+            ncu_bin=$(command -v ncu)
+        fi
+        ae_require_file "${ncu_bin}" || return 1
+        [[ -x "${ncu_bin}" ]] || ae_die "Nsight Compute is not executable: ${ncu_bin}" || return 1
     fi
 
     task_dir=$(ae_model_output_dir "${model_key}" task1) || return 1
@@ -2083,7 +2195,11 @@ ae_run_task1() {
         preflight_work_root="${preflight_root}/work"
         preflight_report="${preflight_root}/preflight_result.json"
         preflight_gate_enforced=0
-        [[ "${quick}" == "0" ]] && preflight_gate_enforced=1
+        if [[ "${quick}" == "0" ]]; then
+            if [[ "${test_mode}" == "1" || "${enforce_d16}" == "1" ]]; then
+                preflight_gate_enforced=1
+            fi
+        fi
         preflight_gate_applied=${preflight_gate_enforced}
 
         ae_task1_execute_capture \
@@ -2109,14 +2225,57 @@ ae_run_task1() {
             printf 'TASK1_PREFLIGHT_REPORT=%s\n' "${preflight_report}"
             return 2
         fi
+
+        # Nsight Systems can become unstable when it follows hundreds of
+        # sequential torchrun children in one capture.  Keep the complete
+        # fake-rank trace/memory loop intact, but use the independent rank-0
+        # preflight Nsight artifact as the workload provenance for the full
+        # capture when explicitly requested by the worker harness.
+        if [[ "${model_key}" == "dsv3" && "${capture_nsys}" == "1" \
+            && "${AE_TASK1_NSYS_RANK0_ONLY:-0}" == "1" ]]; then
+            selected_capture_nsys=0
+        fi
     fi
 
     # Full/selected capture roots are created only after the MoE preflight
     # has passed (or after a QUICK observation has been validated).
     ae_task1_execute_capture \
         "${python_bin}" "${real_torchrun}" "${nsys_bin:-}" "${model_key}" \
-        "${capture_id}" "${selected_ranks}" "${scale_gpu}" "${capture_nsys}" \
+        "${capture_id}" "${selected_ranks}" "${scale_gpu}" "${selected_capture_nsys}" \
         "${run_root}" "${work_root}" || return 1
+
+    if [[ "${selected_capture_nsys}" == "0" && "${capture_nsys}" == "1" ]]; then
+        [[ -f "${preflight_root}/nsys/${model_key}.nsys-rep" \
+            && -f "${preflight_root}/nsys/${model_key}.sqlite" ]] || {
+            ae_die "Rank-0 preflight Nsight artifacts are required for the selected capture."
+            return 1
+        }
+        mkdir -p "${run_root}/nsys"
+        cp -- "${preflight_root}/nsys/${model_key}.nsys-rep" \
+            "${run_root}/nsys/${model_key}.nsys-rep"
+        cp -- "${preflight_root}/nsys/${model_key}.sqlite" \
+            "${run_root}/nsys/${model_key}.sqlite"
+        ae_task1_validate_outputs \
+            "${python_bin}" "${run_root}" "${selected_ranks}" "1" \
+            "${model_key}" "${work_root}/inventory.json" || return 1
+    fi
+
+    if [[ "${capture_ncu}" == "1" ]]; then
+        ncu_work_root="${output_root}/_work/task1-ncu.${capture_id}"
+        ncu_capture_root="${ncu_work_root}/capture"
+        ae_task1_execute_ncu_capture \
+            "${python_bin}" "${ncu_bin}" "${model_key}" "${capture_id}-ncu" \
+            "${scale_gpu}" "${ncu_capture_root}" "${ncu_work_root}/work" || return 1
+        mkdir -p "${run_root}/ncu"
+        cp -- "${AE_T1_NCU_REPORT}" "${run_root}/ncu/rank0.ncu-rep"
+        cp -- "${AE_T1_NCU_DETAILS_CSV}" "${run_root}/ncu/rank0_details.csv"
+        cp -- "${AE_T1_NCU_RAW_CSV}" "${run_root}/ncu/rank0_raw.csv"
+        cp -- "${AE_T1_NCU_FEATURE_CSV}" "${run_root}/ncu/kernel_metric_output.csv"
+        AE_T1_NCU_REPORT="${run_root}/ncu/rank0.ncu-rep"
+        AE_T1_NCU_DETAILS_CSV="${run_root}/ncu/rank0_details.csv"
+        AE_T1_NCU_RAW_CSV="${run_root}/ncu/rank0_raw.csv"
+        AE_T1_NCU_FEATURE_CSV="${run_root}/ncu/kernel_metric_output.csv"
+    fi
 
     metadata_path="${AE_T1_CAPTURE_WORK_ROOT}/metadata.json"
     file_list_path="${AE_T1_CAPTURE_WORK_ROOT}/files.txt"
@@ -2139,7 +2298,9 @@ ae_run_task1() {
     if [[ "${test_mode}" == "1" ]]; then
         main_commit=$(git -C "${repo_root}" rev-parse HEAD) || return 1
     else
-        ae_task1_assert_source_provenance "${repo_root}" "${main_commit}" || return 1
+        if [[ "${skip_source_provenance}" == "0" ]]; then
+            ae_task1_assert_source_provenance "${repo_root}" "${main_commit}" || return 1
+        fi
     fi
     echo_commit=$(ae_gitlink_commit Echo-slowdown) || return 1
     sim_commit=$(ae_gitlink_commit megatron-sim-engine) || return 1
@@ -2162,6 +2323,11 @@ ae_run_task1() {
             "${AE_T1_CAPTURE_BATCH_FLAG_LOG}" "${execution_evidence}" "${capture_scope}" \
             "${AE_T1_CAPTURE_RANK0_ELAPSED_SECONDS}"
     fi
+    if [[ "${capture_ncu}" == "1" ]]; then
+        ae_task1_attach_ncu_metadata \
+            "${python_bin}" "${metadata_path}" "${run_root}" \
+            "${AE_T1_NCU_FEATURE_CSV}" "${AE_T1_NCU_DETAILS_CSV}" "${AE_T1_NCU_RAW_CSV}"
+    fi
     ae_task1_validate_d16_metadata \
         "${python_bin}" "${metadata_path}" "${summary_path}" || return 1
     ae_task1_write_file_list "${python_bin}" "${run_root}" "${file_list_path}"
@@ -2178,11 +2344,146 @@ ae_run_task1() {
     fi
     ae_task1_publish_marker \
         "${python_bin}" "${task_dir}" "${model_key}" "${capture_id}" \
-        "${manifest_path}" "${marker_path}"
+        "${manifest_path}" "${marker_path}" \
+        "${AE_T1_NCU_FEATURE_CSV:-}"
 
     printf 'TASK1_STATUS=verified\n'
     printf 'TASK1_MODEL=%s\n' "${model_key}"
     printf 'TASK1_CAPTURE_ID=%s\n' "${capture_id}"
     printf 'TASK1_RUN_ROOT=%s\n' "${run_root}"
     printf 'TASK1_MARKER=%s\n' "${marker_path}"
+}
+
+# Capture Nsight Compute features for only global fake rank 0.  This pass is
+# separate from Nsight Systems so the full Task1 trace inventory is preserved.
+ae_task1_execute_ncu_capture() {
+    local python_bin=$1
+    local ncu_bin=$2
+    local model_key=$3
+    local capture_id=$4
+    local scale_gpu=$5
+    local capture_root=$6
+    local work_root=$7
+    local runtime_dir logs_dir ncu_dir adapter_bin_dir adapter_path loop_path
+    local source_log batch_flag_log rank_timing_log report_base source_status tee_status
+    local -a pipeline_status=()
+
+    [[ ! -e "${capture_root}" ]] || { ae_die "Task1 NCU capture root already exists: ${capture_root}"; return 1; }
+    [[ ! -e "${work_root}" ]] || { ae_die "Task1 NCU capture work root already exists: ${work_root}"; return 1; }
+    [[ -x "${ncu_bin}" ]] || { ae_die "Task1 Nsight Compute executable is required: ${ncu_bin}"; return 1; }
+
+    runtime_dir="${work_root}/runtime"
+    logs_dir="${work_root}/logs"
+    ncu_dir="${capture_root}/ncu"
+    adapter_bin_dir="${work_root}/bin"
+    adapter_path="${adapter_bin_dir}/torchrun"
+    loop_path="${work_root}/rank0_loop.sh"
+    source_log="${logs_dir}/source.log"
+    batch_flag_log="${logs_dir}/global_batch_size_flags.log"
+    rank_timing_log="${logs_dir}/rank_timings.log"
+    report_base="${ncu_dir}/rank0"
+    mkdir -p "${runtime_dir}" "${logs_dir}" "${ncu_dir}" "${adapter_bin_dir}"
+
+    export AE_TASK1_REAL_TORCHRUN
+    ae_task1_write_torchrun_adapter "${adapter_path}"
+    ae_task1_write_rank_loop \
+        "${loop_path}" "${runtime_dir}" "${adapter_bin_dir}" "${AE_T1_SOURCE_SCRIPT}" \
+        "${model_key}" "0" "${scale_gpu}" "${capture_id}" \
+        "${batch_flag_log}" "${rank_timing_log}"
+
+    set +e
+    "${ncu_bin}" -o "${report_base}" -f \
+        --replay-mode application --app-replay-mode relaxed \
+        --target-processes all --device 0 --kernel-name-base function \
+        --section SpeedOfLight --section Occupancy --section MemoryWorkloadAnalysis \
+        bash "${loop_path}" 2>&1 | tee "${source_log}"
+    pipeline_status=("${PIPESTATUS[@]}")
+    source_status=${pipeline_status[0]}
+    tee_status=${pipeline_status[1]}
+    set -e
+    ((tee_status == 0)) || { ae_die "Failed to persist Task1 NCU source log: ${source_log}"; return 1; }
+    ((source_status == 0)) || { ae_die "Task1 NCU rank-0 execution failed with status ${source_status}."; return 1; }
+    [[ -f "${report_base}.ncu-rep" ]] || { ae_die "Task1 NCU report was not produced: ${report_base}.ncu-rep"; return 1; }
+    "${ncu_bin}" -i "${report_base}.ncu-rep" --page details --csv \
+        --log-file "${report_base}_details.csv" >>"${source_log}" 2>&1
+    "${ncu_bin}" -i "${report_base}.ncu-rep" --print-kernel-base function --csv \
+        >"${report_base}_raw.csv" 2>>"${source_log}"
+    ae_require_file "${report_base}_details.csv"
+    ae_require_file "${report_base}_raw.csv"
+    "${python_bin}" -B "$(ae_repo_root)/SC26-AE/tools/normalize_ncu_metrics.py" \
+        --details-csv "${report_base}_details.csv" \
+        --kernel-names-csv "${report_base}_raw.csv" \
+        --output-csv "${ncu_dir}/kernel_metric_output.csv" \
+        >>"${source_log}" 2>&1 || { ae_die "Task1 NCU CSV normalization failed for ${model_key}."; return 1; }
+
+    AE_T1_NCU_ROOT=${capture_root}
+    AE_T1_NCU_DIR=${ncu_dir}
+    AE_T1_NCU_REPORT=${report_base}.ncu-rep
+    AE_T1_NCU_DETAILS_CSV=${report_base}_details.csv
+    AE_T1_NCU_RAW_CSV=${report_base}_raw.csv
+    AE_T1_NCU_FEATURE_CSV=${ncu_dir}/kernel_metric_output.csv
+    AE_T1_NCU_SOURCE_LOG=${source_log}
+    export AE_T1_NCU_ROOT AE_T1_NCU_DIR AE_T1_NCU_REPORT AE_T1_NCU_DETAILS_CSV \
+        AE_T1_NCU_RAW_CSV AE_T1_NCU_FEATURE_CSV AE_T1_NCU_SOURCE_LOG
+}
+
+ae_task1_attach_ncu_metadata() {
+    local python_bin=$1 metadata_path=$2 run_root=$3 feature_csv=$4 details_csv=$5 raw_csv=$6
+    "${python_bin}" - "${metadata_path}" "${run_root}" "${feature_csv}" "${details_csv}" "${raw_csv}" <<'PY'
+import csv
+import hashlib
+import json
+import pathlib
+import sys
+
+metadata_path, run_root_text, feature_text, details_text, raw_text = sys.argv[1:]
+run_root = pathlib.Path(run_root_text).resolve(strict=True)
+feature = pathlib.Path(feature_text).resolve(strict=True)
+details = pathlib.Path(details_text).resolve(strict=True)
+raw = pathlib.Path(raw_text).resolve(strict=True)
+required = {
+    "Kernel Name", "Compute throughput", "Memory throughput", "DRAM throughput",
+    "Achieved occupancy", "Maximum occupancy", "L1 hit rate", "L2 hit rate",
+}
+with feature.open("r", encoding="utf-8", newline="") as handle:
+    reader = csv.DictReader(handle)
+    if reader.fieldnames is None or not required.issubset(reader.fieldnames):
+        raise SystemExit("[ERROR] Task1 NCU feature CSV is missing required columns")
+    rows = list(reader)
+if not rows:
+    raise SystemExit("[ERROR] Task1 NCU feature CSV contains no rows")
+kernels = {str(row.get("Kernel Name", "")).strip() for row in rows}
+if "" in kernels or "nan" in kernels:
+    raise SystemExit("[ERROR] Task1 NCU feature CSV contains an empty kernel name")
+for path in (feature, details, raw):
+    if path.is_symlink() or not path.is_file() or path.stat().st_size <= 0:
+        raise SystemExit(f"[ERROR] Task1 NCU artifact is missing or empty: {path}")
+    try:
+        relative = path.relative_to(run_root).as_posix()
+    except ValueError as exc:
+        raise SystemExit(f"[ERROR] Task1 NCU artifact escapes the Task1 run: {path}") from exc
+    if not relative.startswith("ncu/"):
+        raise SystemExit(f"[ERROR] Task1 NCU artifact is outside ncu/: {path}")
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+metadata = json.loads(pathlib.Path(metadata_path).read_text(encoding="utf-8"))
+metadata["ncu_feature_provenance"] = {
+    "enabled": True,
+    "rank_scope": "global_rank_0",
+    "rank_ids": [0],
+    "physical_gpu_count": 1,
+    "feature_csv_relative": feature.relative_to(run_root).as_posix(),
+    "details_csv_relative": details.relative_to(run_root).as_posix(),
+    "raw_csv_relative": raw.relative_to(run_root).as_posix(),
+    "feature_csv_sha256": digest(feature),
+    "details_csv_sha256": digest(details),
+    "raw_csv_sha256": digest(raw),
+    "required_kernel_count": len(kernels),
+    "missing_kernel_count": 0,
+    "required_columns": sorted(required),
+}
+pathlib.Path(metadata_path).write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
 }

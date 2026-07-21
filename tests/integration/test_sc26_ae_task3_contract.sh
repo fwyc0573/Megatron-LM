@@ -108,7 +108,7 @@ for line in (run_root / "logs/commands.log").read_text(encoding="utf-8").splitli
         continue
     label, command = line.split("=", 1)
     commands[label] = shlex.split(command)
-assert set(commands) == {"scheduler", "simulator"}
+assert set(commands) == {"slowdown_trace", "scheduler", "simulator"}
 
 
 def value(arguments, flag):
@@ -118,6 +118,11 @@ def value(arguments, flag):
 
 scheduler = commands["scheduler"]
 simulator = commands["simulator"]
+slowdown_trace = commands["slowdown_trace"]
+assert slowdown_trace[0] == "task3_prepare_rank0_slowdown_trace"
+assert pathlib.Path(slowdown_trace[1]).is_dir()
+assert pathlib.Path(slowdown_trace[2]).is_dir()
+assert pathlib.Path(slowdown_trace[2]).name == "slowdown_trace_rank0"
 for flag in (
     "--tensor-model-parallel-size",
     "--pipeline-model-parallel-size",
@@ -198,13 +203,19 @@ assert marker["execution_evidence"] == "local_synthetic_not_gpu_qualification"
 assert marker["run_path"] == "runs/integration-qwen-prebaked"
 assert marker["manifest_sha256"] == hashlib.sha256(manifest_path.read_bytes()).hexdigest()
 assert marker["artifact_manifest_sha256"] == marker["manifest_sha256"]
+assert marker["slowdown_trace_scope"] == "global_rank_0"
+assert marker["slowdown_trace_rank_ids"] == [0]
+assert marker["ncu_metrics_source"] == "synthetic_fixture_compatibility"
 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 assert manifest["execution_evidence"] == "local_synthetic_not_gpu_qualification"
+assert manifest["slowdown_trace_scope"] == "global_rank_0"
+assert manifest["slowdown_trace_rank_ids"] == [0]
+assert manifest["ncu_metrics_source"] == "synthetic_fixture_compatibility"
 assert manifest["database_is_trace_dir"] is True
 assert manifest["communication_backend"] == "analytical"
 assert manifest["overlap_mode"] == "on"
 assert manifest["simulation_topology"] == {
-    "world_size": 256, "local_size": 8, "pp": 4, "tp": 8, "dp": 8, "exp": 8
+    "world_size": 256, "local_size": 8, "pp": 8, "tp": 8, "dp": 4, "exp": 4
 }
 entries = {row["path"]: row for row in manifest["files"]}
 assert all(len(row["sha256"]) == 64 and row["size_bytes"] >= 0 for row in entries.values())
@@ -217,6 +228,8 @@ required_nonempty = {
     "provenance/task1_manifest.json",
     "provenance/task2_manifest.json",
     "provenance/distribution_manifest.json",
+    "slowdown_trace_rank0/rank0.txt",
+    "logs/slowdown_trace.log",
     "slowdown_assets/manifest.json",
     "slowdown_assets/kernel_features.json",
     "slowdown_assets/backward_kernel_blueprints.json",
@@ -224,6 +237,10 @@ required_nonempty = {
     "schedule/stage1_scheduling_plan.txt",
     "schedule/stage2_scheduling_plan.txt",
     "schedule/stage3_scheduling_plan.txt",
+    "schedule/stage4_scheduling_plan.txt",
+    "schedule/stage5_scheduling_plan.txt",
+    "schedule/stage6_scheduling_plan.txt",
+    "schedule/stage7_scheduling_plan.txt",
 }
 assert required_nonempty.issubset(entries)
 assert all(entries[path]["size_bytes"] > 0 for path in required_nonempty)
@@ -232,7 +249,7 @@ assert entries["logs/simulator.log"]["size_bytes"] == 0
 resolved = json.loads((run_root / "provenance/resolved_inputs.json").read_text(encoding="utf-8"))
 assert pathlib.Path(resolved["distribution_manifest"]).resolve(strict=True).parent == prebaked_root
 assert resolved["artifact_source"] == "prebaked"
-assert len(list((run_root / "schedule").glob("stage*_scheduling_plan.txt"))) == 4
+assert len(list((run_root / "schedule").glob("stage*_scheduling_plan.txt"))) == 8
 PY
 pass "prebaked resolver remains portable and emits every explicit schedule/simulator flag"
 
@@ -307,6 +324,42 @@ expect_failure 1 'distribution file size mismatch' "${TEST_ROOT}/corrupt.log" \
 [[ ! -e "${CORRUPT_OUTPUT}/dsv3/task3/run_marker.json" ]] || fail "corrupt source published a marker"
 pass "prebaked checksum corruption fails before simulator execution and marker publication"
 
+DRIFT_ROOT="${TEST_ROOT}/post-resolution-drift-prebaked"
+cp -a -- "${PREBAKED_SOURCE}" "${DRIFT_ROOT}"
+DRIFT_OUTPUT="${TEST_ROOT}/post-resolution-drift-output"
+set +e
+env "${COMMON_ENV[@]}" \
+    AE_OUTPUT_ROOT="${DRIFT_OUTPUT}" \
+    PREBAKED_ROOT="${DRIFT_ROOT}" \
+    TASK3_SIMULATION_RUN_ID=integration-post-resolution-drift \
+    REPO_ROOT="${REPO_ROOT}" \
+    bash -c '
+        set -euo pipefail
+        source "${REPO_ROOT}/SC26-AE/lib/task3_simulation.sh"
+        original_definition=$(declare -f task3_write_input_evidence)
+        original_definition=${original_definition/task3_write_input_evidence/task3_write_input_evidence_original}
+        eval "${original_definition}"
+        task3_write_input_evidence() {
+            printf "coherent post-resolution drift\n" >>"${TASK3_TRACE_DIR}/rank0.txt"
+            task3_write_input_evidence_original "$@"
+        }
+        ae_run_task3 qwen3_a30b
+    ' >"${TEST_ROOT}/post-resolution-drift.log" 2>&1
+DRIFT_STATUS=$?
+set -e
+[[ ${DRIFT_STATUS} -eq 1 ]] || {
+    cat "${TEST_ROOT}/post-resolution-drift.log" >&2
+    fail "Task3 accepted source drift after resolver validation"
+}
+grep -Fq 'Task3 input expectation drift' \
+    "${TEST_ROOT}/post-resolution-drift.log" || {
+    cat "${TEST_ROOT}/post-resolution-drift.log" >&2
+    fail "Task3 drift rejection did not report the expectation mismatch"
+}
+[[ ! -e "${DRIFT_OUTPUT}/qwen3_a30b/task3/run_marker.json" ]] || \
+    fail "post-resolution source drift published a marker"
+pass "post-resolution source drift fails before input evidence and marker publication"
+
 FRESH_OUTPUT="${TEST_ROOT}/fresh-output"
 python3 "${FIXTURE_HELPER}" fresh-inputs \
     --repo-root "${REPO_ROOT}" \
@@ -351,6 +404,6 @@ expect_failure 1 'Task3 report fields mismatch' "${TEST_ROOT}/invalid-report.log
 pass "missing exact optimizer metric fails report validation and marker publication"
 
 printf 'PASS_COUNT=%d\n' "${PASS_COUNT}"
-[[ ${PASS_COUNT} -eq 10 ]] || fail "expected 10 integration cases, got ${PASS_COUNT}"
+[[ ${PASS_COUNT} -eq 11 ]] || fail "expected 11 integration cases, got ${PASS_COUNT}"
 printf 'EVIDENCE_CLASS=local_synthetic_not_gpu_qualification\n'
 printf 'EVIDENCE_ROOT=%s\n' "${TEST_ROOT}"

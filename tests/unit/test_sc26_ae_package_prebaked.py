@@ -14,6 +14,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = REPO_ROOT / "SC26-AE" / "tools" / "package_prebaked.py"
 ARTIFACT_MODULE_PATH = REPO_ROOT / "SC26-AE" / "tools" / "artifact_manifest.py"
+FIXTURE_PATH = REPO_ROOT / "tests" / "integration" / "fixtures" / "sc26_ae_task3_fixture.py"
 MODELS = {
     "gpt175b": {
         "profile": "175",
@@ -31,10 +32,10 @@ MODELS = {
         "topology": {
             "world_size": 256,
             "local_size": 8,
-            "pp": 4,
+            "pp": 8,
             "tp": 8,
-            "dp": 8,
-            "exp": 8,
+            "dp": 4,
+            "exp": 4,
         },
     },
     "dsv3": {
@@ -84,6 +85,11 @@ def source_commits() -> dict[str, str]:
     }
 
 
+def build_functional_fixture(root: Path) -> None:
+    fixture = load_module(FIXTURE_PATH, "sc26_ae_functional_fixture")
+    fixture.build_functional_source(REPO_ROOT, root)
+
+
 def create_manifest(artifact_module, root: Path, metadata: dict[str, object]) -> Path:
     files = sorted(
         path.relative_to(root).as_posix()
@@ -128,6 +134,87 @@ def set_task1_promotion_metadata(
     marker["manifest_sha256"] = sha256(manifest_path)
     marker["artifact_manifest_sha256"] = sha256(manifest_path)
     stable_json(marker_path, marker)
+
+
+def _rewrite_manifest(artifact_module, root: Path) -> Path:
+    """Recompute a fixture manifest after changing its payload or metadata."""
+
+    manifest_path = root / "artifact_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    metadata = dict(manifest)
+    metadata.pop("files", None)
+    files = sorted(
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and path.name != "artifact_manifest.json"
+    )
+    rewritten = artifact_module.create_manifest(root, metadata, files)
+    stable_json(manifest_path, rewritten)
+    artifact_module.verify_manifest(root, rewritten)
+    return manifest_path
+
+
+def functional_capture_summary(model: str) -> dict[str, object]:
+    """Return the exact fake-level rank inventory required by the functional path."""
+
+    if model == "gpt175b":
+        selected = [0, 128, 256, 384, 512, 640, 768, 896]
+        scope = "representative"
+    elif model == "qwen3_a30b":
+        selected = [pp * 8 * 4 + exp * 8 for pp in range(8) for exp in range(4)]
+        scope = "representative_ep"
+    else:  # pragma: no cover - callers intentionally use the two functional models
+        raise AssertionError(model)
+    return {
+        "capture_scope": scope,
+        "selected_rank_ids": selected,
+        "selected_rank_count": len(selected),
+        "trace_file_count": len(selected),
+        "memory_json_count": len(selected),
+    }
+
+
+def augment_functional_contract_source(
+    root: Path, *, models_without_ncu: set[str] | None = None
+) -> None:
+    """Add the model-local NCU feature and rank-scope metadata to a fixture.
+
+    ``build_contract_source`` remains the legacy three-model fixture used by
+    strict packaging tests.  Functional packaging has a narrower contract: the
+    two official models each need their own rank-0 NCU CSV and an explicit
+    capture inventory.  This helper layers those fields onto only GPT/DSV3 so
+    the legacy fixture and tests remain unchanged.
+    """
+
+    artifact_module = load_module(
+        ARTIFACT_MODULE_PATH, "sc26_ae_artifact_manifest_functional_fixture"
+    )
+    models_without_ncu = models_without_ncu or set()
+    for model in ("gpt175b", "qwen3_a30b"):
+        task1_dir = root / model / "task1"
+        task1_root = task1_dir / "runs" / f"{model}-contract-capture"
+        if model not in models_without_ncu:
+            write_text(
+                task1_root / "ncu/kernel_metric_output.csv",
+                "Kernel Name,SM,rank_scope\nfixture_kernel,1,global_rank_0\n",
+            )
+        manifest_path = task1_root / "artifact_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["capture_summary"] = functional_capture_summary(model)
+        manifest["ncu_feature_provenance"] = {
+            "rank_scope": "global_rank_0",
+            "rank_ids": [0],
+            "physical_gpu_count": 1,
+            "missing_kernel_count": 0,
+        }
+        stable_json(manifest_path, manifest)
+        _rewrite_manifest(artifact_module, task1_root)
+
+        marker_path = task1_dir / "capture_marker.json"
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+        marker["manifest_sha256"] = sha256(manifest_path)
+        marker["artifact_manifest_sha256"] = sha256(manifest_path)
+        stable_json(marker_path, marker)
 
 
 @contextmanager
@@ -387,6 +474,291 @@ def test_build_verify_and_relocate_complete_distribution(tmp_path: Path) -> None
     assert verified["distribution_id"] == "contract-fixture-001"
     assert verified["predictor_run_id"] == "predictor-contract-001"
     assert str(source_root) not in json.dumps(distribution, sort_keys=True)
+
+
+def test_build_and_verify_functional_two_model_distribution(tmp_path: Path) -> None:
+    """Fake-level packaging accepts only GPT/Qwen3 and keeps non-release evidence."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_functional_positive")
+    source_root = tmp_path / "functional-source"
+    build_functional_fixture(source_root)
+    staging_root = tmp_path / "staging" / "functional"
+    result = module.build_functional_distribution(
+        repo_root=REPO_ROOT,
+        output_root=source_root,
+        staging_root=staging_root,
+        distribution_id="functional-fixture-001",
+        result_json=tmp_path / "result.json",
+    )
+
+    assert result["bundle_count"] == 3
+    assert result["distribution_medium"] == "regular_git"
+    distribution = json.loads((staging_root / "distribution_manifest.json").read_text())
+    assert distribution["schema_version"] == module.FUNCTIONAL_DISTRIBUTION_SCHEMA
+    assert distribution["execution_evidence"] == module.FUNCTIONAL_DISTRIBUTION_EVIDENCE
+    assert set(distribution["bundles"]) == {"gpt175b", "qwen3_a30b", "shared_task2"}
+    for model in ("gpt175b", "qwen3_a30b"):
+        entry = distribution["bundles"][model]
+        manifest = json.loads((staging_root / entry["manifest"]).read_text())
+        paths = {item["path"] for item in manifest["files"]}
+        assert "ncu/kernel_metric_output.csv" in paths
+    verified = module.verify_functional_distribution(REPO_ROOT, staging_root)
+    assert verified["bundle_count"] == 3
+    with pytest.raises(ValueError, match="distribution manifest schema"):
+        module.verify_distribution(REPO_ROOT, staging_root)
+
+
+def test_functional_model_scope_replaces_deepseek_with_qwen3() -> None:
+    """The active functional bundle follows the Qwen3 replacement decision."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_qwen3_scope")
+    assert module.FUNCTIONAL_MODELS == {"gpt175b", "qwen3_a30b"}
+
+
+def test_functional_distribution_rejects_missing_model_ncu_feature(tmp_path: Path) -> None:
+    """A model may not borrow the shared Task2 NCU CSV as a fallback."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_functional_missing_ncu")
+    source_root = tmp_path / "functional-source"
+    build_functional_fixture(source_root)
+    ncu_path = (
+        source_root
+        / "gpt175b/task1/runs/synthetic-gpt175b-functional-capture/ncu/kernel_metric_output.csv"
+    )
+    ncu_path.unlink()
+    with pytest.raises((FileNotFoundError, ValueError), match="missing|verified manifest|NCU|ncu"):
+        module.build_functional_distribution(
+            repo_root=REPO_ROOT,
+            output_root=source_root,
+            staging_root=tmp_path / "staging" / "functional",
+            distribution_id="functional-missing-ncu-001",
+            result_json=tmp_path / "result.json",
+        )
+
+
+def test_functional_distribution_rejects_qwen3_incomplete_rank_subset(tmp_path: Path) -> None:
+    """Qwen3 functional packaging requires all PP×EP representative ranks."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_functional_rank_gate")
+    source_root = tmp_path / "functional-source"
+    build_functional_fixture(source_root)
+    task1_root = source_root / "qwen3_a30b/task1/runs/synthetic-qwen3_a30b-functional-capture"
+    manifest_path = task1_root / "artifact_manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["capture_summary"] = {
+        "capture_scope": "representative_ep",
+        "selected_rank_ids": [0, 8, 16, 24],
+        "selected_rank_count": 4,
+        "trace_file_count": 4,
+        "memory_json_count": 4,
+    }
+    stable_json(manifest_path, manifest)
+    marker_path = source_root / "qwen3_a30b/task1/capture_marker.json"
+    marker = json.loads(marker_path.read_text())
+    marker["manifest_sha256"] = sha256(manifest_path)
+    marker["artifact_manifest_sha256"] = marker["manifest_sha256"]
+    stable_json(marker_path, marker)
+    with pytest.raises(ValueError, match="rank inventory"):
+        module.build_functional_distribution(
+            repo_root=REPO_ROOT,
+            output_root=source_root,
+            staging_root=tmp_path / "staging" / "functional",
+            distribution_id="functional-rank-gate-001",
+            result_json=tmp_path / "result.json",
+        )
+
+
+def test_build_and_verify_functional_distribution_uses_two_models_and_rank0_ncu(
+    tmp_path: Path,
+) -> None:
+    """Functional prebaking seals the fake-level two-model contract only."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_prebaked_functional")
+    source_root = tmp_path / "fresh-output"
+    build_contract_source(source_root)
+    augment_functional_contract_source(source_root)
+    staging_root = tmp_path / "staging" / "functional"
+    result_path = tmp_path / "work" / "functional_result.json"
+
+    result = module.build_functional_distribution(
+        repo_root=REPO_ROOT,
+        output_root=source_root,
+        staging_root=staging_root,
+        distribution_id="functional-fixture-001",
+        result_json=result_path,
+    )
+
+    assert result["bundle_count"] == 3
+    assert result["predictor_run_id"] == "predictor-contract-001"
+    distribution = json.loads(
+        (staging_root / "distribution_manifest.json").read_text(encoding="utf-8")
+    )
+    assert distribution["schema_version"] == module.FUNCTIONAL_DISTRIBUTION_SCHEMA
+    assert distribution["execution_evidence"] == module.FUNCTIONAL_DISTRIBUTION_EVIDENCE
+    assert set(distribution["bundles"]) == {"gpt175b", "qwen3_a30b", "shared_task2"}
+
+    verified = module.verify_functional_distribution(REPO_ROOT, staging_root)
+    assert verified["distribution_id"] == "functional-fixture-001"
+    assert verified["bundle_count"] == 3
+
+    # The release verifier intentionally does not accept the functional schema.
+    with pytest.raises(ValueError, match="distribution manifest schema"):
+        module.verify_distribution(REPO_ROOT, staging_root)
+
+    for model in ("gpt175b", "qwen3_a30b"):
+        entry = distribution["bundles"][model]
+        model_root = staging_root / entry["root"]
+        files = {
+            item["path"]
+            for item in json.loads(
+                (model_root / "artifact_manifest.json").read_text(encoding="utf-8")
+            )["files"]
+        }
+        assert "ncu/kernel_metric_output.csv" in files
+        source_manifest = json.loads(
+            (model_root / "provenance/source_task1_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert source_manifest["ncu_feature_provenance"] == {
+            "rank_scope": "global_rank_0",
+            "rank_ids": [0],
+            "physical_gpu_count": 1,
+            "missing_kernel_count": 0,
+        }
+        assert source_manifest["capture_summary"] == functional_capture_summary(model)
+
+
+@pytest.mark.parametrize("model", ["gpt175b", "qwen3_a30b"])
+def test_functional_build_rejects_invalid_rank_inventory(
+    tmp_path: Path, model: str
+) -> None:
+    """The functional path must enforce model-specific Task1 rank vectors."""
+
+    module = load_module(
+        MODULE_PATH, f"sc26_ae_package_prebaked_functional_rank_{model}"
+    )
+    artifact_module = load_module(
+        ARTIFACT_MODULE_PATH, f"sc26_ae_artifact_manifest_functional_rank_{model}"
+    )
+    source_root = tmp_path / "fresh-output"
+    build_contract_source(source_root)
+    augment_functional_contract_source(source_root)
+
+    task1_root = source_root / model / "task1" / "runs" / f"{model}-contract-capture"
+    manifest_path = task1_root / "artifact_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    summary = functional_capture_summary(model)
+    summary["selected_rank_ids"] = [0]
+    summary["selected_rank_count"] = 1
+    summary["trace_file_count"] = 1
+    summary["memory_json_count"] = 1
+    manifest["capture_summary"] = summary
+    stable_json(manifest_path, manifest)
+    _rewrite_manifest(artifact_module, task1_root)
+    marker_path = source_root / model / "task1" / "capture_marker.json"
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    marker["manifest_sha256"] = sha256(manifest_path)
+    marker["artifact_manifest_sha256"] = sha256(manifest_path)
+    stable_json(marker_path, marker)
+
+    with pytest.raises(ValueError, match="rank inventory"):
+        module.build_functional_distribution(
+            repo_root=REPO_ROOT,
+            output_root=source_root,
+            staging_root=tmp_path / "staging" / "functional-invalid-rank",
+            distribution_id=f"functional-invalid-rank-{model}",
+            result_json=tmp_path / "work" / "result.json",
+        )
+
+
+def test_functional_build_requires_model_local_ncu_csv(tmp_path: Path) -> None:
+    """A shared Task2 CSV cannot satisfy the per-model Task1 NCU requirement."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_prebaked_functional_ncu")
+    artifact_module = load_module(
+        ARTIFACT_MODULE_PATH, "sc26_ae_artifact_manifest_functional_ncu"
+    )
+    source_root = tmp_path / "fresh-output"
+    build_contract_source(source_root)
+    augment_functional_contract_source(source_root, models_without_ncu={"gpt175b"})
+
+    model = "gpt175b"
+    task1_root = source_root / model / "task1" / "runs" / f"{model}-contract-capture"
+    _rewrite_manifest(artifact_module, task1_root)
+    manifest_path = task1_root / "artifact_manifest.json"
+    marker_path = source_root / model / "task1" / "capture_marker.json"
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    marker["manifest_sha256"] = sha256(manifest_path)
+    marker["artifact_manifest_sha256"] = sha256(manifest_path)
+    stable_json(marker_path, marker)
+
+    with pytest.raises(ValueError, match="missing ncu/kernel_metric_output.csv"):
+        module.build_functional_distribution(
+            repo_root=REPO_ROOT,
+            output_root=source_root,
+            staging_root=tmp_path / "staging" / "functional-missing-ncu",
+            distribution_id="functional-missing-ncu",
+            result_json=tmp_path / "work" / "result.json",
+        )
+
+
+def test_functional_verifier_rejects_extra_deepseek_bundle(tmp_path: Path) -> None:
+    """The functional distribution is intentionally limited to GPT and Qwen3."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_prebaked_functional_extra_model")
+    source_root = tmp_path / "fresh-output"
+    build_contract_source(source_root)
+    augment_functional_contract_source(source_root)
+    staging_root = tmp_path / "staging" / "functional-extra-model"
+    module.build_functional_distribution(
+        repo_root=REPO_ROOT,
+        output_root=source_root,
+        staging_root=staging_root,
+        distribution_id="functional-extra-model",
+        result_json=tmp_path / "work" / "result.json",
+    )
+
+    distribution_path = staging_root / "distribution_manifest.json"
+    distribution = json.loads(distribution_path.read_text(encoding="utf-8"))
+    distribution["bundles"]["dsv3"] = dict(distribution["bundles"]["gpt175b"])
+    stable_json(distribution_path, distribution)
+    with pytest.raises(ValueError, match="bundles must contain gpt175b, qwen3_a30b, and shared_task2"):
+        module.verify_functional_distribution(REPO_ROOT, staging_root)
+
+
+def test_functional_build_rejects_non_rank0_ncu_provenance(tmp_path: Path) -> None:
+    """Functional model NCU features must be collected only for global rank 0."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_prebaked_functional_ncu_scope")
+    artifact_module = load_module(
+        ARTIFACT_MODULE_PATH, "sc26_ae_artifact_manifest_functional_ncu_scope"
+    )
+    source_root = tmp_path / "fresh-output"
+    build_contract_source(source_root)
+    augment_functional_contract_source(source_root)
+
+    model = "gpt175b"
+    task1_root = source_root / model / "task1" / "runs" / f"{model}-contract-capture"
+    manifest_path = task1_root / "artifact_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["ncu_feature_provenance"]["rank_ids"] = [1]
+    stable_json(manifest_path, manifest)
+    _rewrite_manifest(artifact_module, task1_root)
+    marker_path = source_root / model / "task1" / "capture_marker.json"
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    marker["manifest_sha256"] = sha256(manifest_path)
+    marker["artifact_manifest_sha256"] = sha256(manifest_path)
+    stable_json(marker_path, marker)
+
+    with pytest.raises(ValueError, match="NCU scope"):
+        module.build_functional_distribution(
+            repo_root=REPO_ROOT,
+            output_root=source_root,
+            staging_root=tmp_path / "staging" / "functional-invalid-ncu-scope",
+            distribution_id="functional-invalid-ncu-scope",
+            result_json=tmp_path / "work" / "result.json",
+        )
 
 
 @pytest.mark.parametrize("model", ["qwen3_a30b", "dsv3"])
@@ -726,6 +1098,47 @@ def test_copy_tree_rejects_symlink(tmp_path: Path) -> None:
     (source / "link.txt").symlink_to(source / "payload.txt")
     with pytest.raises(ValueError, match="symlink"):
         module.copy_regular_tree(source, destination)
+
+
+def test_build_rejects_selected_payload_drift_after_manifest_verification(
+    tmp_path: Path,
+) -> None:
+    module = load_module(MODULE_PATH, "sc26_ae_package_prebaked_selected_drift")
+    source_root = tmp_path / "fresh-output"
+    build_contract_source(source_root)
+    staging_root = tmp_path / "staging" / "prebaked"
+    original_copy_selected = module._copy_selected
+    mutated_path = None
+
+    def mutate_before_selected_copy(source, destination, relative_paths, *args, **kwargs):
+        nonlocal mutated_path
+        paths = list(relative_paths)
+        candidate = Path(source) / "runtime/profiler_log/config/rank0.txt"
+        if mutated_path is None and candidate.is_file():
+            candidate.write_text(
+                candidate.read_text(encoding="utf-8")
+                + "coherent post-verification drift\n",
+                encoding="utf-8",
+            )
+            mutated_path = candidate
+        return original_copy_selected(source, destination, paths, *args, **kwargs)
+
+    with patch.object(module, "_copy_selected", mutate_before_selected_copy):
+        with allow_synthetic_contract_evidence(module):
+            with pytest.raises(
+                ValueError,
+                match=r"source (size|checksum) does not match expected manifest",
+            ):
+                module.build_distribution(
+                    repo_root=REPO_ROOT,
+                    output_root=source_root,
+                    staging_root=staging_root,
+                    distribution_id="selected-payload-drift-001",
+                    result_json=tmp_path / "result.json",
+                )
+
+    assert mutated_path is not None
+    assert not (staging_root / "distribution_manifest.json").exists()
 
 
 @pytest.mark.parametrize(

@@ -58,6 +58,14 @@ DEFAULT_FAKE_WORLD_SIZE=8192
 
 # 模型和批次设置
 MODEL_SIZE="${MODEL_SIZE:-70}" # 使用原脚本中的模型大小 485
+TRANSFORMER_IMPL="${TRANSFORMER_IMPL:-transformer_engine}"
+case "${TRANSFORMER_IMPL}" in
+    local|transformer_engine) ;;
+    *)
+        echo "ERROR: TRANSFORMER_IMPL must be local or transformer_engine, got ${TRANSFORMER_IMPL}" >&2
+        exit 1
+        ;;
+esac
 # NUM_MICBATCH=1
 MICRO_BATCH_SIZE=1
 
@@ -229,19 +237,50 @@ execute_single_config() {
     echo "Calculating selected ranks for dense model simulation..."
     echo "Configuration: PP=${pp_size}, TP=${tp_size}, DP=${dp_size}, WORLD_SIZE=${world_size}"
 
-    # 根据rank映射公式计算特定ranks
+    # 根据rank映射公式计算特定ranks。默认保留每个PP stage的代表rank；
+    # NCU slowdown capture 可以通过 FAKE_RANK_ORDER 显式限制到一个或多个
+    # global fake rank。显式列表必须经过严格校验，避免静默执行错误拓扑。
     local selected_ranks=()
     local pp_stage
+    local rank
+    local raw_rank
+    local -a requested_ranks=()
 
-    # 计算每个PP stage在TP rank=0, DP rank=0时对应的world rank
-    for ((pp_stage = 0; pp_stage < pp_size; pp_stage++))
-    do
-        # 根据Megatron rank映射: global_rank = tp_rank + dp_rank * tp_size + pp_rank * tp_size * dp_size
-        # 这里: tp_rank=0, dp_rank=0
-        local rank=$((0 + 0 * tp_size + pp_stage * tp_size * dp_size))
-        selected_ranks+=("${rank}")
-        echo "PP stage ${pp_stage} -> world rank ${rank}"
-    done
+    if [[ -n "${FAKE_RANK_ORDER:-}" ]]; then
+        IFS=',' read -r -a requested_ranks <<< "${FAKE_RANK_ORDER}"
+        if (( ${#requested_ranks[@]} == 0 )); then
+            echo "ERROR: FAKE_RANK_ORDER resolved to an empty rank list" >&2
+            return 1
+        fi
+        for raw_rank in "${requested_ranks[@]}"; do
+            if [[ ! "${raw_rank}" =~ ^[0-9]+$ ]]; then
+                echo "ERROR: FAKE_RANK_ORDER contains a non-decimal rank: '${raw_rank}'" >&2
+                return 1
+            fi
+            rank=$((10#${raw_rank}))
+            if (( rank < 0 || rank >= world_size )); then
+                echo "ERROR: FAKE_RANK_ORDER rank ${rank} is outside [0, ${world_size})" >&2
+                return 1
+            fi
+            for pp_stage in "${selected_ranks[@]}"; do
+                if (( pp_stage == rank )); then
+                    echo "ERROR: FAKE_RANK_ORDER contains duplicate rank ${rank}" >&2
+                    return 1
+                fi
+            done
+            selected_ranks+=("${rank}")
+        done
+        echo "Using explicit FAKE_RANK_ORDER: ${selected_ranks[*]}"
+    else
+        # 计算每个PP stage在TP rank=0, DP rank=0时对应的world rank
+        for ((pp_stage = 0; pp_stage < pp_size; pp_stage++)); do
+            # 根据Megatron rank映射: global_rank = tp_rank + dp_rank * tp_size + pp_rank * tp_size * dp_size
+            # 这里: tp_rank=0, dp_rank=0
+            rank=$((0 + 0 * tp_size + pp_stage * tp_size * dp_size))
+            selected_ranks+=("${rank}")
+            echo "PP stage ${pp_stage} -> world rank ${rank}"
+        done
+    fi
 
     echo ""
     echo "============================================================"
@@ -272,6 +311,7 @@ execute_single_config() {
         --weight-decay 1e-2 \
         --lr-warmup-fraction .01 \
         --clip-grad 1.0 \
+        --transformer-impl ${TRANSFORMER_IMPL} \
         --fp16 \
     "
 
@@ -418,15 +458,23 @@ if [ ${#BATCH_CONFIGS[@]} -gt 0 ]; then
     echo "Optimization results by configuration:"
     for i in "${!BATCH_CONFIGS[@]}"; do
         config_index=$((i+1))
-        if [[ -n "${CONFIG_STATS[config_${config_index}_world_size]}" ]]; then
-            world_size=${CONFIG_STATS[config_${config_index}_world_size]}
-            pp_size=${CONFIG_STATS[config_${config_index}_pp_size]}
-            tp_size=${CONFIG_STATS[config_${config_index}_tp_size]}
-            dp_size=${CONFIG_STATS[config_${config_index}_dp_size]}
-            original_ranks=${CONFIG_STATS[config_${config_index}_original_ranks]}
-            optimized_ranks=${CONFIG_STATS[config_${config_index}_optimized_ranks]}
-            time_reduction=${CONFIG_STATS[config_${config_index}_time_reduction]}
-            log_dir=${CONFIG_STATS[config_${config_index}_log_dir]}
+        stats_key="config_${config_index}_world_size"
+        if [[ -n "${CONFIG_STATS[${stats_key}]:-}" ]]; then
+            world_size=${CONFIG_STATS[${stats_key}]}
+            stats_key="config_${config_index}_pp_size"
+            pp_size=${CONFIG_STATS[${stats_key}]}
+            stats_key="config_${config_index}_tp_size"
+            tp_size=${CONFIG_STATS[${stats_key}]}
+            stats_key="config_${config_index}_dp_size"
+            dp_size=${CONFIG_STATS[${stats_key}]}
+            stats_key="config_${config_index}_original_ranks"
+            original_ranks=${CONFIG_STATS[${stats_key}]}
+            stats_key="config_${config_index}_optimized_ranks"
+            optimized_ranks=${CONFIG_STATS[${stats_key}]}
+            stats_key="config_${config_index}_time_reduction"
+            time_reduction=${CONFIG_STATS[${stats_key}]}
+            stats_key="config_${config_index}_log_dir"
+            log_dir=${CONFIG_STATS[${stats_key}]}
 
             echo "  Config ${config_index}: WS=${world_size}, PP=${pp_size}, TP=${tp_size}, DP=${dp_size}"
             echo "    Ranks: ${optimized_ranks}/${original_ranks} (${time_reduction}% reduction)"

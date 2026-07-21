@@ -182,6 +182,7 @@ VERIFY_OUTPUT=$(
     # shellcheck disable=SC1090
     source "$VERIFY_LIBRARY"
     TASK2_REPO_ROOT="$REPO_ROOT"
+    TASK2_MAIN_COMMIT=$(git -C "$REPO_ROOT" rev-parse HEAD)
     TASK2_ARTIFACT_TOOL="$REPO_ROOT/SC26-AE/tools/artifact_manifest.py"
     TASK2_MODE=synthetic
     TASK2_META_PYTHON=python3
@@ -504,6 +505,91 @@ grep -Fq 'existing Task2 shared pointer path escapes output root' \
 test ! -e "$OUT/qwen3_a30b/task2/predictor_marker.json"
 cp "$ROOT/shared-pointer-original.json" "$SHARED_POINTER"
 printf '%s\n' 'PASS: Task2 rejects an intermediate symlink escape in a shared pointer'
+
+# Both Task2 pointer schemas publish the same canonical run location through
+# run_path and run_relative_path.  Reuse must reject a missing/divergent alias
+# and any in-root path outside _shared/task2/runs/<predictor_run_id> before it
+# opens the selected bundle.
+set_task2_path_aliases() {
+    local payload_path=$1 run_path=$2 run_relative_path=$3
+    python3 - "$payload_path" "$run_path" "$run_relative_path" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding='utf-8'))
+payload['run_path'] = sys.argv[2]
+payload['run_relative_path'] = sys.argv[3]
+path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding='utf-8')
+PY
+}
+
+I56_PATH_CONTRACT_FAILURES=0
+I56_PATH_CONTRACT_PASS_COUNT=0
+expect_i56_path_rejection() {
+    local entry=$1 expected_error=$2 log_path=$3
+    set +e
+    TASK2_UPDATE_COMMAND='python3 update_configs.py' common_env 0 ignored "$entry" \
+        >"$log_path" 2>&1
+    local status=$?
+    set -e
+    if [[ "$status" == 0 ]]; then
+        I56_PATH_CONTRACT_FAILURES=$((I56_PATH_CONTRACT_FAILURES + 1))
+        return 0
+    fi
+    if ! grep -Fq "$expected_error" "$log_path"; then
+        cat "$log_path" >&2
+        printf 'Task2 path rejection did not report the expected root cause: %s\n' \
+            "$expected_error" >&2
+        exit 1
+    fi
+    I56_PATH_CONTRACT_PASS_COUNT=$((I56_PATH_CONTRACT_PASS_COUNT + 1))
+}
+
+set_task2_path_aliases "$GPT_MARKER" \
+    '_shared/task2/runs/integration-one' \
+    '_shared/task2/runs/divergent-marker-alias'
+expect_i56_path_rejection task2_gpt175b.sh \
+    'existing Task2 marker path aliases are missing or differ' \
+    "$ROOT/marker-path-alias-mismatch.log"
+cp "$ROOT/gpt-marker-original.json" "$GPT_MARKER"
+
+mkdir -p "$OUT/noncanonical-marker"
+ln -s "$RUN" "$OUT/noncanonical-marker/integration-one"
+set_task2_path_aliases "$GPT_MARKER" \
+    'noncanonical-marker/integration-one' \
+    'noncanonical-marker/integration-one'
+expect_i56_path_rejection task2_gpt175b.sh \
+    'existing Task2 marker path is not canonical for predictor_run_id' \
+    "$ROOT/marker-noncanonical-in-root.log"
+cp "$ROOT/gpt-marker-original.json" "$GPT_MARKER"
+
+set_task2_path_aliases "$SHARED_POINTER" \
+    '_shared/task2/runs/integration-one' \
+    '_shared/task2/runs/divergent-pointer-alias'
+expect_i56_path_rejection task2_qwen3_a30b.sh \
+    'shared Task2 pointer path aliases are missing or differ' \
+    "$ROOT/pointer-path-alias-mismatch.log"
+cp "$ROOT/shared-pointer-original.json" "$SHARED_POINTER"
+
+mkdir -p "$OUT/noncanonical-pointer"
+ln -s "$RUN" "$OUT/noncanonical-pointer/integration-one"
+set_task2_path_aliases "$SHARED_POINTER" \
+    'noncanonical-pointer/integration-one' \
+    'noncanonical-pointer/integration-one'
+expect_i56_path_rejection task2_dsv3.sh \
+    'shared Task2 pointer path is not canonical for predictor_run_id' \
+    "$ROOT/pointer-noncanonical-in-root.log"
+cp "$ROOT/shared-pointer-original.json" "$SHARED_POINTER"
+
+if [[ "$I56_PATH_CONTRACT_FAILURES" != 0 ]]; then
+    printf 'I56_PATH_CONTRACT_RED unexpected_acceptances=%s\n' \
+        "$I56_PATH_CONTRACT_FAILURES" >&2
+    exit 1
+fi
+[[ "$I56_PATH_CONTRACT_PASS_COUNT" == 4 ]]
+printf '%s\n' 'PASS: Task2 rejects divergent path aliases and noncanonical in-root run paths in both resolvers'
 
 # A model-level marker must bind predictor_run_id to the selected immutable
 # run directory.  Changing only the marker identity must fail even when all

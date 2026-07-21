@@ -40,10 +40,10 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "topology": {
             "world_size": 256,
             "local_size": 8,
-            "pp": 4,
+            "pp": 8,
             "tp": 8,
-            "dp": 8,
-            "exp": 8,
+            "dp": 4,
+            "exp": 4,
         },
     },
     "dsv3": {
@@ -68,6 +68,17 @@ TASK2_REAL_EVIDENCE = "real_exact_two_h800_qualified"
 TASK3_REAL_EVIDENCE = "real_single_h800_qualified"
 TASK1_SYNTHETIC_EVIDENCE = "local_synthetic_not_gpu_qualification"
 TASK2_SYNTHETIC_EVIDENCE = "local_synthetic_not_two_gpu_qualification"
+
+# Functional fake-level bundles are deliberately separate from the release
+# sealer.  They carry the real producer outputs and checksums, but their
+# runtime evidence is still pending external qualification.  The explicit
+# class prevents a fake/local workflow from being relabeled as real.
+FUNCTIONAL_DISTRIBUTION_SCHEMA = "sc26-ae-functional-distribution-manifest-v1"
+FUNCTIONAL_DISTRIBUTION_EVIDENCE = "functional_prebaked_not_release_qualified"
+TASK1_PENDING_EVIDENCE = "runtime_measurement_requires_external_single_gpu_qualification"
+TASK2_PENDING_EVIDENCE = "runtime_measurement_requires_external_two_gpu_qualification"
+FUNCTIONAL_MODELS = {"gpt175b", "qwen3_a30b"}
+FUNCTIONAL_BUNDLES = FUNCTIONAL_MODELS | {"shared_task2"}
 
 
 def _fail(message: str) -> None:
@@ -186,21 +197,17 @@ def _manifest_files(root: pathlib.Path) -> list[str]:
     return sorted(paths)
 
 
-def _manifest_expectations(root: pathlib.Path) -> Dict[str, tuple[int, str]]:
-    """Return expected payload size/digest values when a source manifest exists."""
-
-    manifest_path = root / "artifact_manifest.json"
-    if not manifest_path.exists() and not manifest_path.is_symlink():
-        return {}
-    manifest = _load_json(manifest_path, "source artifact manifest")
+def _manifest_entry_expectations(
+    manifest: Mapping[str, Any], label: str
+) -> Dict[str, tuple[int, str]]:
     entries = manifest.get("files")
     if not isinstance(entries, list):
-        raise ValueError("source artifact manifest files must be an array")
+        raise ValueError("{} files must be an array".format(label))
     expectations: Dict[str, tuple[int, str]] = {}
     for entry in entries:
         if not isinstance(entry, Mapping):
-            raise ValueError("source artifact manifest file entry is invalid")
-        relative = _safe_relative(entry.get("path"), "source artifact path").as_posix()
+            raise ValueError("{} file entry is invalid".format(label))
+        relative = _safe_relative(entry.get("path"), "{} path".format(label)).as_posix()
         size = entry.get("size_bytes")
         digest = entry.get("sha256")
         if (
@@ -210,11 +217,21 @@ def _manifest_expectations(root: pathlib.Path) -> Dict[str, tuple[int, str]]:
             or not isinstance(digest, str)
             or SHA256_PATTERN.fullmatch(digest) is None
         ):
-            raise ValueError("source artifact manifest checksum entry is invalid: {}".format(relative))
+            raise ValueError("{} checksum entry is invalid: {}".format(label, relative))
         if relative in expectations:
-            raise ValueError("source artifact manifest contains duplicate path: {}".format(relative))
+            raise ValueError("{} contains duplicate path: {}".format(label, relative))
         expectations[relative] = (size, digest)
     return expectations
+
+
+def _manifest_expectations(root: pathlib.Path) -> Dict[str, tuple[int, str]]:
+    """Return expected payload size/digest values when a source manifest exists."""
+
+    manifest_path = root / "artifact_manifest.json"
+    if not manifest_path.exists() and not manifest_path.is_symlink():
+        return {}
+    manifest = _load_json(manifest_path, "source artifact manifest")
+    return _manifest_entry_expectations(manifest, "source artifact manifest")
 
 
 def _copy_verified_file(
@@ -270,19 +287,48 @@ def copy_regular_tree(source: pathlib.Path, destination: pathlib.Path) -> None:
         )
 
 
-def _copy_tree_without_manifest(source: pathlib.Path, destination: pathlib.Path) -> None:
+def _copy_manifest_file(
+    source: pathlib.Path,
+    target: pathlib.Path,
+    relative: str,
+    expectations: Mapping[str, tuple[int, str]],
+    label: str,
+) -> None:
+    rel = _safe_relative(relative, "{} path".format(label))
+    relative_text = rel.as_posix()
+    expected = expectations.get(relative_text)
+    if expected is None:
+        raise ValueError(
+            "{} lacks a verified manifest expectation: {}".format(label, relative_text)
+        )
+    source_path = _resolve_under(source, rel, label)
+    if target.exists() or target.is_symlink():
+        raise ValueError("duplicate package payload path: {}".format(target))
+    _copy_verified_file(
+        source_path,
+        target,
+        expected_size=expected[0],
+        expected_sha256=expected[1],
+    )
+
+
+def _copy_tree_without_manifest(
+    source: pathlib.Path,
+    destination: pathlib.Path,
+    expectations: Mapping[str, tuple[int, str]],
+) -> None:
     source = _regular_directory(source, "payload source")
     destination.mkdir(parents=True, exist_ok=False)
-    expectations = _manifest_expectations(source)
-    for relative in _manifest_files(source):
-        source_path = source / pathlib.PurePosixPath(relative)
-        target = destination / pathlib.PurePosixPath(relative)
-        expected = expectations.get(relative)
-        _copy_verified_file(
-            source_path,
-            target,
-            expected_size=expected[0] if expected else None,
-            expected_sha256=expected[1] if expected else None,
+    inventory = _manifest_files(source)
+    if set(inventory) != set(expectations):
+        raise ValueError("payload inventory differs from the verified source manifest")
+    for relative in inventory:
+        _copy_manifest_file(
+            source,
+            destination / pathlib.PurePosixPath(relative),
+            relative,
+            expectations,
+            "payload source",
         )
 
 
@@ -394,46 +440,81 @@ def _manifest_digest(path: pathlib.Path) -> str:
     return digest
 
 
-def _validate_marker_manifest(marker: Mapping[str, Any], manifest_path: pathlib.Path, label: str) -> None:
+def _validate_marker_manifest(
+    marker: Mapping[str, Any], manifest_path: pathlib.Path, label: str
+) -> str:
     digest = _manifest_digest(manifest_path)
     if (
         marker.get("manifest_sha256") != digest
         or marker.get("artifact_manifest_sha256") != digest
     ):
         raise ValueError("{} manifest checksum does not match its marker".format(label))
+    return digest
 
 
-def _copy_selected(source: pathlib.Path, destination: pathlib.Path, relative_paths: Iterable[str]) -> None:
+def _copy_selected(
+    source: pathlib.Path,
+    destination: pathlib.Path,
+    relative_paths: Iterable[str],
+    expectations: Mapping[str, tuple[int, str]],
+) -> None:
     for relative in relative_paths:
         rel = _safe_relative(relative, "selected payload path")
-        source_path = _resolve_under(source, rel, "selected payload")
         target = destination / pathlib.Path(rel)
-        if target.exists() or target.is_symlink():
-            raise ValueError("duplicate package payload path: {}".format(rel))
-        _copy_verified_file(source_path, target)
+        _copy_manifest_file(
+            source,
+            target,
+            rel.as_posix(),
+            expectations,
+            "selected payload",
+        )
 
 
-def _copy_task3_assets(task3_root: pathlib.Path, model_root: pathlib.Path) -> None:
-    assets = _resolve_under(task3_root, "slowdown_assets", "Task3 slowdown assets", directory=True)
-    target = model_root / "slowdown_assets"
-    copy_regular_tree(assets, target)
+def _copy_task3_assets(
+    task3_root: pathlib.Path,
+    model_root: pathlib.Path,
+    expectations: Mapping[str, tuple[int, str]],
+) -> None:
+    asset_paths = sorted(
+        relative
+        for relative in expectations
+        if pathlib.PurePosixPath(relative).parts[0] == "slowdown_assets"
+    )
+    if not asset_paths:
+        raise ValueError("Task3 slowdown asset manifest inventory is empty")
+    _copy_selected(task3_root, model_root, asset_paths, expectations)
     for required in ("manifest.json", "kernel_features.json", "backward_kernel_blueprints.json"):
-        _regular_file(target / required, "required slowdown asset")
+        _regular_file(model_root / "slowdown_assets" / required, "required slowdown asset")
 
 
-def _copy_task3_metadata(task3_root: pathlib.Path, model_root: pathlib.Path) -> None:
+def _copy_task3_metadata(
+    task3_root: pathlib.Path,
+    model_root: pathlib.Path,
+    expectations: Mapping[str, tuple[int, str]],
+) -> None:
     """Copy portable scheduler/report metadata without source absolute paths."""
 
     metadata_root = model_root / "simulation"
     metadata_root.mkdir(parents=True, exist_ok=False)
-    for relative in ("schedule", "report.json", "report.md"):
-        source = task3_root / relative
-        if source.is_dir():
-            copy_regular_tree(source, metadata_root / relative)
-        else:
-            _regular_file(source, "Task3 simulation metadata")
-            target = metadata_root / relative
-            _copy_verified_file(source, target)
+    metadata_paths = sorted(
+        relative
+        for relative in expectations
+        if relative in {"report.json", "report.md"}
+        or pathlib.PurePosixPath(relative).parts[0] == "schedule"
+    )
+    if not {"report.json", "report.md"}.issubset(metadata_paths) or not any(
+        pathlib.PurePosixPath(relative).parts[0] == "schedule"
+        for relative in metadata_paths
+    ):
+        raise ValueError("Task3 simulation metadata manifest inventory is incomplete")
+    for relative in metadata_paths:
+        _copy_manifest_file(
+            task3_root,
+            metadata_root / pathlib.PurePosixPath(relative),
+            relative,
+            expectations,
+            "Task3 simulation metadata",
+        )
 
 
 def _build_shared_bundle(
@@ -441,10 +522,15 @@ def _build_shared_bundle(
     source_root: pathlib.Path,
     destination: pathlib.Path,
     source_manifest: Mapping[str, Any],
+    source_manifest_sha256: str,
     producer_commits: Mapping[str, str],
     predictor_run_id: str,
+    evidence_override: str | None = None,
 ) -> Dict[str, Any]:
-    _copy_tree_without_manifest(source_root, destination)
+    source_expectations = _manifest_entry_expectations(
+        source_manifest, "verified shared Task2 manifest"
+    )
+    _copy_tree_without_manifest(source_root, destination, source_expectations)
     provenance = destination / "provenance/source_task2_manifest.json"
     _stable_json(provenance, dict(source_manifest))
     metadata: Dict[str, Any] = {
@@ -454,8 +540,8 @@ def _build_shared_bundle(
         "artifact_source": "prebaked",
         "predictor_run_id": predictor_run_id,
         "source_commits": dict(producer_commits),
-        "execution_evidence": source_manifest["execution_evidence"],
-        "source_manifest_sha256": _manifest_digest(source_root / "artifact_manifest.json"),
+        "execution_evidence": evidence_override or source_manifest["execution_evidence"],
+        "source_manifest_sha256": source_manifest_sha256,
     }
     manifest = module.create_manifest(destination, metadata, _manifest_files(destination))
     manifest_path = destination / "artifact_manifest.json"
@@ -467,7 +553,7 @@ def _build_shared_bundle(
         "manifest_sha256": _manifest_digest(manifest_path),
         "predictor_run_id": predictor_run_id,
         "producer_commits": dict(producer_commits),
-        "execution_evidence": source_manifest["execution_evidence"],
+        "execution_evidence": evidence_override or source_manifest["execution_evidence"],
     }
 
 
@@ -479,22 +565,31 @@ def _build_model_bundle(
     destination: pathlib.Path,
     task1_root: pathlib.Path,
     task1_manifest: Mapping[str, Any],
+    task1_manifest_sha256: str,
     task3_root: pathlib.Path,
     task3_manifest: Mapping[str, Any],
+    task3_manifest_sha256: str,
     producer_commits: Mapping[str, str],
     capture_id: str,
     predictor_run_id: str,
+    evidence_override: str | None = None,
 ) -> Dict[str, Any]:
     destination.mkdir(parents=True, exist_ok=False)
-    bundle_evidence = _derive_model_bundle_evidence(
+    bundle_evidence = evidence_override or _derive_model_bundle_evidence(
         task1_manifest.get("execution_evidence"),
         task3_manifest.get("execution_evidence"),
     )
 
-    task1_payload = [entry["path"] for entry in task1_manifest.get("files", [])]
-    _copy_selected(task1_root, destination, task1_payload)
-    _copy_task3_assets(task3_root, destination)
-    _copy_task3_metadata(task3_root, destination)
+    task1_expectations = _manifest_entry_expectations(
+        task1_manifest, "verified Task1 manifest"
+    )
+    task3_expectations = _manifest_entry_expectations(
+        task3_manifest, "verified Task3 manifest"
+    )
+    task1_payload = list(task1_expectations)
+    _copy_selected(task1_root, destination, task1_payload, task1_expectations)
+    _copy_task3_assets(task3_root, destination, task3_expectations)
+    _copy_task3_metadata(task3_root, destination, task3_expectations)
 
     # Keep the producer manifests as explicit provenance payloads, but never
     # copy either source artifact_manifest.json into the package root.
@@ -507,8 +602,8 @@ def _build_model_bundle(
         "simulation_topology": specification["topology"],
         "capture_id": capture_id,
         "predictor_run_id": predictor_run_id,
-        "source_task1_manifest_sha256": _manifest_digest(task1_root / "artifact_manifest.json"),
-        "source_task3_manifest_sha256": _manifest_digest(task3_root / "artifact_manifest.json"),
+        "source_task1_manifest_sha256": task1_manifest_sha256,
+        "source_task3_manifest_sha256": task3_manifest_sha256,
         "producer_commits": dict(producer_commits),
         "execution_evidence": bundle_evidence,
         "artifact_source": "prebaked",
@@ -533,8 +628,8 @@ def _build_model_bundle(
         "overlap_mode": "on",
         "database_is_trace_dir": True,
         "execution_evidence": bundle_evidence,
-        "source_task1_manifest_sha256": _manifest_digest(task1_root / "artifact_manifest.json"),
-        "source_task3_manifest_sha256": _manifest_digest(task3_root / "artifact_manifest.json"),
+        "source_task1_manifest_sha256": task1_manifest_sha256,
+        "source_task3_manifest_sha256": task3_manifest_sha256,
     }
     manifest = module.create_manifest(destination, metadata, _manifest_files(destination))
     manifest_path = destination / "artifact_manifest.json"
@@ -550,8 +645,8 @@ def _build_model_bundle(
         "capture_id": capture_id,
         "predictor_run_id": predictor_run_id,
         "producer_commits": dict(producer_commits),
-        "source_task1_manifest_sha256": _manifest_digest(task1_root / "artifact_manifest.json"),
-        "source_task3_manifest_sha256": _manifest_digest(task3_root / "artifact_manifest.json"),
+        "source_task1_manifest_sha256": task1_manifest_sha256,
+        "source_task3_manifest_sha256": task3_manifest_sha256,
         "execution_evidence": bundle_evidence,
     }
 
@@ -788,12 +883,202 @@ def verify_distribution(repo_root: pathlib.Path, prebaked_root: pathlib.Path) ->
     }
 
 
+def _functional_source_evidence(value: object, *, task2: bool = False) -> bool:
+    allowed = {
+        TASK1_REAL_EVIDENCE,
+        TASK1_PENDING_EVIDENCE,
+        TASK1_SYNTHETIC_EVIDENCE,
+    }
+    if task2:
+        allowed = {
+            TASK2_REAL_EVIDENCE,
+            TASK2_PENDING_EVIDENCE,
+            TASK2_SYNTHETIC_EVIDENCE,
+        }
+    return value in allowed
+
+
+def _validate_functional_bundle_entry(
+    module: Any,
+    root: pathlib.Path,
+    key: str,
+    entry: Mapping[str, Any],
+    expected_commits: Mapping[str, str],
+) -> Dict[str, Any]:
+    """Validate one non-release functional bundle without promoting evidence."""
+
+    if not isinstance(entry, Mapping):
+        raise ValueError("functional bundle entry must be an object: {}".format(key))
+    bundle_root_rel = _safe_relative(entry.get("root"), "{} bundle root".format(key))
+    manifest_rel = _safe_relative(entry.get("manifest"), "{} manifest".format(key))
+    if manifest_rel != bundle_root_rel / "artifact_manifest.json":
+        raise ValueError("{} nested manifest path is not canonical".format(key))
+    bundle_root = _resolve_under(root, bundle_root_rel, "{} bundle root".format(key), directory=True)
+    manifest_path = _resolve_under(root, manifest_rel, "{} manifest".format(key))
+    if entry.get("manifest_sha256") != _manifest_digest(manifest_path):
+        raise ValueError("{} nested manifest checksum mismatch".format(key))
+    manifest = _verify_manifest(module, bundle_root, manifest_path, "{} manifest".format(key))
+    if manifest.get("artifact_source") != "prebaked":
+        raise ValueError("{} functional manifest must be prebaked".format(key))
+    if manifest.get("execution_evidence") != FUNCTIONAL_DISTRIBUTION_EVIDENCE:
+        raise ValueError("{} functional manifest evidence is invalid".format(key))
+    if manifest.get("source_commits") != dict(expected_commits):
+        raise ValueError("{} functional producer commits differ from the current checkout".format(key))
+
+    files = {entry["path"] for entry in manifest.get("files", [])}
+    if key == "shared_task2":
+        if manifest.get("model") != "shared_task2" or manifest.get("task") != "task2":
+            raise ValueError("functional shared Task2 identity is invalid")
+        for required in (
+            "merge/input/kernel_metric_output.csv",
+            "training_testing/output/xgb_model.json",
+            "training_testing/output/standard_scaler.json",
+            "provenance/source_task2_manifest.json",
+        ):
+            if required not in files:
+                raise ValueError("functional shared Task2 is missing {}".format(required))
+        source_manifest = _load_json(
+            bundle_root / "provenance/source_task2_manifest.json",
+            "functional source Task2 manifest",
+        )
+        if not _functional_source_evidence(source_manifest.get("execution_evidence"), task2=True):
+            raise ValueError("functional source Task2 evidence is invalid")
+    else:
+        specification = MODELS[key]
+        if manifest.get("model") != key or manifest.get("task") != "prebaked":
+            raise ValueError("{} functional model identity is invalid".format(key))
+        if manifest.get("simulation_topology") != specification["topology"]:
+            raise ValueError("{} functional model topology is invalid".format(key))
+        if manifest.get("profile") != specification["profile"]:
+            raise ValueError("{} functional model profile is invalid".format(key))
+        for required in (
+            "provenance/source_task1_manifest.json",
+            "provenance/source_task3_manifest.json",
+            "slowdown_assets/manifest.json",
+            "slowdown_assets/kernel_features.json",
+            "slowdown_assets/backward_kernel_blueprints.json",
+            "ncu/kernel_metric_output.csv",
+        ):
+            if required not in files:
+                raise ValueError("{} functional model is missing {}".format(key, required))
+        traces = [path for path in files if path.endswith(".txt")]
+        if not traces:
+            raise ValueError("{} functional model contains no trace files".format(key))
+        if len([path for path in files if path.endswith(".sqlite")]) != 1:
+            raise ValueError("{} functional model must contain exactly one SQLite artifact".format(key))
+        task1_source = _load_json(
+            bundle_root / "provenance/source_task1_manifest.json",
+            "{} functional source Task1 manifest".format(key),
+        )
+        task3_source = _load_json(
+            bundle_root / "provenance/source_task3_manifest.json",
+            "{} functional source Task3 manifest".format(key),
+        )
+        if not _functional_source_evidence(task1_source.get("execution_evidence")):
+            raise ValueError("{} functional source Task1 evidence is invalid".format(key))
+        if not _functional_source_evidence(task3_source.get("execution_evidence")):
+            raise ValueError("{} functional source Task3 evidence is invalid".format(key))
+        ncu_provenance = task1_source.get("ncu_feature_provenance")
+        if not isinstance(ncu_provenance, Mapping):
+            raise ValueError("{} functional source Task1 lacks NCU provenance".format(key))
+        if (
+            ncu_provenance.get("rank_scope") != "global_rank_0"
+            or ncu_provenance.get("rank_ids") != [0]
+            or ncu_provenance.get("physical_gpu_count") != 1
+            or ncu_provenance.get("missing_kernel_count") != 0
+        ):
+            raise ValueError("{} functional source Task1 NCU scope is invalid".format(key))
+        capture_summary = task1_source.get("capture_summary")
+        if not isinstance(capture_summary, Mapping):
+            raise ValueError("{} functional source Task1 capture summary is missing".format(key))
+        if key == "gpt175b":
+            expected_ranks = [0, 128, 256, 384, 512, 640, 768, 896]
+            expected_scope = "representative"
+        else:
+            # Qwen3-A3B records one representative fake rank per PP stage
+            # and EP group; TP/DP peers have equivalent execution graphs.
+            expected_ranks = [pp * 8 * 4 + exp * 8 for pp in range(8) for exp in range(4)]
+            expected_scope = "representative_ep"
+        if (
+            capture_summary.get("capture_scope") != expected_scope
+            or capture_summary.get("selected_rank_ids") != expected_ranks
+            or capture_summary.get("selected_rank_count") != len(expected_ranks)
+            or capture_summary.get("trace_file_count") != len(expected_ranks)
+            or capture_summary.get("memory_json_count") != len(expected_ranks)
+        ):
+            raise ValueError("{} functional source Task1 rank inventory is invalid".format(key))
+    return dict(manifest)
+
+
+def verify_functional_distribution(repo_root: pathlib.Path, prebaked_root: pathlib.Path) -> Dict[str, Any]:
+    """Verify a two-model functional bundle while retaining its non-release class."""
+
+    repo_root = _regular_directory(pathlib.Path(repo_root), "repository root")
+    prebaked_root = _regular_directory(pathlib.Path(prebaked_root), "functional prebaked root")
+    module = _load_artifact_module(repo_root)
+    distribution = _load_json(prebaked_root / "distribution_manifest.json", "functional distribution manifest")
+    if distribution.get("schema_version") != FUNCTIONAL_DISTRIBUTION_SCHEMA:
+        raise ValueError("functional distribution manifest schema is invalid")
+    if distribution.get("artifact_source") != "prebaked":
+        raise ValueError("functional distribution artifact_source must be prebaked")
+    if distribution.get("execution_evidence") != FUNCTIONAL_DISTRIBUTION_EVIDENCE:
+        raise ValueError("functional distribution evidence is invalid")
+    expected_commits = _source_commits(repo_root)
+    if distribution.get("compatible_commits") != {
+        "echo_slowdown": expected_commits["echo_slowdown"],
+        "megatron_sim_engine": expected_commits["megatron_sim_engine"],
+    }:
+        raise ValueError("functional distribution compatible commits differ from current gitlinks")
+    _validate_distribution_files(prebaked_root, distribution)
+    bundles = distribution.get("bundles")
+    if not isinstance(bundles, Mapping) or set(bundles) != FUNCTIONAL_BUNDLES:
+        raise ValueError("functional distribution bundles must contain gpt175b, qwen3_a30b, and shared_task2")
+    manifests = {
+        key: _validate_functional_bundle_entry(
+            module,
+            prebaked_root,
+            key,
+            bundles[key],
+            expected_commits,
+        )
+        for key in sorted(FUNCTIONAL_BUNDLES)
+    }
+    predictor_ids = {manifests[key].get("predictor_run_id") for key in FUNCTIONAL_MODELS}
+    if len(predictor_ids) != 1 or None in predictor_ids:
+        raise ValueError("functional model bundles do not share one predictor_run_id")
+    predictor_run_id = next(iter(predictor_ids))
+    if manifests["shared_task2"].get("predictor_run_id") != predictor_run_id:
+        raise ValueError("functional shared predictor_run_id differs from model bundles")
+    captures = {manifests[key].get("capture_id") for key in FUNCTIONAL_MODELS}
+    if len(captures) != len(FUNCTIONAL_MODELS) or None in captures:
+        raise ValueError("functional model capture_ids must be distinct and present")
+    return {
+        "distribution_id": _safe_id(distribution.get("distribution_id"), "distribution_id"),
+        "predictor_run_id": predictor_run_id,
+        "bundle_count": len(bundles),
+        "distribution_file_count": len(distribution["files"]),
+        "total_size_bytes": int(distribution["total_size_bytes"]),
+        "distribution_medium": distribution["distribution_medium"],
+    }
+
+
 def _source_manifest_and_run(
     module: Any,
     output_root: pathlib.Path,
     model: str,
     expected_commits: Mapping[str, str],
-) -> tuple[pathlib.Path, Dict[str, Any], pathlib.Path, Dict[str, Any], pathlib.Path, Dict[str, Any]]:
+    *,
+    require_real_evidence: bool = True,
+) -> tuple[
+    pathlib.Path,
+    Dict[str, Any],
+    pathlib.Path,
+    Dict[str, Any],
+    str,
+    str,
+    pathlib.Path,
+    pathlib.Path,
+]:
     task1_dir = _resolve_under(output_root, "{}/task1".format(model), "{} Task1 directory".format(model), directory=True)
     capture_marker = _read_marker(task1_dir, "capture_marker.json", "sc26-ae-task1-capture-marker-v1", "{} Task1 capture".format(model))
     if capture_marker.get("model") != model:
@@ -801,8 +1086,21 @@ def _source_manifest_and_run(
     task1_root = _source_run_from_marker(task1_dir, capture_marker, "runs", "{} Task1".format(model))
     task1_manifest_path = task1_root / "artifact_manifest.json"
     task1_manifest = _verify_manifest(module, task1_root, task1_manifest_path, "{} Task1 manifest".format(model))
-    _validate_marker_manifest(capture_marker, task1_manifest_path, "{} Task1 capture".format(model))
-    _require_exact_evidence(task1_manifest, "real_single_h800_qualified", "{} Task1 manifest".format(model))
+    task1_manifest_sha256 = _validate_marker_manifest(
+        capture_marker, task1_manifest_path, "{} Task1 capture".format(model)
+    )
+    if require_real_evidence:
+        _require_exact_evidence(task1_manifest, "real_single_h800_qualified", "{} Task1 manifest".format(model))
+    elif task1_manifest.get("execution_evidence") not in {
+        TASK1_REAL_EVIDENCE,
+        TASK1_PENDING_EVIDENCE,
+        TASK1_SYNTHETIC_EVIDENCE,
+    }:
+        raise ValueError(
+            "{} Task1 manifest has unsupported functional evidence: {}".format(
+                model, task1_manifest.get("execution_evidence")
+            )
+        )
     if task1_manifest.get("model") != model or task1_manifest.get("task") != "task1" or task1_manifest.get("artifact_source") != "fresh":
         raise ValueError("{} Task1 manifest identity is invalid".format(model))
     module.validate_task1_rank_promotion_scope(task1_manifest)
@@ -825,12 +1123,25 @@ def _source_manifest_and_run(
     task3_root = _source_run_from_marker(task3_dir, run_marker, "runs", "{} Task3".format(model))
     task3_manifest_path = task3_root / "artifact_manifest.json"
     task3_manifest = _verify_manifest(module, task3_root, task3_manifest_path, "{} Task3 manifest".format(model))
-    _validate_marker_manifest(run_marker, task3_manifest_path, "{} Task3 run".format(model))
+    task3_manifest_sha256 = _validate_marker_manifest(
+        run_marker, task3_manifest_path, "{} Task3 run".format(model)
+    )
     if run_marker.get("execution_evidence") != task3_manifest.get("execution_evidence"):
         raise ValueError("{} Task3 marker evidence differs from its manifest".format(model))
     if task3_manifest.get("model") != model or task3_manifest.get("task") != "task3" or task3_manifest.get("artifact_source") != "fresh":
         raise ValueError("{} Task3 manifest identity is invalid".format(model))
-    _require_exact_evidence(task3_manifest, TASK3_REAL_EVIDENCE, "{} Task3 manifest".format(model))
+    if require_real_evidence:
+        _require_exact_evidence(task3_manifest, TASK3_REAL_EVIDENCE, "{} Task3 manifest".format(model))
+    elif task3_manifest.get("execution_evidence") not in {
+        TASK3_REAL_EVIDENCE,
+        TASK1_PENDING_EVIDENCE,
+        TASK1_SYNTHETIC_EVIDENCE,
+    }:
+        raise ValueError(
+            "{} Task3 manifest has unsupported functional evidence: {}".format(
+                model, task3_manifest.get("execution_evidence")
+            )
+        )
     if task3_manifest.get("source_commits") != dict(expected_commits):
         raise ValueError("{} Task3 source commits differ from current checkout".format(model))
     if task3_manifest.get("simulation_run_id") != simulation_run_id:
@@ -841,7 +1152,16 @@ def _source_manifest_and_run(
         raise ValueError("{} Task3 capture_id differs from Task1".format(model))
     if task3_manifest.get("predictor_run_id") != run_marker.get("predictor_run_id"):
         raise ValueError("{} Task3 predictor_run_id differs from marker".format(model))
-    return task1_root, task1_manifest, task3_root, task3_manifest, task1_manifest_path, task3_manifest_path
+    return (
+        task1_root,
+        task1_manifest,
+        task3_root,
+        task3_manifest,
+        task1_manifest_sha256,
+        task3_manifest_sha256,
+        task1_manifest_path,
+        task3_manifest_path,
+    )
 
 
 def build_distribution(
@@ -866,7 +1186,9 @@ def build_distribution(
     shared_root = _source_run_from_marker(output_root, pointer, "_shared/task2/runs", "shared Task2")
     shared_manifest_path = shared_root / "artifact_manifest.json"
     shared_manifest = _verify_manifest(module, shared_root, shared_manifest_path, "shared Task2 manifest")
-    _validate_marker_manifest(pointer, shared_manifest_path, "shared Task2 pointer")
+    shared_manifest_sha256 = _validate_marker_manifest(
+        pointer, shared_manifest_path, "shared Task2 pointer"
+    )
     _require_exact_evidence(shared_manifest, "real_exact_two_h800_qualified", "shared Task2 manifest")
     if shared_manifest.get("model") != "shared_task2" or shared_manifest.get("task") != "task2" or shared_manifest.get("artifact_source") != "fresh":
         raise ValueError("shared Task2 manifest identity is invalid")
@@ -885,14 +1207,22 @@ def build_distribution(
         shared_root,
         bundles_root / "shared_task2",
         shared_manifest,
+        shared_manifest_sha256,
         expected_commits,
         predictor_run_id,
     )
 
     for model, specification in MODELS.items():
-        task1_root, task1_manifest, task3_root, task3_manifest, _, _ = _source_manifest_and_run(
-            module, output_root, model, expected_commits
-        )
+        (
+            task1_root,
+            task1_manifest,
+            task3_root,
+            task3_manifest,
+            task1_manifest_sha256,
+            task3_manifest_sha256,
+            _,
+            _,
+        ) = _source_manifest_and_run(module, output_root, model, expected_commits)
         if task3_manifest.get("predictor_run_id") != predictor_run_id:
             raise ValueError("{} Task3 predictor_run_id differs from shared Task2".format(model))
         bundle_entries[model] = _build_model_bundle(
@@ -903,8 +1233,10 @@ def build_distribution(
             bundles_root / model,
             task1_root,
             task1_manifest,
+            task1_manifest_sha256,
             task3_root,
             task3_manifest,
+            task3_manifest_sha256,
             expected_commits,
             _safe_id(task1_manifest["capture_id"], "capture_id"),
             predictor_run_id,
@@ -956,6 +1288,147 @@ def build_distribution(
     return result
 
 
+def build_functional_distribution(
+    repo_root: pathlib.Path,
+    output_root: pathlib.Path,
+    staging_root: pathlib.Path,
+    distribution_id: str,
+    result_json: pathlib.Path,
+) -> Dict[str, Any]:
+    """Package the two official fake-level models without release promotion."""
+
+    repo_root = _regular_directory(pathlib.Path(repo_root), "repository root")
+    output_root = _regular_directory(pathlib.Path(output_root), "fresh output root")
+    staging_root = pathlib.Path(staging_root)
+    if staging_root.exists() or staging_root.is_symlink():
+        raise FileExistsError("staging destination already exists: {}".format(staging_root))
+    _safe_id(distribution_id, "distribution_id")
+    module = _load_artifact_module(repo_root)
+    expected_commits = _source_commits(repo_root)
+
+    pointer = _read_marker(
+        output_root / "_shared/task2",
+        "predictor_marker.json",
+        "sc26-ae-task2-shared-pointer-v1",
+        "shared Task2 pointer",
+    )
+    predictor_run_id = _safe_id(pointer.get("predictor_run_id"), "predictor_run_id")
+    shared_root = _source_run_from_marker(output_root, pointer, "_shared/task2/runs", "shared Task2")
+    shared_manifest_path = shared_root / "artifact_manifest.json"
+    shared_manifest = _verify_manifest(module, shared_root, shared_manifest_path, "shared Task2 manifest")
+    shared_manifest_sha256 = _validate_marker_manifest(pointer, shared_manifest_path, "shared Task2 pointer")
+    if not _functional_source_evidence(shared_manifest.get("execution_evidence"), task2=True):
+        raise ValueError(
+            "shared Task2 manifest has unsupported functional evidence: {}".format(
+                shared_manifest.get("execution_evidence")
+            )
+        )
+    if (
+        shared_manifest.get("model") != "shared_task2"
+        or shared_manifest.get("task") != "task2"
+        or shared_manifest.get("artifact_source") != "fresh"
+        or shared_manifest.get("predictor_run_id") != predictor_run_id
+        or shared_manifest.get("source_commits") != expected_commits
+    ):
+        raise ValueError("shared Task2 functional source identity is invalid")
+
+    staging_root.parent.mkdir(parents=True, exist_ok=True)
+    staging_root.mkdir(parents=True, exist_ok=False)
+    bundles_root = staging_root / "bundles"
+    bundles_root.mkdir()
+    bundle_entries: Dict[str, Dict[str, Any]] = {}
+    bundle_entries["shared_task2"] = _build_shared_bundle(
+        module,
+        shared_root,
+        bundles_root / "shared_task2",
+        shared_manifest,
+        shared_manifest_sha256,
+        expected_commits,
+        predictor_run_id,
+        evidence_override=FUNCTIONAL_DISTRIBUTION_EVIDENCE,
+    )
+
+    for model in sorted(FUNCTIONAL_MODELS):
+        specification = MODELS[model]
+        (
+            task1_root,
+            task1_manifest,
+            task3_root,
+            task3_manifest,
+            task1_manifest_sha256,
+            task3_manifest_sha256,
+            _,
+            _,
+        ) = _source_manifest_and_run(
+            module,
+            output_root,
+            model,
+            expected_commits,
+            require_real_evidence=False,
+        )
+        if task3_manifest.get("predictor_run_id") != predictor_run_id:
+            raise ValueError("{} Task3 predictor_run_id differs from shared Task2".format(model))
+        bundle_entries[model] = _build_model_bundle(
+            module,
+            model,
+            specification,
+            output_root,
+            bundles_root / model,
+            task1_root,
+            task1_manifest,
+            task1_manifest_sha256,
+            task3_root,
+            task3_manifest,
+            task3_manifest_sha256,
+            expected_commits,
+            _safe_id(task1_manifest["capture_id"], "capture_id"),
+            predictor_run_id,
+            evidence_override=FUNCTIONAL_DISTRIBUTION_EVIDENCE,
+        )
+
+    entries = _distribution_files(staging_root)
+    file_size_mib = {entry["path"]: round(entry["size_bytes"] / 1048576.0, 6) for entry in entries}
+    distribution: Dict[str, Any] = {
+        "schema_version": FUNCTIONAL_DISTRIBUTION_SCHEMA,
+        "artifact_source": "prebaked",
+        "distribution_id": distribution_id,
+        "compatible_commits": {
+            "echo_slowdown": expected_commits["echo_slowdown"],
+            "megatron_sim_engine": expected_commits["megatron_sim_engine"],
+        },
+        "producer_commits": {
+            **{model: dict(expected_commits) for model in FUNCTIONAL_MODELS},
+            "shared_task2": dict(expected_commits),
+        },
+        "bundles": bundle_entries,
+        "files": entries,
+        "file_size_mib": file_size_mib,
+        "execution_evidence": FUNCTIONAL_DISTRIBUTION_EVIDENCE,
+    }
+    manifest_path = staging_root / "distribution_manifest.json"
+    _finalize_distribution_manifest(module, staging_root, manifest_path, distribution)
+    verified = verify_functional_distribution(repo_root, staging_root)
+    result = {
+        **verified,
+        "distribution_manifest": {
+            "path": "distribution_manifest.json",
+            "size_bytes": manifest_path.stat().st_size,
+            "sha256": _manifest_digest(manifest_path),
+        },
+        "file_size_mib": file_size_mib,
+    }
+    result_path = pathlib.Path(result_json)
+    try:
+        result_path.resolve().relative_to(staging_root.resolve())
+    except ValueError:
+        pass
+    else:
+        raise ValueError("result_json must be outside staging_root")
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    _stable_json(result_path, result)
+    return result
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -965,9 +1438,24 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--staging-root", type=pathlib.Path, required=True)
     build.add_argument("--distribution-id", required=True)
     build.add_argument("--result-json", type=pathlib.Path, required=True)
+    functional = subparsers.add_parser(
+        "build-functional",
+        help="build a two-model fake-level bundle with explicit non-release evidence",
+    )
+    functional.add_argument("--repo-root", type=pathlib.Path, required=True)
+    functional.add_argument("--output-root", type=pathlib.Path, required=True)
+    functional.add_argument("--staging-root", type=pathlib.Path, required=True)
+    functional.add_argument("--distribution-id", required=True)
+    functional.add_argument("--result-json", type=pathlib.Path, required=True)
     verify = subparsers.add_parser("verify")
     verify.add_argument("--repo-root", type=pathlib.Path, required=True)
     verify.add_argument("--prebaked-root", type=pathlib.Path, required=True)
+    verify_functional_parser = subparsers.add_parser(
+        "verify-functional",
+        help="verify a two-model fake-level bundle without release promotion",
+    )
+    verify_functional_parser.add_argument("--repo-root", type=pathlib.Path, required=True)
+    verify_functional_parser.add_argument("--prebaked-root", type=pathlib.Path, required=True)
     return parser
 
 
@@ -987,9 +1475,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("DISTRIBUTION_FILE_COUNT={}".format(result["distribution_file_count"]))
         print("DISTRIBUTION_TOTAL_SIZE_BYTES={}".format(result["total_size_bytes"]))
         return 0
+    if args.command == "build-functional":
+        result = build_functional_distribution(
+            args.repo_root,
+            args.output_root,
+            args.staging_root,
+            args.distribution_id,
+            args.result_json,
+        )
+        print("DISTRIBUTION_STATUS=verified")
+        print("DISTRIBUTION_EVIDENCE={}".format(FUNCTIONAL_DISTRIBUTION_EVIDENCE))
+        print("DISTRIBUTION_MEDIUM={}".format(result["distribution_medium"]))
+        print("DISTRIBUTION_BUNDLE_COUNT={}".format(result["bundle_count"]))
+        print("DISTRIBUTION_FILE_COUNT={}".format(result["distribution_file_count"]))
+        print("DISTRIBUTION_TOTAL_SIZE_BYTES={}".format(result["total_size_bytes"]))
+        return 0
     if args.command == "verify":
         result = verify_distribution(args.repo_root, args.prebaked_root)
         print("DISTRIBUTION_STATUS=verified")
+        print("DISTRIBUTION_ID={}".format(result["distribution_id"]))
+        print("DISTRIBUTION_BUNDLE_COUNT={}".format(result["bundle_count"]))
+        print("DISTRIBUTION_FILE_COUNT={}".format(result["distribution_file_count"]))
+        print("DISTRIBUTION_TOTAL_SIZE_BYTES={}".format(result["total_size_bytes"]))
+        return 0
+    if args.command == "verify-functional":
+        result = verify_functional_distribution(args.repo_root, args.prebaked_root)
+        print("DISTRIBUTION_STATUS=verified")
+        print("DISTRIBUTION_EVIDENCE={}".format(FUNCTIONAL_DISTRIBUTION_EVIDENCE))
         print("DISTRIBUTION_ID={}".format(result["distribution_id"]))
         print("DISTRIBUTION_BUNDLE_COUNT={}".format(result["bundle_count"]))
         print("DISTRIBUTION_FILE_COUNT={}".format(result["distribution_file_count"]))

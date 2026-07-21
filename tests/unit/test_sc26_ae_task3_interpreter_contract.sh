@@ -10,6 +10,10 @@ source "${REPO_ROOT}/SC26-AE/lib/common.sh"
 # shellcheck disable=SC1090
 source "${TASK3_SH}"
 
+TMP_PARENT=${SC26_AE_TMP_ROOT:-${TMPDIR:-/tmp}}
+mkdir -p -- "${TMP_PARENT}"
+TEST_ROOT=$(mktemp -d "${TMP_PARENT%/}/sc26-ae-task3-interpreter.XXXXXX")
+
 expect_failure() {
     local needle=$1
     shift
@@ -40,6 +44,18 @@ expect_failure 'TASK3_SIMULATOR_PYTHON overrides are forbidden in real mode' \
     TASK3_SIMULATOR_PYTHON=/tmp/other-python \
     bash -c 'source "$1"; task3_bind_interpreters' _ "${TASK3_SH}"
 
+cat >"${TEST_ROOT}/python3.9" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod +x "${TEST_ROOT}/python3.9"
+ln -s python3.9 "${TEST_ROOT}/python"
+task3_validate_fixed_interpreter "${TEST_ROOT}/python"
+
+ln -s missing-python "${TEST_ROOT}/dangling-python"
+expect_failure 'must be an executable regular file' \
+    task3_validate_fixed_interpreter "${TEST_ROOT}/dangling-python"
+
 TASK3_EXECUTION_MODE=synthetic
 TASK3_META_PYTHON=python3
 TASK3_SIMULATOR_PYTHON=python3
@@ -47,4 +63,4 @@ task3_bind_interpreters
 [[ "${TASK3_META_PYTHON}" == python3 ]]
 [[ "${TASK3_SIMULATOR_PYTHON}" == python3 ]]
 
-printf 'PASS_COUNT=3\n'
+printf 'PASS_COUNT=5\n'

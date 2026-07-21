@@ -377,16 +377,16 @@ assert_adapter_batch_failure \
 
 assert_equals "0,128,256,384,512,640,768,896" "$(ae_task1_selected_ranks gpt175b 0)" "GPT full ranks"
 assert_equals "0,128,256,384,512,640,768,896" "$(ae_task1_selected_ranks gpt175b 1)" "GPT QUICK ranks"
-assert_equals "0,64,128,192" "$(ae_task1_selected_ranks qwen3_a30b 1)" "Qwen QUICK ranks"
+assert_equals "0,8,16,24" "$(ae_task1_selected_ranks qwen3_a30b 1)" "Qwen QUICK ranks"
 assert_equals "0,64,128,192" "$(ae_task1_selected_ranks dsv3 1)" "DSV3 QUICK ranks"
 qwen_full=$(ae_task1_selected_ranks qwen3_a30b 0)
-assert_equals "256" "$(awk -F, '{print NF}' <<< "${qwen_full}")" "Qwen full rank count"
+assert_equals "32" "$(awk -F, '{print NF}' <<< "${qwen_full}")" "Qwen representative rank count"
 assert_equals "0" "${qwen_full%%,*}" "Qwen first full rank"
-assert_equals "255" "${qwen_full##*,}" "Qwen last full rank"
+assert_equals "248" "${qwen_full##*,}" "Qwen last representative rank"
 assert_equals "representative" "$(ae_task1_capture_scope gpt175b 0)" "GPT representative capture scope"
 assert_equals "representative" "$(ae_task1_capture_scope gpt175b 1)" "GPT QUICK capture scope"
 assert_equals "quick" "$(ae_task1_capture_scope qwen3_a30b 1)" "Qwen QUICK capture scope"
-assert_equals "full" "$(ae_task1_capture_scope qwen3_a30b 0)" "Qwen full capture scope"
+assert_equals "representative_ep" "$(ae_task1_capture_scope qwen3_a30b 0)" "Qwen representative capture scope"
 assert_equals "quick" "$(ae_task1_capture_scope dsv3 1)" "DSV3 QUICK capture scope"
 assert_equals "full" "$(ae_task1_capture_scope dsv3 0)" "DSV3 full capture scope"
 pass "frozen full/QUICK rank scopes and capture scopes"
@@ -710,11 +710,11 @@ import sys
 
 inventory_path = pathlib.Path(sys.argv[1])
 batch_path = pathlib.Path(sys.argv[2])
-selected = list(range(256))
+selected = [pp * 8 * 4 + exp * 8 for pp in range(8) for exp in range(4)]
 json.dump(
     {
-        "trace_file_count": 256,
-        "memory_json_count": 256,
+        "trace_file_count": len(selected),
+        "memory_json_count": len(selected),
         "per_rank_peak_allocated_mb": {str(rank): 90.0 for rank in selected},
         "maximum_peak_allocated_mb": 90.0,
         "nsys_rep_path": None,
@@ -734,7 +734,7 @@ metadata_scope_selected=$(ae_task1_selected_ranks qwen3_a30b 0)
         "${metadata_scope_inventory}" qwen3_a30b qwen3-full-probe "${metadata_scope_selected}" 0 \
         "$(git rev-parse HEAD)" "$(ae_gitlink_commit Echo-slowdown)" \
         "$(ae_gitlink_commit megatron-sim-engine)" 0 "${metadata_scope_batch_log}" \
-        runtime_measurement_requires_external_single_gpu_qualification full 1.25
+        runtime_measurement_requires_external_single_gpu_qualification representative_ep 1.25
 "$(command -v python3)" - "${metadata_scope_metadata}" <<'PY'
 import json
 import pathlib
@@ -742,11 +742,11 @@ import sys
 
 metadata = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 summary = metadata["capture_summary"]
-assert summary["capture_scope"] == "full"
-assert summary["selected_rank_ids"] == list(range(256))
-assert summary["selected_rank_count"] == 256
-assert summary["trace_file_count"] == 256
-assert summary["memory_json_count"] == 256
+assert summary["capture_scope"] == "representative_ep"
+assert summary["selected_rank_ids"] == [pp * 8 * 4 + exp * 8 for pp in range(8) for exp in range(4)]
+assert summary["selected_rank_count"] == 32
+assert summary["trace_file_count"] == 32
+assert summary["memory_json_count"] == 32
 assert summary["single_rank_elapsed_seconds"] == 1.25
 assert summary["estimated_full_seconds"] == 320.0
 assert summary["estimate_basis_rank"] == 0
@@ -755,7 +755,7 @@ assert summary["d16_gate_applicable"] is True
 assert summary["fresh_capture_gate_threshold_seconds"] == 7200
 assert summary["fresh_capture_gate_result"] == "pass"
 PY
-assert_contains "capture_scope=full" "${metadata_scope_summary}"
+assert_contains "capture_scope=representative_ep" "${metadata_scope_summary}"
 
 metadata_timing_rejected() {
     local case_name=$1
@@ -825,6 +825,8 @@ profile_count=$(grep -o -- '--scaling-profile-iters' "${TORCHRUN_LOG}" | wc -l)
 assert_equals "281" "${warmup_count}" "one warmup flag per invocation"
 assert_equals "281" "${profile_count}" "one profile flag per invocation"
 assert_contains "CWD=${TEST_ROOT}/output-gpt175b/gpt175b/task1/runs/gpt175b-" "${TORCHRUN_LOG}"
+gpt_transformer_impl_count=$(grep -F "/output-gpt175b/" "${TORCHRUN_LOG}" | grep -F -- "--transformer-impl local" | wc -l || true)
+assert_equals "8" "${gpt_transformer_impl_count}" "GPT Task1 fixes local transformer implementation"
 pass "adapter enforces bf16, mock data, overlap, trace memory, and warmup/profile"
 
 assert_contains "profile" "${NSYS_LOG}"
@@ -1004,6 +1006,78 @@ assert_memory_semantic_failure \
     duplicate_rank \
     "Memory rank inventory mismatch"
 
+assert_contains 'FAKE_RANK_ORDER' "${REPO_ROOT}/examples/update_pretrain_gpt.sh"
+pass "GPT source accepts an explicit fake-rank order for rank-scoped captures"
+assert_contains 'FAKE_RANK_ORDER=0' "${REPO_ROOT}/SC26-AE/lib/task1_trace.sh"
+pass "Task1 NCU capture scopes the slowdown workload to global rank 0"
+
+# Exercise the GPT source parser without launching Megatron: a fake torchrun
+# records invocations, while invalid explicit rank lists must fail before the
+# first workload process is started.
+GPT_SOURCE_ROOT="${TEST_ROOT}/gpt-rank-order"
+GPT_SOURCE_LOG="${GPT_SOURCE_ROOT}/torchrun.log"
+GPT_SOURCE_OUTPUT="${GPT_SOURCE_ROOT}/output"
+mkdir -p "${GPT_SOURCE_ROOT}/bin"
+cat > "${GPT_SOURCE_ROOT}/bin/torchrun" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%q ' "$@" >> "${GPT_SOURCE_LOG}"
+printf '\n' >> "${GPT_SOURCE_LOG}"
+SH
+chmod +x "${GPT_SOURCE_ROOT}/bin/torchrun"
+: > "${GPT_SOURCE_LOG}"
+
+env \
+    PATH="${GPT_SOURCE_ROOT}/bin:${PATH}" \
+    GPT_SOURCE_LOG="${GPT_SOURCE_LOG}" \
+    BASE_PATH="${REPO_ROOT}" \
+    LOG_ROOT="${GPT_SOURCE_OUTPUT}" \
+    MODEL_SIZE=tiny \
+    TRANSFORMER_IMPL=local \
+    MOCK_DATA=1 \
+    FAKE_WORLD_SIZE=8 \
+    FAKE_PP=2 \
+    FAKE_TP=2 \
+    FAKE_RANK_ORDER=3 \
+    bash "${REPO_ROOT}/examples/update_pretrain_gpt.sh" \
+    > "${GPT_SOURCE_ROOT}/valid.log" 2>&1
+assert_equals "1" "$(wc -l < "${GPT_SOURCE_LOG}")" "GPT explicit rank invocation count"
+assert_contains '--fake-current-rank-id 3' "${GPT_SOURCE_LOG}"
+pass "GPT source executes exactly the requested explicit fake rank"
+
+assert_gpt_rank_order_failure() {
+    local rank_order=$1
+    local case_name=$2
+    local before_calls after_calls status
+    before_calls=$(wc -l < "${GPT_SOURCE_LOG}")
+    set +e
+    env \
+        PATH="${GPT_SOURCE_ROOT}/bin:${PATH}" \
+        GPT_SOURCE_LOG="${GPT_SOURCE_LOG}" \
+        BASE_PATH="${REPO_ROOT}" \
+        LOG_ROOT="${GPT_SOURCE_OUTPUT}/${case_name}" \
+        MODEL_SIZE=tiny \
+        TRANSFORMER_IMPL=local \
+        MOCK_DATA=1 \
+        FAKE_WORLD_SIZE=8 \
+        FAKE_PP=2 \
+        FAKE_TP=2 \
+        FAKE_RANK_ORDER="${rank_order}" \
+        bash "${REPO_ROOT}/examples/update_pretrain_gpt.sh" \
+        > "${GPT_SOURCE_ROOT}/${case_name}.log" 2>&1
+    status=$?
+    set -e
+    [[ ${status} -ne 0 ]] || fail "GPT rank order ${rank_order} unexpectedly succeeded"
+    after_calls=$(wc -l < "${GPT_SOURCE_LOG}")
+    assert_equals "${before_calls}" "${after_calls}" "GPT rank order ${rank_order} torchrun calls"
+    pass "GPT rank order ${rank_order} fails before workload execution"
+}
+
+assert_gpt_rank_order_failure "8" out_of_range
+assert_gpt_rank_order_failure "1,foo" non_decimal
+assert_gpt_rank_order_failure "1,1" duplicate
+assert_gpt_rank_order_failure "," empty_item
+
 EXISTING_OUTPUT="${TEST_ROOT}/existing-output"
 COMMON_ENV=(
     PATH="${FAKE_BIN}:${PATH}"
@@ -1027,4 +1101,4 @@ assert_contains "already exists" "${TEST_ROOT}/existing-second.log"
 pass "existing run destinations are never reused"
 
 printf 'PASS_COUNT=%d\n' "${PASS_COUNT}"
-[[ ${PASS_COUNT} -eq 38 ]] || fail "expected 38 cases, got ${PASS_COUNT}"
+[[ ${PASS_COUNT} -eq 45 ]] || fail "expected 45 cases, got ${PASS_COUNT}"

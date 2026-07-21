@@ -1,488 +1,331 @@
-# SC'26 AE Workflow
+# SC'26 AE Fake-Level Workflow
 
 ## Modification History
 
 | Date       | Summary of Changes |
 |------------|--------------------|
-| 2026-07-20 | Clarified that MoE D16 timing is an isolated rank-0 preflight: QUICK records a non-gating observation, while full applies the 7200-second gate before any 256-rank selected capture |
-| 2026-07-20 | Clarified that D16 applies only to the two 256-rank MoE models; GPT representative-rank timing is diagnostic and carries no 7200-second gate |
-| 2026-07-19 | Documented that qualification metrics are integrity-bound opaque issuer payloads; task-specific semantics remain with the external issuer |
-| 2026-07-19 | Closed the Phase 7 documentation gaps for paper traceability, QUICK compatibility, Task2 metrics, runtime/distribution status, communication scope, and root-cause troubleshooting |
-| 2026-07-19 | Added strict prebaked packager instructions and an explicit synthetic-fixture boundary |
-| 2026-07-19 | Added explicit source-pin identities, a complete nine-entry command matrix, and exact Task3 report field names for auditability |
-| 2026-07-19 | Added fixed v1.2-ae runtime verification for both task interpreters and Nsight tools; setup now fails before task commands on contract drift |
-| 2026-07-19 | Aligned the Task2 default interpreter with the fixed v1.2-ae worker path |
-| 2026-07-19 | Clarified D29 test-issue self-repair scope and v1.2-ae current-image boundary |
-| 2026-07-19 | Added the evaluator-facing nine-entry workflow, explicit artifact-source commands, and evidence-bound qualification notes |
+| 2026-07-21 | Replaced the deferred DeepSeek-V3 path with the Qwen3-A3B fake-level workflow (`world_size=256`, `PP=8`, `TP=8`, `EP=4`, `DP=4`) and documented the current evidence boundary |
+| 2026-07-21 | Documented Qwen3 PP×EP representative tracing with independent rank-0 Nsight Systems/Compute provenance |
+| 2026-07-20 | Clarified fake-level D16 behavior and rank-scoped Task1 capture |
+| 2026-07-19 | Added explicit artifact-source and fail-fast workflow notes |
 
-This directory is the evaluator-facing entry point for the SC'26 AE workflow.
-It exposes three explicit model entries for each of the three tasks. The scripts
-are intentionally thin and fail fast: they do not infer a model, switch an
-interpreter, change an artifact source, retry a failed runtime, or overwrite a
-versioned result.
-
-The evaluator workflow is derived from the current paper draft at
-`2026-SC-first-submission/sc25-ad-ae/for-paper-authors/sc26-ad.tex`. This task does
-not edit that file. Auditable, evidence-bound wording changes are listed in
-`task_memory/task_2026-07-15_sc26_ae_workflow/tex_change_suggestions.md` for the
-paper author to apply after the corresponding real qualification evidence exists.
-
-## Qualification status
-
-The local contract and synthetic workflows are implemented and testable. They are
-not a substitute for the real H800 qualification. In particular, the current
-worktree must not be described as containing a qualified pre-dataset until a fresh
-real run records GPU identity, source/image/interpreter provenance, trace and memory
-evidence, checksums, and semantic validation for the selected model matrix.
-
-The canonical worker image reference for the eventual qualification is:
+This is the SC'26 AE operator entry point. The intended shell-driven workflow is:
 
 ```text
-hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae
+Task1 workload tracing
+  -> Task2 slowdown dataset / predictor
+  -> Task3 end-to-end simulation
 ```
 
-The immutable digest must be resolved and recorded by the reviewed qualification
-preflight; the tag alone is not treated as a digest claim.
-Historical Gate B1 evidence produced with `v1.1-image-11c794ef` remains audit
-history only and is not a current qualification or pre-dataset claim.
+A second path accepts a stored functional profiling/predictor bundle and runs Task3 directly on
+the CPU. This README describes the requested fake-level functional workflow. It does not claim
+multi-node distributed accuracy and does not modify
+`2026-SC-first-submission/sc25-ad-ae/for-paper-authors/sc26-ad.tex`.
 
-### Repository and source identities
+## Current scope and evidence boundary
 
-These are the declared compatibility pins in the current checkout. The main
-repository row identifies the clean baseline commit; uncommitted local changes
-must be committed and re-verified before any release or clean-clone claim.
+The formal AE model scope is:
 
-| Component | Pinned identity |
-|-----------|-----------------|
-| Main repository commit | `c217ce93156e7c37e065da2989c1a482f12ecebc` |
-| Echo-slowdown | `1390b4416ded08bc1b9cd0620d329d81d4470bf9` |
-| megatron-sim-engine | `39755169f73f6c748e8d7376c3a2158c6569436b` |
-| collective-sim | `6e06e3f5140cd4e2e7c12a35586ebcdc0f410df0` |
+* **GPT-175B dense**
+* **Qwen3-A3B MoE**
 
-The current image reference is `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae`;
-its immutable digest is intentionally **pending qualification** and must be
-recorded from the approved worker preflight. A tag, a local checkout, or a
-synthetic fixture is not an immutable image or release identity.
+The deferred DeepSeek-V3 path remains available only for historical diagnostics. It is not part of
+the current AE chain and must not be used as a substitute for Qwen3 evidence.
 
-The current local evidence boundary is explicit:
+Current fake-level local evidence status:
 
 ```text
 EVIDENCE_CLASS=local_synthetic_not_gpu_qualification
-real_pre_dataset=NOT_QUALIFIED
+functional_prebaked_evidence=functional_prebaked_not_release_qualified
+real_fresh_task1=GPT_PENDING; QWEN3_VERIFIED
+real_two_gpu_task2=QWEN3_VERIFIED
+real_fresh_task3=NOT_COMPLETED
 AE-ready=NO
+release-ready=NO
 ```
+
+Keep this status until a worker completes a new real Fresh chain and the result is reproduced from
+a clean commit/clean clone. Historical output may be retained for audit, but must not be relabeled
+as new qualified evidence.
 
 ## Hardware and topology
 
-| Task | Real hardware | Virtual/simulator topology |
-|------|---------------|----------------------------|
-| Task1 | One physical GPU; one fake rank at a time | GPT-175B `1024/PP8/TP8/DP16`; Qwen3-A30B and DSV3 `256/PP4/TP8/DP8/EP8` |
-| Task2 | Exactly two visible GPUs for a real Echo run | One shared predictor bundle with a model-labelled marker |
-| Task3 fresh | Megatron/sim-engine environment plus validated Task1/Task2 inputs | `--cc-backend analytical`, `--overlap-mode on`, `--local-size 8` |
-| Task3 prebaked | CPU-only is sufficient for the analytical simulation path after the bundle is verified | `LOCAL_SIZE=8`; measured host RSS is recorded by the e2e report |
+| Task | Runtime hardware | Fake/simulator topology |
+|------|------------------|-------------------------|
+| Task1 GPT-175B | One physical GPU; execute fake ranks sequentially | `fake_world_size=1024`, `PP=8`, `TP=8`, `DP=16`; trace only `0,128,256,384,512,640,768,896` |
+| Task1 Qwen3-A3B | One physical GPU; execute fake ranks sequentially | `fake_world_size=256`, `PP=8`, `TP=8`, `EP=4`, `DP=4`; trace `0,8,16,...,248` (PP×EP representatives) |
+| Task2 | **Exactly two GPUs**; never downgrade to one GPU | Echo-slowdown dataset, training, reload, and prediction |
+| Task3 Fresh | Inputs produced by Task1/Task2; simulator may run on CPU | Analytical backend, `local_size=8`, overlap enabled |
+| Task3 functional prebaked | CPU-only | Verified functional bundle with synthetic execution |
 
-All three model profiles use bf16, mock data, DDP gradient overlap, scaling warmup
-`3`, and profile iterations `1`. The two MoE models use a full 256-rank Task1
-capture for release evidence; `QUICK=1` selects the documented four-rank smoke
-subset and is not silently extrapolated into a full qualification.
+Task1 NCU/slowdown workload collection is limited to **global rank 0** because the slowdown
+dataset needs one representative DDP rank:
 
-The current QUICK compatibility boundary is machine-readable:
-
-```text
-QUICK_TASK3_STATUS=LOCAL_SMOKE_COMPATIBLE_NOT_RELEASE_QUALIFIED
+```json
+{
+  "rank_scope": "global_rank_0",
+  "rank_ids": [0],
+  "physical_gpu_count": 1,
+  "missing_kernel_count": 0
+}
 ```
 
-The local fresh-chain fixture proves that a four-rank QUICK capture can pass the
-Task3 structural, provenance, and report contracts. It does not prove that the
-subset represents a complete 256-rank MoE trace or a real H800 result. Release
-packaging therefore still requires the full qualified Task1 source selected by
-the D16 timing gate.
+This does not reduce model-level Task1 coverage: GPT retains eight PP representative ranks, while
+Qwen3-A3B retains all 32 PP×EP representative ranks for its 256-rank topology.
 
-## Setup
+## Environment requirements
 
-Run from the repository root inside the reviewed AE image/environment:
+Real runs use the reviewed worker image/runtime. A controller without these fixed paths must fail
+immediately; do not switch interpreters or fabricate GPU evidence:
+
+| Purpose | Fixed path/requirement |
+|---------|------------------------|
+| Task1 and Fresh Task3 | `/opt/conda/envs/megatron_env/bin/python` and its matching `torchrun` |
+| Task2 | `/opt/conda/envs/echo_slowdown/bin/python` |
+| Nsight Systems | `nsys` |
+| Nsight Compute | `ncu` |
+
+Real Task1 requires at least one physical GPU. Real Task2 requires two different decimal GPU IDs
+in `CUDA_VISIBLE_DEVICES`. If the controller lacks the fixed Megatron interpreter or a GPU, that
+is an environment blocker; do not bypass it with `TASK2_SKIP_HARDWARE_CHECK`, synthetic features,
+or another fallback.
+
+On a reviewed worker, run setup once before the task scripts and choose the source explicitly:
 
 ```bash
 GROUPED_GEMM_SOURCE=archive bash SC26-AE/setup.sh
 ```
 
-`GROUPED_GEMM_SOURCE` is mandatory and must be either `vcs` or `archive`. The
-archive path verifies the pinned grouped-gemm and CUTLASS SHA256 values before
-installation. Before invoking the installer, setup validates the fixed worker
-runtime bindings below; it does not install or discover core runtime dependencies:
+Setup validates the fixed runtime bindings; it does not discover or silently replace a missing
+interpreter/tool.
 
-| Role | Fixed path | Required contract |
-|------|------------|-------------------|
-| Megatron / Task1 / Task3 | `/opt/conda/envs/megatron_env/bin/python` | Python `3.9.18`, torch `2.1.2`, torch CUDA `12.1`, live CUDA/NVML, required scientific imports |
-| Echo / Task2 | `/opt/conda/envs/echo_slowdown/bin/python` | Python `3.10.20`, torch `2.1.2+cu121`, torch CUDA `12.1`, torchvision `0.16.2+cu121`, torchaudio `2.1.2+cu121`, pinned `SlowdownPredictor` import |
-| Nsight Systems | `/usr/local/bin/nsys` | version `2024.4.2.133`, working `profile` and `export` |
-| Nsight Compute | `/usr/local/cuda/bin/ncu` | version `2024.3.2.3`, `--csv` and `--log-file` query capabilities |
+## Task1: workload tracing
 
-The fixed Echo predictor source is the checked-out
-`Echo-slowdown/training_testing/prediction_api.py`; setup does not select another
-checkout or interpreter. A missing path, wrong version, failed import, unavailable
-CUDA/NVML query, or unavailable Nsight command fails fast. Only after the explicit
-`GROUPED_GEMM_SOURCE` installer succeeds and grouped-gemm import/backend verification
-passes does setup print `SC26_AE_SETUP_STATUS=verified`.
+Use a new absolute `AE_OUTPUT_ROOT` for every run. The scripts create traces, memory JSON,
+manifests, and markers; Nsight artifacts are created when the corresponding capture flags are
+enabled. Real Task1 must set `CAPTURE_NCU=1`; otherwise it fails before workload execution because
+Fresh Task3 requires workload-aligned kernel features.
 
-This status proves only local runtime/setup readiness. It is not a GPU qualification,
-source-provenance approval, or final reusable `release_pre_dataset` claim. The setup
-script never switches source methods automatically, changes thresholds, or adds a
-fallback interpreter/tool.
-
-## Public commands
-
-Every command accepts `AE_OUTPUT_ROOT=/absolute/path` and `QUICK=0|1` where
-applicable. The output root should be new for a qualification run.
-
-### Task1: workload tracing
-
-Task1 runs compute for selected fake ranks on one physical GPU and records the
-communication metadata needed by the simulator. Set `SCALE_GPU` explicitly when
-more than one GPU is visible:
+### GPT-175B dense (eight PP representative ranks)
 
 ```bash
-SCALE_GPU=0 AE_OUTPUT_ROOT="$PWD/SC26-AE/output" \
-  bash SC26-AE/task1_gpt175b.sh
-
-SCALE_GPU=0 QUICK=1 AE_OUTPUT_ROOT="$PWD/SC26-AE/output" \
-  bash SC26-AE/task1_qwen3_a30b.sh
-
-SCALE_GPU=0 QUICK=1 AE_OUTPUT_ROOT="$PWD/SC26-AE/output" \
-  bash SC26-AE/task1_dsv3.sh
+AE_OUTPUT_ROOT="$PWD/SC26-AE/output_gpt175b" \
+SCALE_GPU=0 \
+CAPTURE_NSYS=1 \
+CAPTURE_NCU=1 \
+QUICK=1 \
+bash SC26-AE/task1_gpt175b.sh
 ```
 
-The release path enables the one-shot Nsight boundary only after its GPU/runtime
-qualification has been reviewed:
-
-```bash
-CAPTURE_NSYS=1 SCALE_GPU=0 bash SC26-AE/task1_qwen3_a30b.sh
-```
-
-Each successful run creates a fresh `capture_id`, a summary, memory JSON files,
-optional Nsight/SQLite artifacts, and a verified `artifact_manifest.json` before
-publishing `capture_marker.json`. A partial or existing run directory is an error.
-
-### Task2: slowdown collection and predictor training
-
-Real Task2 requires exactly two distinct visible GPU IDs and a clean pinned
-Echo-slowdown checkout:
+The fixed rank order is:
 
 ```text
-/opt/conda/envs/echo_slowdown/bin/python
+0,128,256,384,512,640,768,896
 ```
 
-This is the fixed default interpreter recorded by the v1.2-ae worker contract
-(Python `3.10.20`, torch `2.1.2+cu121`, CUDA `12.1`). The runner does not search
-for another environment or switch interpreters. If this exact worker path is
-missing or cannot observe exactly two CUDA devices, real Task2 fails before
-executing the Echo source.
+The GPT source is `examples/update_pretrain_gpt.sh`. It accepts a strictly validated
+`FAKE_RANK_ORDER`, so the NCU invocation does not accidentally execute all 1024 fake ranks.
+The older `examples/update_pretrain_gpt-copy.sh` remains a reference script; the AE wrapper uses
+the validated `update_pretrain_gpt.sh` implementation.
+
+### Qwen3-A3B MoE (32 PP×EP representative ranks)
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 REBUILD=1 \
-  bash SC26-AE/task2_gpt175b.sh
-
-CUDA_VISIBLE_DEVICES=0,1 \
-  bash SC26-AE/task2_qwen3_a30b.sh
-
-CUDA_VISIBLE_DEVICES=0,1 \
-  bash SC26-AE/task2_dsv3.sh
+AE_OUTPUT_ROOT="$PWD/SC26-AE/output_qwen3_a30b" \
+SCALE_GPU=0 \
+CAPTURE_NSYS=1 \
+CAPTURE_NCU=1 \
+QUICK=0 \
+bash SC26-AE/task1_qwen3_a30b.sh
 ```
 
-The first build writes one shared verified predictor bundle and a
-`predictor_run_id`; later model entries attach to that exact bundle. `REBUILD=1`
-always uses a new run identity. `REBUILD=0` never silently rebuilds a missing or
-invalid predictor.
+The formal fake-level chain uses `QUICK=0` and the 32-rank order `0,8,16,24,...,248`. This is
+the PP×EP representative scope for the 256-rank topology; it avoids duplicating identical TP/DP
+graphs while retaining every PP stage and expert-parallel group. The source script is
+`examples/qwen3_a3b_moe_scaling_wallclock_scan.sh`.
 
-For local contract testing only, the test fixtures set
-`TASK2_EXECUTION_MODE=synthetic` and explicitly mark their output as
-`local_synthetic_not_two_gpu_qualification`.
-
-Each real Task2 run must publish `metrics.json` and `metrics.md` with these exact
-audit fields:
+After a successful Task1 run, the model output contains:
 
 ```text
-`task2_run_all_elapsed_seconds`
-`dataset_row_count`
-`validation_mse_by_fold`
-`average_validation_mse`
-`test_mse`
-`model_reload_max_abs_prediction_delta`
-`scaler_feature_count`
-`scaler_mean_count`
-`scaler_scale_count`
-`scaler_nonzero_scale_count`
-`prediction_sample`
+<output>/<model>/task1/runs/<capture_id>/
+  runtime/profiler_log/           # eight GPT files; 32 Qwen3 PP×EP files
+  runtime/memory_traces_scaling/  # memory JSON files for the selected ranks
+  logs/                            # source, rank-timing, and summary logs
+  nsys/                            # when CAPTURE_NSYS=1
+  ncu/kernel_metric_output.csv    # workload-aligned, global rank 0
+  artifact_manifest.json
+<output>/<model>/task1/capture_marker.json
 ```
 
-The five fold values must be finite and nonnegative, and their arithmetic mean
-must equal `average_validation_mse`. `test_mse` is reported separately. The
-reload delta proves that two independent loads give the same deterministic
-sample prediction; the scaler counts bind the model to the dataset feature
-schema. These checks establish a reusable numeric contract, not accuracy by
-assertion: the real dataset values and prediction sample remain subject to the
-reviewed exact-two-H800 qualification.
+Fresh Task3 accepts only the model-local `ncu/kernel_metric_output.csv`. A shared Task2 NCU CSV,
+synthetic/default kernel feature, manual scaling, or calibration factor is not a substitute.
 
-### Task3: timeline simulation
+## Task2: slowdown dataset and predictor
 
-Task3 requires an explicit artifact source. The rule is **no automatic fresh-to-prebaked fallback**:
+Task2 **must use exactly two GPUs**. Replace `0,1` with the two different IDs allocated on the
+worker:
 
 ```bash
+CUDA_VISIBLE_DEVICES=0,1 \
+REBUILD=1 \
+bash SC26-AE/task2_gpt175b.sh
+
+CUDA_VISIBLE_DEVICES=0,1 \
+bash SC26-AE/task2_qwen3_a30b.sh
+```
+
+The first command creates the shared predictor bundle; the later model entry reuses the same
+verified `predictor_run_id`. The wrapper checks:
+
+* exactly two distinct decimal IDs in `CUDA_VISIBLE_DEVICES`;
+* the fixed Echo interpreter and two visible CUDA devices;
+* NCU collection, slowdown merge, training, save/reload, prediction, and metrics;
+* complete `xgb_model.json`, `standard_scaler.json`, source manifest, and checksums.
+
+If only one GPU is available, Task2 must fail. A single-GPU synthetic fixture is not Task2
+qualification. Task2 output is written to:
+
+```text
+<output>/_shared/task2/runs/<predictor_run_id>/
+  dataset/
+  predictor/xgb_model.json
+  predictor/standard_scaler.json
+  metrics.json
+  metrics.md
+  predictor_marker.json
+  artifact_manifest.json
+```
+
+## Task3 path A: Fresh chain
+
+Run Fresh Task3 only after the corresponding Fresh Task1 and shared Task2 have completed. The
+source and execution mode are explicit; the analytical simulator itself may execute on CPU:
+
+```bash
+AE_OUTPUT_ROOT="$PWD/SC26-AE/output_gpt175b" \
 ARTIFACT_SOURCE=fresh \
-  bash SC26-AE/task3_qwen3_a30b.sh
-
-ARTIFACT_SOURCE=prebaked \
-PREBAKED_ROOT="$PWD/SC26-AE/prebaked" \
+TASK3_EXECUTION_MODE=real \
 SIMULATOR_HARDWARE_TYPE=cpu \
-  bash SC26-AE/task3_qwen3_a30b.sh
+bash SC26-AE/task3_gpt175b.sh
+
+AE_OUTPUT_ROOT="$PWD/SC26-AE/output_qwen3_a30b" \
+ARTIFACT_SOURCE=fresh \
+TASK3_EXECUTION_MODE=real \
+SIMULATOR_HARDWARE_TYPE=cpu \
+bash SC26-AE/task3_qwen3_a30b.sh
 ```
 
-The same two commands apply to `task3_gpt175b.sh` and `task3_dsv3.sh`. A fresh
-run validates the Task1 capture marker, the independent Task2 predictor marker,
-source commits, topology, profile, checksums, and slowdown inputs before building
-assets. A prebaked run validates `PREBAKED_ROOT`, the shared predictor, the model
-bundle, and the outer distribution manifest without inspecting fresh output.
+The Fresh resolver binds the same chain's:
 
-The wrapper always passes these values explicitly to the canonical sim-engine:
+* Task1 capture marker, SQLite, rank-0 slowdown trace, and rank-0 NCU CSV;
+* Task2 predictor marker, `xgb_model.json`, and `standard_scaler.json`;
+* source commit, topology, profile, file SHA256, and nested manifests.
+
+Missing, partial, stale, or checksum-mismatched inputs fail fast. The wrapper never switches to a
+prebaked source automatically. A successful run emits:
 
 ```text
---cc-backend analytical
---overlap-mode on
---local-size 8
---database-dir <same resolved path as --trace-dir>
---slowdown-model-path <verified model path>
---slowdown-scaler-path <verified scaler path>
---report-output-dir <new simulation run>
+<output>/<model>/task3/runs/<simulation_run_id>/
+  report.json
+  report.md
+  artifact_manifest.json
+<output>/<model>/task3/run_marker.json
 ```
 
-The primary report field is `rank0_step_time_ms`, the final rank0 timeline span.
-The report also contains exact-name scheduled sums for `forward_step`,
-`backward_step`, and `optimizer_step`, plus simulator load, execution, and
-wall-clock times. Overlap means the three operation sums are not required to equal
-the final span; `comp+comm` is diagnostic-only.
+The report includes `rank0_step_time_ms`, forward/backward/optimizer scheduled sums, and
+simulator load/execution/wall-clock values. These values demonstrate workflow output; they are not
+distributed-accuracy claims for this task.
 
-The JSON report uses these exact field names (consumers must not infer aliases):
+## Task3 path B: functional prebaked (CPU-only)
 
-```text
-`rank0_step_time_ms`
-`rank0_forward_step_duration_sum_ms`
-`rank0_backward_step_duration_sum_ms`
-`rank0_optimizer_step_duration_sum_ms`
-`rank0_comp_plus_comm_diagnostic_ms`
-`simulator_load_time_s`
-`simulator_execution_time_s`
-`simulator_wall_clock_s`
-```
-
-Communication is intentionally weak-validated in this AE path. The canonical
-backend is `analytical` with overlap enabled. `collective-sim` is optional background infrastructure
-only after its public dependency and pinned commit have been independently
-verified; it is neither an implicit fallback nor required to support the primary
-AE result.
-
-### Runtime and release-source evidence
-
-Real evaluator-time estimates are not inferred from local synthetic fixtures.
-They remain pending until the reviewed image and required H800 topology produce
-fresh measurements:
-
-```text
-REAL_RUNTIME_EVIDENCE_STATUS=PENDING_H800_QUALIFICATION
-```
-
-| Surface | Current release decision | Measurement required before publication |
-|---------|--------------------------|-----------------------------------------|
-| Setup | `PENDING_CLEAN_IMAGE_QUALIFICATION` | Clean-container setup elapsed time plus immutable image digest |
-| GPT-175B Task1 | `PENDING_H800_QUALIFICATION` | Single-rank probe and complete selected-rank capture elapsed time |
-| Qwen3-A30B Task1 | `PENDING_D16_7200_SECOND_GATE` | Rank-0 probe, rank0×256 estimate, and full-capture result when the estimate is at most 7200 seconds |
-| DeepSeek-V3 Task1 | `PENDING_D16_7200_SECOND_GATE` | Rank-0 probe, rank0×256 estimate, and full-capture result when the estimate is at most 7200 seconds |
-| Shared Task2 | `PENDING_EXACT_TWO_H800_RUN` | Collection, training, save/reload, and prediction elapsed time on exactly two H800 GPUs |
-| Task3 | `PENDING_REAL_INPUT_BUNDLES` | Per-model simulator load, execution, wall-clock, and peak RSS from qualified inputs |
-
-If either MoE estimate exceeds 7200 seconds, the documented reviewer path uses
-the complete, independently qualified prebaked source. The runner never changes
-source because a timing gate fails. Until these rows are replaced by measured
-values, the README makes no setup-duration, task-duration, CPU-memory-minimum, or
-fresh-full-capture support claim.
-
-The D16 7200-second gate applies only to Qwen3-A30B and DeepSeek-V3, whose Task1
-topology has 256 fake ranks. GPT-175B captures eight representative PP-stage
-ranks and therefore records `d16_gate_applicable=false`, an eight-rank diagnostic
-estimate, and no D16 threshold/result fields. For each MoE invocation, the wrapper
-first runs an isolated rank-0 preflight and records
-`d16_timing_source=independent_rank0_probe`. With `QUICK=1`, the probe is an
-observation only (`d16_gate_enforced=false`, `gate_decision_applied=false`): even
-an estimate above 7200 seconds does not fail the four-rank smoke path. With
-`QUICK=0` (full), the same independently measured value is multiplied by 256 and
-the gate is enforced (`d16_gate_enforced=true`, `gate_decision_applied=true`)
-before the complete 256-rank selected capture is started. An above-threshold full
-probe fails closed without creating a full run root, starting any selected-rank
-loop, publishing a marker, or switching to another source. Synthetic/controller
-output must not be described as H800 qualification.
-
-### Complete public entry matrix
-
-The nine public entries are deliberately listed here rather than hidden behind a
-dispatcher. Each line is an executable command shape; set the documented output,
-hardware, and artifact-source variables before running it.
+After the real Fresh Task3 chains are closed, create a functional distribution from the real
+artifacts:
 
 ```bash
-# Task1 — one physical GPU, sequential fake ranks
-SCALE_GPU=0 bash SC26-AE/task1_gpt175b.sh
-SCALE_GPU=0 bash SC26-AE/task1_qwen3_a30b.sh
-SCALE_GPU=0 bash SC26-AE/task1_dsv3.sh
-
-# Task2 — real mode requires exactly two distinct visible GPUs
-CUDA_VISIBLE_DEVICES=0,1 REBUILD=1 bash SC26-AE/task2_gpt175b.sh
-CUDA_VISIBLE_DEVICES=0,1 bash SC26-AE/task2_qwen3_a30b.sh
-CUDA_VISIBLE_DEVICES=0,1 bash SC26-AE/task2_dsv3.sh
-
-# Task3 — source selection is explicit; no automatic fallback
-ARTIFACT_SOURCE=fresh bash SC26-AE/task3_gpt175b.sh
-ARTIFACT_SOURCE=fresh bash SC26-AE/task3_qwen3_a30b.sh
-ARTIFACT_SOURCE=fresh bash SC26-AE/task3_dsv3.sh
-```
-
-For a prebaked run, replace the corresponding Task3 line with
-`ARTIFACT_SOURCE=prebaked PREBAKED_ROOT=<verified-root> bash
-SC26-AE/task3_<model>.sh` and set `SIMULATOR_HARDWARE_TYPE=cpu` as shown above.
-The selected source must be complete and verified before the command starts;
-the wrapper never changes source or downloads artifacts on the operator's behalf.
-
-## Output and provenance
-
-The stable tree is:
-
-```text
-SC26-AE/output/
-  _work/
-  _shared/task2/runs/<predictor_run_id>/
-  gpt175b/{task1,task2,task3}/
-  qwen3_a30b/{task1,task2,task3}/
-  dsv3/{task1,task2,task3}/
-```
-
-Task1 and Task3 runs use fresh identities and are never overwritten. Manifests use
-root-relative POSIX paths and record file size plus SHA256. A Task3/prebaked
-manifest records both the independent `capture_id` and `predictor_run_id`; they
-must not be made equal merely for convenience.
-
-Verify an artifact bundle directly with:
-
-```bash
-python SC26-AE/tools/artifact_manifest.py verify \
-  --root <bundle-root> \
-  --manifest <bundle-root>/artifact_manifest.json
-```
-
-The distribution size decision is measured over the complete staged tree:
-
-```bash
-python SC26-AE/tools/artifact_manifest.py size-gate \
-  --root <staged-distribution-root>
-```
-
-Only the measured `regular_git` or `github_release` result is documented as the
-canonical distribution path. A release asset, if required by the measured gate,
-must be fetched explicitly and verified before it is passed as `PREBAKED_ROOT`.
-
-No real three-model distribution has passed that gate yet:
-
-```text
-CANONICAL_PREBAKED_DISTRIBUTION=NOT_SELECTED
-release_pre_dataset=NOT_QUALIFIED
-```
-
-Accordingly, `SC26-AE/prebaked` in the command example is an expected verified
-root, not a claim that this worktree currently ships qualified data. After the
-real staged tree is sealed and measured, this section must be replaced with
-exactly one path: either the checked-in `regular_git` root, or an explicit
-versioned Release fetch command plus its asset SHA256 and a separate
-`PREBAKED_ROOT=<verified-root> ARTIFACT_SOURCE=prebaked ...` invocation. Task3
-must never download or select that path automatically.
-
-After all three models have independently completed the real Task1→Task2→Task3
-qualification chain, seal a reusable distribution with the strict packager:
-
-```bash
-python SC26-AE/tools/package_prebaked.py build \
+python3 SC26-AE/tools/package_prebaked.py build-functional \
   --repo-root "$PWD" \
   --output-root <fresh-output-root> \
-  --staging-root <new-prebaked-root> \
-  --distribution-id <immutable-distribution-id> \
-  --result-json <result-json-outside-staging-root>
+  --staging-root <new-functional-bundle-root> \
+  --distribution-id <distribution-id> \
+  --result-json <result-json>
 
-python SC26-AE/tools/package_prebaked.py verify \
+python3 SC26-AE/tools/package_prebaked.py verify-functional \
   --repo-root "$PWD" \
-  --prebaked-root <verified-prebaked-root>
+  --prebaked-root <functional-bundle-root>
 ```
 
-The packager is a sealing step, not an evidence-promotion step. It requires
-`real_single_h800_qualified` for every Task1 source and
-`real_exact_two_h800_qualified` for the shared Task2 source; a local/synthetic
-fixture is rejected by the production CLI. It copies evidence classes without
-upgrading them, records per-file bytes/MiB/SHA256 plus nested manifest hashes, and
-fails if the destination already exists. The unit suite may use an explicit
-in-process contract seam to exercise copy/inventory mechanics with synthetic
-labels; that seam is not exposed by the AE command and cannot qualify a release.
+`build-functional` packages only `gpt175b`, `qwen3_a30b`, and `shared_task2`. It checks GPT's eight
+representative ranks, Qwen3-A3B's 32 PP×EP representative ranks, and an independent rank-0 NCU
+CSV for each model.
+The bundle evidence class is fixed to:
 
-The qualification sealer treats `qualification_metrics.json` as an integrity-bound
-issuer payload rather than a universal task-semantics parser. It requires the
-metrics path to resolve to a regular, non-empty file, verifies its SHA256 before
-and after copying, and stores the exact bytes under sealed `provenance/`. The
-external qualification producer is responsible for the stable Task1/Task2/Task3
-metrics schema and acceptance thresholds. An opaque metrics payload therefore
-cannot bypass the external issuer's semantic gate, and adding task-specific
-checks to this wrapper requires a separately reviewed, versioned schema contract.
+```text
+functional_prebaked_not_release_qualified
+```
 
-## Local validation
-
-The following commands exercise local contracts; their output must remain labelled
-non-qualification evidence:
+Use a functional bundle only with explicit opt-in and CPU/synthetic execution:
 
 ```bash
+AE_OUTPUT_ROOT="$PWD/SC26-AE/output_functional" \
+ARTIFACT_SOURCE=prebaked \
+PREBAKED_ROOT=/absolute/path/to/functional-bundle \
+TASK3_EXECUTION_MODE=synthetic \
+TASK3_ALLOW_FUNCTIONAL_PREBAKED=1 \
+SIMULATOR_HARDWARE_TYPE=cpu \
+bash SC26-AE/task3_gpt175b.sh
+
+AE_OUTPUT_ROOT="$PWD/SC26-AE/output_functional" \
+ARTIFACT_SOURCE=prebaked \
+PREBAKED_ROOT=/absolute/path/to/functional-bundle \
+TASK3_EXECUTION_MODE=synthetic \
+TASK3_ALLOW_FUNCTIONAL_PREBAKED=1 \
+SIMULATOR_HARDWARE_TYPE=cpu \
+bash SC26-AE/task3_qwen3_a30b.sh
+```
+
+The functional path must also emit report, manifest, and marker files. These outputs prove fake-
+level workflow wiring only; they do not become H800, Fresh, or release qualification.
+
+## Validation commands (current checkout)
+
+These checks do not require a distributed run and do not make an accuracy claim:
+
+```bash
+bash -n \
+  examples/update_pretrain_gpt.sh \
+  SC26-AE/lib/task1_trace.sh \
+  SC26-AE/lib/task2_echo.sh \
+  SC26-AE/lib/task3_simulation.sh \
+  SC26-AE/task1_gpt175b.sh SC26-AE/task1_qwen3_a30b.sh \
+  SC26-AE/task2_gpt175b.sh SC26-AE/task2_qwen3_a30b.sh \
+  SC26-AE/task3_gpt175b.sh SC26-AE/task3_qwen3_a30b.sh
+
 PYTHONDONTWRITEBYTECODE=1 python3 -B -m pytest -q \
-  tests/unit/test_sc26_ae_artifact_manifest.py \
-  tests/unit/test_sc26_ae_echo_metrics.py \
   tests/unit/test_sc26_ae_package_prebaked.py
-bash tests/unit/test_sc26_ae_common.sh
+
 bash tests/integration/test_sc26_ae_task1_contracts.sh
-bash tests/integration/test_sc26_ae_task2_contract.sh
-bash tests/e2e/test_sc26_ae_task2_smoke.sh
+bash tests/integration/test_sc26_ae_task3_functional_prebaked.sh
+bash tests/integration/test_sc26_ae_task3_contract.sh
+bash tests/e2e/test_sc26_ae_task3_prebaked_cpu.sh
 ```
 
-The sim-engine report contract is tested from both the repository root and the
-sim-engine directory so that imports do not depend on the caller's current working
-directory:
+Current fake-level results are: package unit `33 passed`; Task1 contract `PASS_COUNT=45`;
+functional Task3 `PASS_COUNT=5` (one successful GPT and one successful Qwen3-A3B chain);
+Task3 contract `PASS_COUNT=11`; and legacy prebaked CPU regression `3/3` models. Fixture
+numbers such as rank0 step time validate report schema and simulator output only.
 
-```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -B -m pytest -q \
-  megatron-sim-engine/tests/unit/test_mg_scheduling_ae_contract.py \
-  megatron-sim-engine/tests/unit/test_rank0_report.py \
-  megatron-sim-engine/tests/integration/test_rank0_report_integration.py
-```
+## Real Fresh and clean-clone closeout order
 
-## Fail-fast troubleshooting
+Before claiming AE-ready or release-ready, execute the following sequence:
 
-Troubleshoot the recorded root cause; do not bypass the failed contract or change
-artifact source as a recovery mechanism.
+1. Complete GPT Task1 on the reviewed worker (eight traces plus rank-0 NCU).
+2. Complete Qwen3-A3B Task1 on the reviewed worker (32 PP×EP traces plus rank-0 NCU).
+3. Complete Task2 with `CUDA_VISIBLE_DEVICES=<gpu0>,<gpu1>` and exactly two GPUs.
+4. Run GPT and Qwen3-A3B Fresh Task3 and retain report, manifest, and marker for each.
+5. Only after both Fresh Task3 chains close, build and verify the real functional distribution.
+6. Run CPU-only Task3 with that real bundle and recheck reports, manifests, markers, and checksums.
+7. Re-run the minimal fake-level matrix from a clean commit/clean clone and save the final report.
 
-| Failure symptom | Root cause to verify | Required action |
-|-----------------|----------------------|-----------------|
-| Setup rejects Python, torch/CUDA, NVML, Nsight, or `SlowdownPredictor` | The worker is not the reviewed fixed runtime or the image contract has drifted | Preserve the verifier output and qualify the fixed `v1.2-ae` image/runtime; do not switch interpreters or tools |
-| Task1 rejects GPU selection | More than one GPU is visible and `SCALE_GPU` is absent, or the selected ID is invalid | Start a new run with exactly one selected physical GPU; do not emulate the physical-GPU check |
-| Task2 rejects CUDA visibility | The allocation does not expose exactly two distinct decimal GPU IDs | Obtain an exact-two-GPU allocation and rerun with `CUDA_VISIBLE_DEVICES=<id0>,<id1>`; one GPU is not a substitute |
-| Fresh or prebaked Task3 validation fails | The explicitly selected bundle is missing, partial, stale, mixed, or inconsistent with its manifest | Preserve the evidence and repair or reproduce that selected source; never retry through the other source |
-| Manifest size or SHA256 differs | Payload bytes changed after sealing or the wrong root was supplied | Start from the correct immutable producer output and rebuild a new destination; do not edit the manifest to match |
-| Task3 has no valid rank0 span or target operation | The schedule/report input is incomplete or semantically invalid | Fix the producer or scheduler root cause and rerun; never substitute the diagnostic `comp+comm` value |
-| Output destination already exists | The requested run identity or staging root is not fresh | Choose a new output/run identity; never overwrite a prior result |
-| Evidence class is local/synthetic | Only contract wiring has been exercised | Keep qualification and release gates closed until the required real run produces stronger evidence |
-
-## Fail-fast rules
-
-Do not treat a local synthetic PASS as real qualification. Missing files,
-partial/extra files, checksum or provenance drift, dirty source, incompatible
-topology, invalid metrics, missing report operations, unwritable output, and
-unavailable required hardware all fail with evidence. The workflow does not add a
-fallback, hidden retry, source switch, interpreter switch, calibration factor, or
-silent rebuild.
+If the controller lacks the fixed interpreter, GPU, or Nsight tool, record the environment blocker
+and stop the real chain. Do not relabel old partial output, synthetic fixtures, or a shared Task2
+CSV as Fresh evidence.

@@ -216,10 +216,14 @@ def _load_real_predictor(model_path: Path, scaler: Mapping[str, Any]):
     values = _sample_values(scaler["feature_names"])
     row = np.asarray([_normalised_values(values, scaler)], dtype=float)
     try:
-        prediction_a = float(model_a.predict(xgb.DMatrix(row))[0])
-        prediction_b = float(model_b.predict(xgb.DMatrix(row))[0])
+        matrix = xgb.DMatrix(row, feature_names=list(scaler["feature_names"]))
+        prediction_a = float(model_a.predict(matrix)[0])
+        prediction_b = float(model_b.predict(matrix)[0])
     except Exception as exc:
-        raise MetricsContractError("XGBoost prediction failed for deterministic sample") from exc
+        raise MetricsContractError(
+            "XGBoost prediction failed for deterministic sample: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
     return values, prediction_a, prediction_b
 
 
