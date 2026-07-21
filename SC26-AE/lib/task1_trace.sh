@@ -472,10 +472,13 @@ ae_task1_write_rank_loop() {
     local capture_id=$8
     local batch_flag_log=$9
     local rank_timing_log=${10}
+    local real_torchrun_dir
+
+    real_torchrun_dir=$(dirname -- "${AE_TASK1_REAL_TORCHRUN}")
 
     {
         printf '#!/usr/bin/env bash\nset -euo pipefail\n'
-        printf 'export PATH=%q\n' "${adapter_bin_dir}:${PATH}"
+        printf 'export PATH=%q\n' "${adapter_bin_dir}:${real_torchrun_dir}:${PATH}"
         printf 'export AE_TASK1_REAL_TORCHRUN=%q\n' "${AE_TASK1_REAL_TORCHRUN}"
         printf 'export MODE=scaling\n'
         printf 'export SCALE_GPU=%q\n' "${scale_gpu}"

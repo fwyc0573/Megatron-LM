@@ -338,6 +338,31 @@ ADAPTER_BATCH_LOG="${ADAPTER_ROOT}/global_batch_size_flags.log"
 mkdir -p "${ADAPTER_ROOT}"
 ae_task1_write_torchrun_adapter "${ADAPTER_PATH}"
 
+TOOLCHAIN_BIN="${TEST_ROOT}/megatron-env/bin"
+RANK_LOOP_PATH="${TEST_ROOT}/rank-loop-path-contract.sh"
+mkdir -p "${TOOLCHAIN_BIN}"
+: > "${TOOLCHAIN_BIN}/torchrun"
+chmod +x "${TOOLCHAIN_BIN}/torchrun"
+AE_TASK1_REAL_TORCHRUN="${TOOLCHAIN_BIN}/torchrun"
+AE_T1_PROFILE=full
+AE_T1_WORLD_SIZE=256
+AE_T1_PP=8
+AE_T1_TP=8
+AE_T1_DP=4
+AE_T1_EXP=4
+AE_T1_MICRO_BATCH_SIZE=1
+AE_T1_NUM_MICROBATCHES=32
+AE_T1_GLOBAL_BATCH_SIZE=128
+AE_T1_SEQ_LEN=256
+AE_T1_TRANSFORMER_IMPL=transformer_engine
+ae_task1_write_rank_loop \
+    "${RANK_LOOP_PATH}" "${TEST_ROOT}/runtime" "${ADAPTER_ROOT}" \
+    "${REPO_ROOT}/examples/pretrain_qwen3_30b_a3b_moe.sh" \
+    qwen3_a30b "0" 0 qwen3_a30b-path-contract \
+    "${ADAPTER_BATCH_LOG}" "${ADAPTER_TIMING_LOG}"
+assert_contains "${ADAPTER_ROOT}:${TOOLCHAIN_BIN}:" "${RANK_LOOP_PATH}"
+pass "Task1 rank loop binds helper builds to the real torchrun environment"
+
 assert_adapter_batch_failure() {
     local case_name=$1
     local expected_error=$2
@@ -1101,4 +1126,4 @@ assert_contains "already exists" "${TEST_ROOT}/existing-second.log"
 pass "existing run destinations are never reused"
 
 printf 'PASS_COUNT=%d\n' "${PASS_COUNT}"
-[[ ${PASS_COUNT} -eq 45 ]] || fail "expected 45 cases, got ${PASS_COUNT}"
+[[ ${PASS_COUNT} -eq 46 ]] || fail "expected 46 cases, got ${PASS_COUNT}"
