@@ -1007,8 +1007,16 @@ class RowParallelLinear(torch.nn.Module):
         self.input_size = input_size
         self.output_size = output_size
         self.input_is_parallel = input_is_parallel
-        # Divide the weight matrix along the last dimension.
-        world_size = get_tensor_model_parallel_world_size()
+        # Divide the weight matrix along the last dimension.  Scaling Mode
+        # executes one fake rank at a time, so the physical process-group
+        # world size is one even though activations are partitioned by fake TP.
+        # Use the same effective partition count as ColumnParallelLinear so
+        # row-parallel consumers (MLA projections, MLP fc2, etc.) receive the
+        # local input width produced by the preceding fake-TP layer.
+        if not config.is_scaling_mode:
+            world_size = get_tensor_model_parallel_world_size()
+        else:
+            world_size = config.fake_tp
         self.input_size_per_partition = divide(input_size, world_size)
         self.skip_bias_add = skip_bias_add
         self.config = config
@@ -1135,7 +1143,15 @@ class RowParallelLinear(torch.nn.Module):
             assert self.skip_bias_add
             output_ = output_parallel
         elif self.sequence_parallel:
-            output_ = reduce_scatter_to_sequence_parallel_region(output_parallel)
+            if self.config.is_scaling_mode:
+                # A fake rank already owns a local sequence partition.  The
+                # physical process group has one member, so a reduce-scatter
+                # would incorrectly divide the local sequence a second time.
+                # Preserve the local shape while recording the fake-TP
+                # reduction through the scaling communication wrapper.
+                output_ = _reduce(output_parallel, func="row_parallel")
+            else:
+                output_ = reduce_scatter_to_sequence_parallel_region(output_parallel)
         else:
             output_ = reduce_from_tensor_model_parallel_region(output_parallel)
         if not self.skip_bias_add:

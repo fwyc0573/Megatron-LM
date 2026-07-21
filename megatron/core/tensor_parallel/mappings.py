@@ -15,15 +15,79 @@ import torch.cuda.nvtx as nvtx
 
 from megatron.profiler.cmd import CMD, current_cmd_var
 
+
+def _get_sequence_parallel_world_size_and_rank():
+    """Resolve sequence-parallel partitioning for physical or fake ranks."""
+    world_size = get_tensor_model_parallel_world_size()
+    rank = get_tensor_model_parallel_rank()
+
+    # Scaling Mode executes one fake rank in a physical world of one. The
+    # fake rank still owns one sequence partition, so use its fake TP size and
+    # rank for local slicing. During ordinary unit construction there may be
+    # no global training arguments yet; the physical process group is then the
+    # only available parallel context.
+    try:
+        from megatron.training import get_args
+
+        args = get_args()
+    except (AssertionError, RuntimeError):
+        args = None
+
+    if args is not None and getattr(args, "is_scaling_mode", False):
+        fake_tp = int(getattr(args, "fake_tp", 0))
+        fake_rank = int(getattr(args, "tp_rank", 0))
+        if fake_tp <= 0:
+            raise ValueError(f"Scaling Mode requires fake_tp > 0, got {fake_tp}")
+        if fake_rank < 0 or fake_rank >= fake_tp:
+            raise ValueError(
+                f"Scaling Mode fake TP rank {fake_rank} is outside [0, {fake_tp})"
+            )
+        return fake_tp, fake_rank
+
+    return world_size, rank
+
+
+def _get_tensor_parallel_world_size_and_rank():
+    """Resolve tensor-parallel partitioning for physical or fake ranks."""
+    world_size = get_tensor_model_parallel_world_size()
+    rank = get_tensor_model_parallel_rank()
+
+    try:
+        from megatron.training import get_args
+
+        args = get_args()
+    except (AssertionError, RuntimeError):
+        args = None
+
+    if args is not None and getattr(args, "is_scaling_mode", False):
+        fake_tp = int(getattr(args, "fake_tp", 0))
+        fake_rank = int(getattr(args, "tp_rank", 0))
+        if fake_tp <= 0:
+            raise ValueError(f"Scaling Mode requires fake_tp > 0, got {fake_tp}")
+        if fake_rank < 0 or fake_rank >= fake_tp:
+            raise ValueError(
+                f"Scaling Mode fake TP rank {fake_rank} is outside [0, {fake_tp})"
+            )
+        return fake_tp, fake_rank
+
+    return world_size, rank
+
 # @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='allreduce')
 def _reduce(input_, func=None, op=torch.distributed.ReduceOp.SUM, async_op=False):
     """All-reduce the input tensor across model parallel group."""
 
     # Bypass the function if we are using only 1 GPU (both in scaling or realistic mode).
-    from megatron.training import get_args
-    args = get_args()
-    if args.is_scaling_mode:
-        tp_size = args.fake_tp
+    try:
+        from megatron.training import get_args
+
+        args = get_args()
+    except (AssertionError, RuntimeError):
+        args = None
+
+    if args is not None and getattr(args, "is_scaling_mode", False):
+        tp_size = int(args.fake_tp)
+        if tp_size <= 0:
+            raise ValueError(f"Scaling Mode requires fake_tp > 0, got {tp_size}")
     else:
         tp_size = get_tensor_model_parallel_world_size()
 
@@ -40,7 +104,7 @@ def _split_along_last_dim(input_):
     """Split the tensor along its last dimension and keep the
     corresponding slice."""
 
-    world_size = get_tensor_model_parallel_world_size()
+    world_size, rank = _get_tensor_parallel_world_size_and_rank()
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -49,7 +113,6 @@ def _split_along_last_dim(input_):
     input_list = split_tensor_along_last_dim(input_, world_size)
 
     # Note: torch.split does not create contiguous tensors by default.
-    rank = get_tensor_model_parallel_rank()
     output = input_list[rank].contiguous()
 
     return output
@@ -59,7 +122,7 @@ def _split_along_first_dim(input_):
     """Split the tensor along its first dimension and keep the
     corresponding slice."""
 
-    world_size = get_tensor_model_parallel_world_size()
+    world_size, rank = _get_sequence_parallel_world_size_and_rank()
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -70,7 +133,6 @@ def _split_along_first_dim(input_):
         dim_size % world_size == 0
     ), "First dimension of the tensor should be divisible by tensor parallel size"
     local_dim_size = dim_size // world_size
-    rank = get_tensor_model_parallel_rank()
     dim_offset = rank * local_dim_size
 
     output = input_[dim_offset : dim_offset + local_dim_size].contiguous()
@@ -81,14 +143,28 @@ def _split_along_first_dim(input_):
 def _gather_along_last_dim(input_):
     """Gather tensors and concatinate along the last dimension."""
 
-    world_size = get_tensor_model_parallel_world_size()
+    world_size, rank = _get_tensor_parallel_world_size_and_rank()
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
 
+    try:
+        from megatron.training import get_args
+
+        args = get_args()
+    except (AssertionError, RuntimeError):
+        args = None
+
+    if args is not None and getattr(args, "is_scaling_mode", False):
+        output_parts = [
+            input_.new_zeros(tuple(input_.shape[:-1]) + (input_.shape[-1],))
+            for _ in range(world_size)
+        ]
+        output_parts[rank] = input_
+        return torch.cat(output_parts, dim=-1).contiguous()
+
     # Size and dimension.
     last_dim = input_.dim() - 1
-    rank = get_tensor_model_parallel_rank()
 
     tensor_list = [torch.empty_like(input_) for _ in range(world_size)]
     tensor_list[rank] = input_
@@ -117,13 +193,25 @@ def _reduce_scatter_along_last_dim(input_, func=None):
 def _gather_along_first_dim(input_):
     """Gather tensors and concatinate along the first dimension."""
 
-    world_size = get_tensor_model_parallel_world_size()
+    world_size, rank = _get_sequence_parallel_world_size_and_rank()
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
 
     dim_size = list(input_.size())
     dim_size[0] = dim_size[0] * world_size
+
+    try:
+        from megatron.training import get_args
+
+        args = get_args()
+    except (AssertionError, RuntimeError):
+        args = None
+    if args is not None and getattr(args, "is_scaling_mode", False):
+        local_dim_size = input_.size(0)
+        output_parts = [input_.new_zeros((local_dim_size,) + tuple(input_.shape[1:])) for _ in range(world_size)]
+        output_parts[rank] = input_
+        return torch.cat(output_parts, dim=0).contiguous()
 
     output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
     torch.distributed._all_gather_base(
@@ -135,7 +223,7 @@ def _gather_along_first_dim(input_):
 @CMD.get_trace_decorator(attrs={'input_': ['shape', 'dtype'], 'func': ['name']}, group_type='tp', comm_func='reduce_scatter')
 def _reduce_scatter_along_first_dim(input_, func=None):
     """Reduce-scatter the input tensor across model parallel group."""
-    world_size = get_tensor_model_parallel_world_size()
+    world_size, rank = _get_sequence_parallel_world_size_and_rank()
     # Bypass the function if we are using only 1 GPU.
     if world_size == 1:
         return input_
@@ -144,6 +232,17 @@ def _reduce_scatter_along_first_dim(input_, func=None):
     assert (
         dim_size[0] % world_size == 0
     ), "First dimension of the tensor should be divisible by tensor parallel size"
+
+    try:
+        from megatron.training import get_args
+
+        args = get_args()
+    except (AssertionError, RuntimeError):
+        args = None
+    if args is not None and getattr(args, "is_scaling_mode", False):
+        local_dim_size = input_.size(0) // world_size
+        dim_offset = rank * local_dim_size
+        return input_[dim_offset : dim_offset + local_dim_size].contiguous()
 
     dim_size[0] = dim_size[0] // world_size
 
@@ -730,7 +829,7 @@ def all_to_all(group, input_, output_split_sizes_=None, input_split_sizes_=None,
 
 
 def all_to_all_sp2hp(input_, func=None):
-    world_size = get_tensor_model_parallel_world_size()
+    world_size, _ = _get_tensor_parallel_world_size_and_rank()
     tp_group = get_tensor_model_parallel_group()
     input_ = input_.reshape(-1, input_.shape[-1])
     split_tensors = torch.split(
@@ -741,7 +840,7 @@ def all_to_all_sp2hp(input_, func=None):
     return output
 
 def all_to_all_hp2sp(input_, func=None):
-    world_size = get_tensor_model_parallel_world_size()
+    world_size, _ = _get_tensor_parallel_world_size_and_rank()
     input_ = input_.reshape(-1, input_.shape[-1])
     tp_group = get_tensor_model_parallel_group()
     input_exchanged = all_to_all(tp_group, input_, func=func, group_type="tp")

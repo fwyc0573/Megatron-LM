@@ -79,10 +79,29 @@ def get_input_tensor_shape(
 
     # TODO:
     if config.sequence_parallel:
-        seq_length = seq_length // parallel_state.get_tensor_model_parallel_world_size()
+        tensor_parallel_size = (
+            config.fake_tp
+            if config.is_scaling_mode
+            else parallel_state.get_tensor_model_parallel_world_size()
+        )
+        if tensor_parallel_size <= 0:
+            raise ValueError(
+                f"Sequence-parallel input shape requires a positive tensor parallel size, got {tensor_parallel_size}"
+            )
+        if config.is_scaling_mode and seq_length % tensor_parallel_size != 0:
+            raise ValueError(
+                "Scaling sequence length after context parallel partition "
+                f"({seq_length}) must be divisible by fake_tp ({tensor_parallel_size})"
+            )
+        seq_length = seq_length // tensor_parallel_size
         if model_type == ModelType.encoder_and_decoder:
+            if config.is_scaling_mode and decoder_seq_length % tensor_parallel_size != 0:
+                raise ValueError(
+                    "Scaling decoder sequence length after context parallel partition "
+                    f"({decoder_seq_length}) must be divisible by fake_tp ({tensor_parallel_size})"
+                )
             decoder_seq_length = (
-                decoder_seq_length // parallel_state.get_tensor_model_parallel_world_size()
+                decoder_seq_length // tensor_parallel_size
             )
 
     if model_type == ModelType.encoder_and_decoder:
@@ -374,6 +393,67 @@ def get_batch_on_this_tp_rank(data_iterator, args):
 
 def sim_get_batch(args, data_iterator):
     batch = get_batch_on_this_tp_rank(data_iterator=data_iterator, args=args)
+
+    if args.is_scaling_mode and args.sequence_parallel:
+        fake_tp = args.fake_tp
+        if fake_tp <= 0:
+            raise ValueError(
+                f"Scaling sequence-parallel batch slicing requires fake_tp > 0, got {fake_tp}"
+            )
+
+        fake_rank = args.tp_rank
+        if fake_rank < 0 or fake_rank >= fake_tp:
+            raise ValueError(
+                f"Scaling sequence-parallel batch slicing requires 0 <= tp_rank < fake_tp, "
+                f"got tp_rank={fake_rank}, fake_tp={fake_tp}"
+            )
+
+        global_seq_length = args.seq_length
+        if global_seq_length <= 0 or global_seq_length % fake_tp != 0:
+            raise ValueError(
+                "Scaling sequence-parallel batch slicing requires a positive sequence length "
+                f"divisible by fake_tp, got seq_length={global_seq_length}, fake_tp={fake_tp}"
+            )
+
+        local_seq_length = global_seq_length // fake_tp
+        sequence_start = fake_rank * local_seq_length
+        sequence_end = sequence_start + local_seq_length
+
+        labels = batch['labels']
+        if labels is not None:
+            if labels.ndim == 0 or labels.shape[-1] != global_seq_length:
+                raise ValueError(
+                    "Scaling sequence-parallel labels must have global sequence length on the "
+                    f"last dimension, got shape={tuple(labels.shape)}, expected last dimension "
+                    f"{global_seq_length}"
+                )
+            batch['labels'] = labels[..., sequence_start:sequence_end]
+
+        loss_mask = batch['loss_mask']
+        if loss_mask is not None:
+            if loss_mask.ndim == 0 or loss_mask.shape[-1] != global_seq_length:
+                raise ValueError(
+                    "Scaling sequence-parallel loss_mask must have global sequence length on the "
+                    f"last dimension, got shape={tuple(loss_mask.shape)}, expected last dimension "
+                    f"{global_seq_length}"
+                )
+            batch['loss_mask'] = loss_mask[..., sequence_start:sequence_end]
+
+        attention_mask = batch['attention_mask']
+        if attention_mask is not None:
+            if (
+                attention_mask.ndim < 2
+                or attention_mask.shape[-2] != global_seq_length
+                or attention_mask.shape[-1] != global_seq_length
+            ):
+                raise ValueError(
+                    "Scaling sequence-parallel attention_mask must contain global query/key "
+                    f"dimensions, got shape={tuple(attention_mask.shape)}, expected trailing "
+                    f"dimensions ({global_seq_length}, {global_seq_length})"
+                )
+            batch['attention_mask'] = attention_mask[
+                ..., sequence_start:sequence_end, sequence_start:sequence_end
+            ]
 
     return batch.values()
 

@@ -189,6 +189,9 @@ def validate_args(args, defaults={}):
     # Load saved args from Retro (if applicable).
     load_retro_args(args)
 
+    if args.is_scaling_mode and args.fake_tp <= 0:
+        raise ValueError(f"Scaling Mode requires fake_tp > 0, got {args.fake_tp}")
+
     # Tensor model parallel size.
     # args.tensor_model_parallel_size = min(
     #     args.tensor_model_parallel_size, args.world_size)
@@ -488,10 +491,13 @@ def validate_args(args, defaults={}):
             'recompute method is not yet supported for ' \
             'selective recomputing granularity'
 
-    # disable sequence parallelism when tp=1
+    # disable sequence parallelism when the effective tp=1
     # to avoid change in numerics when
     # sequence_parallelism is enabled.
-    if args.tensor_model_parallel_size == 1:
+    sequence_parallel_tp_size = (
+        args.fake_tp if args.is_scaling_mode else args.tensor_model_parallel_size
+    )
+    if sequence_parallel_tp_size == 1:
         args.sequence_parallel = False
 
     # disable async_tensor_model_parallel_allreduce when
@@ -599,7 +605,10 @@ def validate_args(args, defaults={}):
     # MoE Spec check
     if args.num_experts is not None:
         assert args.spec is None, "Model Spec must be None when using MoEs"
-        if args.tensor_model_parallel_size > 1:
+        moe_tensor_parallel_size = (
+            args.fake_tp if args.is_scaling_mode else args.tensor_model_parallel_size
+        )
+        if moe_tensor_parallel_size > 1:
             assert args.sequence_parallel, \
                 "When using MoE and tensor parallelism, sequence parallelism must be used."
         if args.moe_shared_expert_gate and args.moe_shared_expert_intermediate_size is None:

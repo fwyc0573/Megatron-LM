@@ -8,7 +8,13 @@ from megatron.profiler.cmd import CMD
 def _is_scaling_mode() -> bool:
     from megatron.training import get_args
 
-    args = get_args()
+    try:
+        args = get_args()
+    except (AssertionError, RuntimeError):
+        # Low-level physical collectives can be exercised before the training
+        # global arguments are initialized.  In that context there is no fake
+        # topology, so preserve the normal distributed path.
+        return False
     return bool(getattr(args, "is_scaling_mode", False))
 
 
