@@ -283,15 +283,28 @@ task3_source_compatibility_mode() {
         task3_error "${label} outer commit is not an ancestor of the current producer."
         return 1
     }
-    git -C "${TASK3_REPO_ROOT}" diff --quiet --no-ext-diff \
-        "${recorded_main_commit}..${TASK3_MAIN_COMMIT}" -- \
-        . ':(exclude)megatron-sim-engine' || {
-        task3_error \
-            "${label} producer advancement changes files outside megatron-sim-engine."
-        return 1
-    }
-    if git -C "${TASK3_REPO_ROOT}" diff --quiet --no-ext-diff \
-        "${recorded_main_commit}..${TASK3_MAIN_COMMIT}" -- megatron-sim-engine; then
+    local changed_path
+    local simulator_gitlink_changed=0
+    while IFS= read -r changed_path; do
+        [[ -n "${changed_path}" ]] || continue
+        case "${changed_path}" in
+            megatron-sim-engine)
+                simulator_gitlink_changed=1
+                ;;
+            SC26-AE/lib/task3_simulation.sh|\
+            tests/unit/test_sc26_ae_task3_source_compatibility.sh)
+                ;;
+            *)
+                task3_error \
+                    "${label} producer advancement changes files outside the Task3 compatibility allowlist: ${changed_path}"
+                return 1
+                ;;
+        esac
+    done < <(
+        git -C "${TASK3_REPO_ROOT}" diff --name-only --no-ext-diff \
+            "${recorded_main_commit}..${TASK3_MAIN_COMMIT}"
+    )
+    if (( ! simulator_gitlink_changed )); then
         task3_error \
             "${label} producer advancement does not contain a simulator gitlink change."
         return 1

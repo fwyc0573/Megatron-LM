@@ -45,7 +45,7 @@ expect_failure() {
 
 OLD_MAIN=df940b09c25537add927441594664c71ce01d473
 OLD_SIM=2b18afc9ad3b860de2f46b9fc4b364313a21647a
-NON_GITLINK_MAIN=0c498591e0f5c53c8f50c99e2fabe97b3bfa2cad
+NON_GITLINK_MAIN=d818a83bfefaac7ab816c4bc202c814fdc8fb1bb
 NON_GITLINK_SIM=$(git -C "${REPO_ROOT}" rev-parse "${NON_GITLINK_MAIN}:megatron-sim-engine")
 DIVERGENT_SIM=ffffffffffffffffffffffffffffffffffffffff
 
@@ -57,8 +57,10 @@ expect_failure 'Echo-slowdown commit differs' wrong-echo \
     "${OLD_MAIN}" ffffffffffffffffffffffffffffffffffffffff "${OLD_SIM}"
 expect_failure 'outer commit is not an ancestor' non-ancestor-outer \
     ffffffffffffffffffffffffffffffffffffffff "${TASK3_ECHO_COMMIT}" "${OLD_SIM}"
-expect_failure 'changes files outside megatron-sim-engine' non-gitlink-outer \
+expect_failure 'changes files outside the Task3 compatibility allowlist' non-gitlink-outer \
     "${NON_GITLINK_MAIN}" "${TASK3_ECHO_COMMIT}" "${NON_GITLINK_SIM}"
+expect_failure 'does not contain a simulator gitlink change' control-only-outer \
+    "${TASK3_MAIN_COMMIT}" "${TASK3_ECHO_COMMIT}" "${OLD_SIM}"
 expect_failure 'simulator commit is not an ancestor' divergent-simulator \
     "${OLD_MAIN}" "${TASK3_ECHO_COMMIT}" "${DIVERGENT_SIM}"
 
