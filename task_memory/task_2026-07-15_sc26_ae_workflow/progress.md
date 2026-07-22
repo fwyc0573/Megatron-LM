@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes                                  |
 |------------|------------------------------------------------------|
+| 2026-07-23 | Closed the real Qwen functional-build rank-policy mismatch with a one-line release-gate isolation and 40-test regression |
 | 2026-07-23 | Closed I62 with heterogeneous source-producer preservation, sealed Fresh Task3 provenance, 39-test regression, and independent `APPROVE` |
 | 2026-07-23 | Closed the Task2-specific source-compatibility blocker with RED→GREEN tests, real artifact verification, and independent `APPROVE` without rerunning Task2 |
 | 2026-07-20 | Session 56: passed the penultimate tracked-snapshot V21 replay and closed I59 locally; final identity, exact-log restaging, Lore commit, and committed-clone replay remain |
@@ -3220,3 +3221,24 @@ source identity is invalid`, then passed. The pre-fix functional regression repr
 bytecode cache to `/data/ycfeng/tmp`. StepCode Claude independently returned `APPROVE`; its two
 WATCH notes confirm that the functional-only commit relaxation is re-bound by provenance checks and
 that the closed compatibility allowlist is intentional. No Task2 command was executed.
+
+## Session 59 Real Qwen functional rank-policy repair — 2026-07-23
+
+**Motivation:** The first real `build-functional` attempt reached the Qwen Task1 manifest and
+failed because the shared loader applied the release-only MoE full-rank promotion rule to the
+functional 32-rank PP×EP representative contract.
+
+**Expectation:** Release packaging must continue requiring all 256 MoE ranks. Functional packaging
+must accept only the exact Qwen 32-rank vector already enforced by
+`_validate_functional_task1_source`; it must not accept QUICK/arbitrary subsets or weaken NCU checks.
+
+**Method:** Added a fixture case with real-pending Task1 evidence and the exact 32-rank Qwen vector.
+It reproduced `Task1 MoE promotion requires capture_scope=full`. Changed the shared loader so the
+full-rank promotion function is called only for `require_real_evidence=True`; the functional caller
+then immediately executes its existing strict 32-rank and rank0-NCU validator.
+
+**Result:** Focused RED failed at the intended release promotion call; focused GREEN passed `1/1`.
+The complete package unit suite passed `40/40` in `184.55 s`, including release packaging tests and
+the existing invalid functional rank-inventory negatives. The failed partial staging remains under
+`/data/ycfeng/tmp/sc26_ae_functional_prebaked_20260722T205013Z`; no file was deleted or reused.
+No Task2 command was executed.

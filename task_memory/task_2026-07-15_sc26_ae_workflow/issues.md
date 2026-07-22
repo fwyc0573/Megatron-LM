@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes        |
 |------------|---------------------------|
+| 2026-07-23 | Resolved I63: functional Qwen representative capture was incorrectly routed through the release-only full-rank promotion gate |
 | 2026-07-23 | Resolved I62 by separating functional bundle producers from heterogeneous source artifact producers and sealing the exact Fresh Task3 inputs |
 | 2026-07-23 | Closed I60 Task2 unified-compatibility false rejection; recorded the pre-existing one-trace Qwen synthetic fixture gap as non-blocking for the real Fresh chain |
 | 2026-07-20 | Resolved I59 locally after the penultimate exact-log tracked snapshot reproduced strict V21; external qualification blockers remain unchanged |
@@ -1791,3 +1792,18 @@ source identity is invalid`. The repaired functional suite passes `15/15`; the c
 unit suite passes `39/39`. Independent StepCode Claude verdict is `APPROVE` with two informational
 WATCH items and explicitly states that the diff is safe to commit before real
 `build-functional`/`verify-functional`.
+
+## I63 — Functional Qwen representative capture hit release full-rank gate — RESOLVED / LOCAL
+
+**Root cause:** `_source_manifest_and_run()` unconditionally invoked
+`validate_task1_rank_promotion_scope()`. That function is deliberately a release qualification
+boundary and rejects real-pending MoE evidence unless `capture_scope=full` with ranks `0..255`.
+Functional Qwen instead has the user-approved exact 32-rank PP×EP representative inventory.
+
+**Resolution:** Invoke the release promotion boundary only when `require_real_evidence=True`.
+Functional packaging still fails closed through its model-specific exact rank vector, trace/memory
+counts, rank0-only NCU provenance, manifest checksums, and sealed Task3 input checks.
+
+**Evidence:** New focused test reproduced the exact real failure and then passed after the one-line
+gate isolation. Complete affected regression passes `40/40`; the release path and invalid
+functional rank-inventory tests remain green.

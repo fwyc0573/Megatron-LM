@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Recorded independent StepCode Claude `APPROVE` for isolating the functional 32-rank Qwen gate from release full-rank promotion |
 | 2026-07-23 | Recorded independent StepCode Claude `APPROVE` for the I62 heterogeneous-producer functional packaging diff |
 | 2026-07-23 | Recorded independent StepCode Claude `APPROVE` for the Task2-specific source compatibility policy |
 | 2026-07-20 | Recorded the primary-agent penultimate tracked-snapshot replay that mechanically closes I59 locally after independent `APPROVE` |
@@ -4058,3 +4059,42 @@ running real `build-functional` / `verify-functional`.
 
 `APPROVE`. The reviewer explicitly assessed the diff as safe to commit before real functional
 build/verify. The two WATCH items are intentional constraints and require no pre-commit change.
+
+## Review Checkpoint — Session 59 functional/release rank-gate isolation — 2026-07-23
+
+### Target Component/Phase
+
+Focused review of the one-line source-loader change after the real Qwen functional build exposed a
+release-only full-rank gate on the 32-rank representative path.
+
+### Reviewer Agent Identity
+
+- Independent lane: StepCode Claude Opus 4.6 via `omx ask claude`, effort `max`.
+- Artifact: `.omx/artifacts/claude-perform-a-focused-independent-review-of-the-uncommitted-diff-2026-07-22T21-07-23-875Z.md`.
+
+### Inspected Artifacts
+
+- `_source_manifest_and_run()` and both release/functional callers.
+- Release bundle offline verifier's independent Task1 promotion check.
+- `_validate_functional_task1_source()` exact rank and NCU rules.
+- New real-pending representative Qwen fixture and existing release/invalid-rank tests.
+- Complete affected result: `40/40 passed`.
+
+### Identified Issues/Anomalies
+
+1. No release weakening: release keeps the default `require_real_evidence=True` and a second
+   offline full-rank promotion check.
+2. No arbitrary subset acceptance: functional Qwen requires the exact ordered 32-rank vector and
+   matching trace/memory counts.
+3. No NCU or evidence bypass: rank0-only NCU and closed evidence allowlists remain independent.
+4. No BLOCK or WATCH finding was reported.
+
+### Remediation/Verification Code Actions Taken
+
+- Retained the one-line conditional without adding a new policy flag or fallback.
+- Verified focused RED→GREEN and the full `40/40` package unit regression.
+- Kept the failed real staging immutable and selected a new unique path for the next retry.
+
+### Review Verdict
+
+`APPROVE`. Safe to commit and retry real `build-functional`; Task2 remains untouched.

@@ -1331,7 +1331,8 @@ def _source_manifest_and_run(
         )
     if task1_manifest.get("model") != model or task1_manifest.get("task") != "task1" or task1_manifest.get("artifact_source") != "fresh":
         raise ValueError("{} Task1 manifest identity is invalid".format(model))
-    module.validate_task1_rank_promotion_scope(task1_manifest)
+    if require_real_evidence:
+        module.validate_task1_rank_promotion_scope(task1_manifest)
     if require_current_commits and task1_manifest.get("source_commits") != dict(expected_commits):
         raise ValueError("{} Task1 source commits differ from current checkout".format(model))
     if task1_manifest.get("capture_id") != capture_marker.get("capture_id"):

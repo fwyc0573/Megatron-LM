@@ -236,6 +236,40 @@ def mutate_functional_task3_resolved_input(
     _update_marker_manifest_digest(marker_path, manifest_path)
 
 
+def set_functional_task1_execution_evidence(
+    root: Path, model: str, evidence: str
+) -> None:
+    """Update Task1 evidence and keep its sealed Task3 provenance synchronized."""
+
+    artifact_module = load_module(
+        ARTIFACT_MODULE_PATH,
+        "sc26_ae_artifact_manifest_task1_evidence_{}".format(model),
+    )
+    task1_marker_path = root / model / "task1/capture_marker.json"
+    task1_marker = json.loads(task1_marker_path.read_text(encoding="utf-8"))
+    task1_root = task1_marker_path.parent / task1_marker["run_path"]
+    task1_manifest_path = task1_root / "artifact_manifest.json"
+    task1_manifest = json.loads(task1_manifest_path.read_text(encoding="utf-8"))
+    task1_manifest["execution_evidence"] = evidence
+    stable_json(task1_manifest_path, task1_manifest)
+    _rewrite_manifest(artifact_module, task1_root)
+    _update_marker_manifest_digest(task1_marker_path, task1_manifest_path)
+
+    task3_marker_path = root / model / "task3/run_marker.json"
+    task3_marker = json.loads(task3_marker_path.read_text(encoding="utf-8"))
+    task3_root = task3_marker_path.parent / task3_marker["run_path"]
+    shutil.copy2(task1_manifest_path, task3_root / "provenance/task1_manifest.json")
+    resolved_path = task3_root / "provenance/resolved_inputs.json"
+    resolved = json.loads(resolved_path.read_text(encoding="utf-8"))
+    resolved["input_expectations"]["task1_manifest"] = {
+        "sha256": sha256(task1_manifest_path),
+        "size_bytes": task1_manifest_path.stat().st_size,
+    }
+    stable_json(resolved_path, resolved)
+    task3_manifest_path = _rewrite_manifest(artifact_module, task3_root)
+    _update_marker_manifest_digest(task3_marker_path, task3_manifest_path)
+
+
 def full_moe_capture_summary() -> dict[str, object]:
     return {
         "capture_scope": "full",
@@ -750,6 +784,31 @@ def test_functional_distribution_preserves_heterogeneous_source_producers(
     assert module.verify_functional_distribution(REPO_ROOT, staging_root)[
         "distribution_id"
     ] == "functional-heterogeneous-001"
+
+
+def test_functional_distribution_accepts_pending_qwen_representative_scope(
+    tmp_path: Path,
+) -> None:
+    """Functional packaging uses the 32-rank Qwen contract, not release promotion."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_functional_pending_qwen")
+    source_root = tmp_path / "functional-source"
+    build_functional_fixture(source_root)
+    set_functional_task1_execution_evidence(
+        source_root,
+        "qwen3_a30b",
+        "runtime_measurement_requires_external_single_gpu_qualification",
+    )
+
+    result = module.build_functional_distribution(
+        repo_root=REPO_ROOT,
+        output_root=source_root,
+        staging_root=tmp_path / "staging" / "functional",
+        distribution_id="functional-pending-qwen-001",
+        result_json=tmp_path / "work" / "result.json",
+    )
+
+    assert result["bundle_count"] == 3
 
 
 @pytest.mark.parametrize(

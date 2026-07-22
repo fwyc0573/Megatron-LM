@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes            |
 |------------|-------------------------------|
+| 2026-07-23 | Recorded root-owned `/data/ycfeng/SC26-AE` staging restriction and the writable `/data/ycfeng/tmp` functional staging location |
 | 2026-07-23 | Recorded the repo-local bytecode-cache permission issue and the validated `/data/ycfeng/tmp` `PYTHONPYCACHEPREFIX` contract |
 | 2026-07-23 | Recorded the mandatory `/data/ycfeng/tmp` rule, no-Task2-rerun rule, and current clean producer/output roots |
 | 2026-07-20 | Recorded the penultimate tracked-snapshot V21 PASS and local I59 closure; final identity/commit replay remains mandatory |
@@ -242,3 +243,6 @@ permission. This environment note does not change the real qualification or rele
 - Repo-local `__pycache__` may be unwritable in the shared worktree. Static Python validation must
   set `PYTHONPYCACHEPREFIX` to a task-specific directory under `/data/ycfeng/tmp`; do not change
   repository permissions and do not redirect caches to `/tmp`.
+- `/data/ycfeng/SC26-AE` and its Fresh output root are root-owned mode `755` in the controller.
+  Functional bundle staging and build logs must use new unique paths under `/data/ycfeng/tmp` in
+  this environment; source artifacts remain read-only at their verified original paths.
