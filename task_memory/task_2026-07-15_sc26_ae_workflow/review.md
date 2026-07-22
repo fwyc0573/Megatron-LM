@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Recorded the primary verification checkpoint for real Fresh artifacts, the functional bundle, and both CPU-only consumers before clean-clone replay |
 | 2026-07-23 | Recorded independent StepCode Claude `APPROVE` for isolating the functional 32-rank Qwen gate from release full-rank promotion |
 | 2026-07-23 | Recorded independent StepCode Claude `APPROVE` for the I62 heterogeneous-producer functional packaging diff |
 | 2026-07-23 | Recorded independent StepCode Claude `APPROVE` for the Task2-specific source compatibility policy |
@@ -4098,3 +4099,53 @@ release-only full-rank gate on the 32-rank representative path.
 ### Review Verdict
 
 `APPROVE`. Safe to commit and retry real `build-functional`; Task2 remains untouched.
+
+## Review Checkpoint — Session 60 functional runtime evidence — 2026-07-23
+
+### Target Component/Phase
+
+Mechanical verification of both real Fresh model chains, the functional distribution, and GPT/Qwen
+CPU-only prebaked Task3 before the final committed-clone replay.
+
+### Reviewer Agent Identity
+
+Primary Codex verifier lane `/root`. This checkpoint verifies runtime evidence and does not replace
+the independent StepCode Claude approvals for the Task2 compatibility and functional packaging
+designs recorded in Sessions 57–59.
+
+### Inspected Artifacts
+
+- GPT and Qwen Task1 manifests, exact rank inventories, memory outputs, and rank-0 NCU provenance.
+- Shared real two-GPU Task2 run `task2-20260722T142810Z-192-11368` and its verified 18-file manifest.
+- GPT/Qwen Fresh Task3 reports, manifests, markers, resolved inputs, and slowdown summaries.
+- Distribution `sc26-ae-functional-20260722T210958Z` and fresh `verify-functional` output.
+- GPT CPU run `gpt175b-prebaked-cpu-20260722T213203Z` and Qwen CPU run
+  `qwen3_a30b-prebaked-cpu-20260722T213415Z`.
+- Controller Python/XGBoost environment and all required report/manifest/marker SHA256 bindings.
+
+### Identified Issues/Anomalies
+
+1. The first GPT CPU run failed because controller Python lacked XGBoost; this was an environment
+   dependency gap and not a missing-kernel or Task2 defect.
+2. `python3 -m venv` is unavailable because the controller lacks `ensurepip/python3.12-venv`; the
+   dedicated target install is sufficient and narrower than altering the system Python.
+3. Qwen's simulator log is approximately `1.40 GB` and execution took `1176 s`; the run exited `0`
+   and all artifacts verified, so this is an operational cost rather than a functional failure.
+4. The clean committed-clone replay is still pending; no readiness claim is authorized yet.
+
+### Remediation/Verification Code Actions Taken
+
+- Installed only `xgboost==2.1.0` under `/data/ycfeng/tmp` and verified the production
+  `xgb.Booster` load path; no product code or Task2 artifact changed.
+- Verified GPT manifest count `1049` and Qwen manifest count `281`, plus marker-to-manifest SHA256
+  equality and report/marker provenance fields.
+- Verified all reported times are finite and nonnegative. Qwen's measured simulator relationship is
+  `84.0241 + 1066.334488 = 1150.358588 s`, delta `0.0 s`.
+- Re-ran functional bundle verification: 3 bundles, 375 files, `6,554,852,341` bytes, exit `0`.
+- Confirmed the current execution phase contains zero Task2 entry-command references.
+
+### Review Verdict
+
+Current-worktree Fresh and functional runtime evidence is `PASS` for the reduced fake-level
+workflow. The only remaining functional gate is committed-clone replay. Release qualification,
+distributed accuracy, and paper-number fidelity remain explicitly out of scope and unqualified.

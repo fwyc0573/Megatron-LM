@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes                                  |
 |------------|------------------------------------------------------|
+| 2026-07-23 | Completed both real Fresh chains, built and reverified the functional bundle, and validated GPT/Qwen CPU-only prebaked Task3 without rerunning Task2 |
 | 2026-07-23 | Closed the real Qwen functional-build rank-policy mismatch with a one-line release-gate isolation and 40-test regression |
 | 2026-07-23 | Closed I62 with heterogeneous source-producer preservation, sealed Fresh Task3 provenance, 39-test regression, and independent `APPROVE` |
 | 2026-07-23 | Closed the Task2-specific source-compatibility blocker with RED→GREEN tests, real artifact verification, and independent `APPROVE` without rerunning Task2 |
@@ -3242,3 +3243,87 @@ The complete package unit suite passed `40/40` in `184.55 s`, including release 
 the existing invalid functional rank-inventory negatives. The failed partial staging remains under
 `/data/ycfeng/tmp/sc26_ae_functional_prebaked_20260722T205013Z`; no file was deleted or reused.
 No Task2 command was executed.
+
+## Session 60 Fresh and functional prebaked execution closure — 2026-07-23
+
+### Real Fresh chain completion
+
+**Motivation:** Close the user-requested fake-level GPT-175B and Qwen3-A3B chains with real Task1
+workload traces, the already verified two-GPU predictor, and Fresh Task3 artifacts. Task2 must not
+be rerun merely because Task3 encounters a kernel or environment gap.
+
+**Expectation:** Each model must have its required Task1 rank vector and rank-0 NCU provenance;
+Fresh Task3 must exit successfully with a verified report, manifest, and marker; all reported
+times must be finite and nonnegative; and the current phase must execute zero Task2 commands.
+
+**Method:** Reused predictor `task2-20260722T142810Z-192-11368` after its 18-file manifest and
+two-GPU provenance were independently verified. GPT traced ranks
+`0,128,256,384,512,640,768,896`; Qwen traced `0,8,16,...,248`. Both models used global rank 0
+for NCU. Fresh Task3 resolved the sealed Task1/Task2 inputs and ran the analytical simulator with
+slowdown enabled.
+
+**Result:** GPT Task1 emitted 8 trace and 8 memory files plus 6,270 NCU feature rows; its manifest
+SHA256 is `490bf26101edbb4594b7c21d14a3a7b858d5aa654b7bfa706224d660fdbc77bd`.
+GPT Fresh Task3 passed with 1,049 manifest files, manifest SHA256
+`02b89c32f2d3c55628858709b8519933a73dd1a5d7339e1602bcab5125bd161f`, rank-0 step time
+`8276.64 ms`, simulator load `14.201178 s`, execution `18.494841 s`, and wall clock
+`32.696019 s`. Qwen Task1 emitted 32 traces for the exact PP×EP vector and 24 NCU feature rows.
+Qwen Fresh Task3 passed with 281 manifest files, manifest SHA256
+`805e646704ec9680481722f75d8df132ccffbab99afcee41f4c4a414b8512a9b`, rank-0 step time
+`3051.24 ms`, simulator load `70.935776 s`, execution `760.9432 s`, and wall clock
+`831.878976 s`. `TASK2_COMMANDS_EXECUTED=0`.
+
+### Functional bundle and CPU-only Task3
+
+**Motivation:** Provide the second AE path in which stored real Task1/Task2 artifacts allow Task3
+to run directly on a CPU controller.
+
+**Expectation:** `build-functional` and `verify-functional` must preserve the real producers and
+validate all files. GPT and Qwen CPU-only Task3 must use the same real bundle, explicitly enable
+slowdown, produce verified report/manifest/marker artifacts, bind the marker to the manifest, and
+keep all reported values finite and nonnegative.
+
+**Method:** Built distribution `sc26-ae-functional-20260722T210958Z` at
+`/data/ycfeng/tmp/sc26_ae_functional_prebaked_20260722T210958Z`. The controller initially failed
+GPT Task3 because `/usr/bin/python3` lacked `xgboost`; diagnosed this as an environment dependency,
+not a missing-kernel or predictor problem. Installed only `xgboost==2.1.0` under
+`/data/ycfeng/tmp/sc26_ae_cpu_task3_pydeps_xgboost210_20260723`, exported it through
+`PYTHONPATH`, and kept the failed run immutable. No Task2 command was invoked. Ran GPT and Qwen
+with `TASK3_EXECUTION_MODE=synthetic`, CPU hardware, explicit `python3`, and functional-bundle
+opt-in. Re-ran `verify-functional` after both consumers completed.
+
+**Result:** The distribution verified with 3 bundles, 375 files, and `6,554,852,341` bytes;
+distribution manifest SHA256 is
+`4e07f8f705c7662a60452f0992b01d9a817adb22db40b80b5f6e7a874c972985`. GPT CPU Task3 exited
+`0` in `62 s`, verified 1,049 files, and produced report/manifest/marker SHA256 values
+`5490e933ab564ce4b168684b5301fa525bbffee174b0c819c6e27446f6a4e8b3`,
+`083a92a613df3538fbfc259b95e470df363f64988d5ad578e27c9918692d8f04`, and
+`5095b4100c1dd4b2b0a76f44b4120bead5f8b7255e5be991d47ece386ae20302`.
+Qwen CPU Task3 exited `0` in `1176 s`, verified 281 files, and produced report/manifest/marker
+SHA256 values `00982a081c9385eca97554e21ccdd1c835736f3c36ac6b20c7ac489e3d6d0dca`,
+`0cbb754e43f91bcf93eb1581442235314006ceef82834e8132c241a795a8520d`, and
+`89e058d04128948428083718fca8fa8e5683bce3e873bbb2de5164ba5a1cf8c1`. Qwen simulator load,
+execution, and wall-clock values were `84.0241 s`, `1066.334488 s`, and `1150.358588 s`; the
+derived wall-clock delta was `0.0 s`. Both markers record `artifact_source=prebaked`,
+`execution_evidence=local_synthetic_not_gpu_qualification`, `ncu_metrics_source=task1_rank0`,
+and `slowdown_trace_rank_ids=[0]`. The fresh bundle re-verification exited `0`, and log inspection
+found zero `SC26-AE/task2_` entry references.
+
+### Final current-worktree regression
+
+**Motivation:** Establish fresh pre-commit evidence for the exact shell, Python, packaging, and
+documentation paths changed or consumed by the functional workflow without expanding the test
+harness.
+
+**Expectation:** Shell syntax, Python compilation, whitespace checks, and the existing functional
+package unit suite must pass; `sc26-ad.tex` must remain untouched; no Task2 script may be running.
+
+**Method:** Set all temporary and bytecode-cache roots under `/data/ycfeng/tmp`; ran `bash -n` for
+both Task3 entries and their shared library, `py_compile` for both packaging tools,
+`git diff --check`, a direct changed-path check for `sc26-ad.tex`, and the existing
+`tests/unit/test_sc26_ae_package_prebaked.py` suite.
+
+**Result:** Shell syntax, Python compilation, and `git diff --check` exited `0`; the paper TeX
+changed-path count and running Task2-process count were both `0`. The package regression passed
+`40/40` in `10.81 s`; transcript SHA256 is
+`788ca2e1bf6077a73a3913ae12e1ac38f6dc659650e8653b875d4d77bb163752`.

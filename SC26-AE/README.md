@@ -4,6 +4,8 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Recorded verified GPT/Qwen Fresh chains, the real functional bundle, both CPU-only Task3 runs, and the remaining clean-clone gate |
+| 2026-07-23 | Bound CPU-only functional Task3 to an explicit `python3` runtime with XGBoost and `/data/ycfeng/tmp` temporary storage |
 | 2026-07-21 | Replaced the deferred DeepSeek-V3 path with the Qwen3-A3B fake-level workflow (`world_size=256`, `PP=8`, `TP=8`, `EP=4`, `DP=4`) and documented the current evidence boundary |
 | 2026-07-21 | Documented Qwen3 PP×EP representative tracing with independent rank-0 Nsight Systems/Compute provenance |
 | 2026-07-20 | Clarified fake-level D16 behavior and rank-scoped Task1 capture |
@@ -35,18 +37,22 @@ the current AE chain and must not be used as a substitute for Qwen3 evidence.
 Current fake-level local evidence status:
 
 ```text
-EVIDENCE_CLASS=local_synthetic_not_gpu_qualification
+fresh_execution_evidence=runtime_measurement_requires_external_single_gpu_qualification
 functional_prebaked_evidence=functional_prebaked_not_release_qualified
-real_fresh_task1=GPT_PENDING; QWEN3_VERIFIED
-real_two_gpu_task2=QWEN3_VERIFIED
-real_fresh_task3=NOT_COMPLETED
-AE-ready=NO
+real_fresh_task1=GPT_VERIFIED; QWEN3_VERIFIED
+real_two_gpu_task2=VERIFIED_REUSED; TASK2_COMMANDS_EXECUTED=0
+real_fresh_task3=GPT_VERIFIED; QWEN3_VERIFIED
+functional_bundle=VERIFIED
+cpu_prebaked_task3=GPT_VERIFIED; QWEN3_VERIFIED
+clean_committed_clone=PENDING
+functional-AE-ready=NO
 release-ready=NO
 ```
 
-Keep this status until a worker completes a new real Fresh chain and the result is reproduced from
-a clean commit/clean clone. Historical output may be retained for audit, but must not be relabeled
-as new qualified evidence.
+The Fresh chains and functional prebaked path are closed. Keep `functional-AE-ready=NO` until the
+same commands are reproduced from a clean committed clone. Historical output may be retained for
+audit, but must not be relabeled as new qualified evidence. This reduced workflow never promotes
+the result to distributed-accuracy or release qualification.
 
 ## Hardware and topology
 
@@ -82,6 +88,7 @@ immediately; do not switch interpreters or fabricate GPU evidence:
 |---------|------------------------|
 | Task1 and Fresh Task3 | `/opt/conda/envs/megatron_env/bin/python` and its matching `torchrun` |
 | Task2 | `/opt/conda/envs/echo_slowdown/bin/python` |
+| Functional prebaked Task3 on a CPU controller | `python3` with `numpy`, `pandas`, and `xgboost==2.1.0` |
 | Nsight Systems | `nsys` |
 | Nsight Compute | `ncu` |
 
@@ -266,20 +273,31 @@ functional_prebaked_not_release_qualified
 Use a functional bundle only with explicit opt-in and CPU/synthetic execution:
 
 ```bash
-AE_OUTPUT_ROOT="$PWD/SC26-AE/output_functional" \
+export TMPDIR=/data/ycfeng/tmp
+export TEMP=/data/ycfeng/tmp
+export TMP=/data/ycfeng/tmp
+
+# This must print 2.1.0. If it fails, follow task_memory/env_handbook.md.
+python3 -c 'import xgboost; print(xgboost.__version__)'
+
+AE_OUTPUT_ROOT=/data/ycfeng/tmp/sc26_ae_output_functional \
 ARTIFACT_SOURCE=prebaked \
 PREBAKED_ROOT=/absolute/path/to/functional-bundle \
 TASK3_EXECUTION_MODE=synthetic \
 TASK3_ALLOW_FUNCTIONAL_PREBAKED=1 \
 SIMULATOR_HARDWARE_TYPE=cpu \
+TASK3_META_PYTHON=python3 \
+TASK3_SIMULATOR_PYTHON=python3 \
 bash SC26-AE/task3_gpt175b.sh
 
-AE_OUTPUT_ROOT="$PWD/SC26-AE/output_functional" \
+AE_OUTPUT_ROOT=/data/ycfeng/tmp/sc26_ae_output_functional \
 ARTIFACT_SOURCE=prebaked \
 PREBAKED_ROOT=/absolute/path/to/functional-bundle \
 TASK3_EXECUTION_MODE=synthetic \
 TASK3_ALLOW_FUNCTIONAL_PREBAKED=1 \
 SIMULATOR_HARDWARE_TYPE=cpu \
+TASK3_META_PYTHON=python3 \
+TASK3_SIMULATOR_PYTHON=python3 \
 bash SC26-AE/task3_qwen3_a30b.sh
 ```
 
@@ -309,14 +327,14 @@ bash tests/integration/test_sc26_ae_task3_contract.sh
 bash tests/e2e/test_sc26_ae_task3_prebaked_cpu.sh
 ```
 
-Current fake-level results are: package unit `33 passed`; Task1 contract `PASS_COUNT=45`;
+Current fake-level results are: package unit `40 passed`; Task1 contract `PASS_COUNT=45`;
 functional Task3 `PASS_COUNT=5` (one successful GPT and one successful Qwen3-A3B chain);
 Task3 contract `PASS_COUNT=11`; and legacy prebaked CPU regression `3/3` models. Fixture
 numbers such as rank0 step time validate report schema and simulator output only.
 
 ## Real Fresh and clean-clone closeout order
 
-Before claiming AE-ready or release-ready, execute the following sequence:
+Before claiming the **functional fake-level AE workflow** is ready, execute the following sequence:
 
 1. Complete GPT Task1 on the reviewed worker (eight traces plus rank-0 NCU).
 2. Complete Qwen3-A3B Task1 on the reviewed worker (32 PP×EP traces plus rank-0 NCU).
@@ -329,3 +347,7 @@ Before claiming AE-ready or release-ready, execute the following sequence:
 If the controller lacks the fixed interpreter, GPU, or Nsight tool, record the environment blocker
 and stop the real chain. Do not relabel old partial output, synthetic fixtures, or a shared Task2
 CSV as Fresh evidence.
+
+The sequence above is a functional reproducibility gate only. It does not establish distributed
+accuracy, paper-number fidelity, or release qualification; `release-ready` remains `NO` in this
+scope.

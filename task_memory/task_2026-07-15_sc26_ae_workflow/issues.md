@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes        |
 |------------|---------------------------|
+| 2026-07-23 | Resolved I64 controller XGBoost dependency without rerunning Task2 and opened I65 for the final committed-clone replay |
 | 2026-07-23 | Resolved I63: functional Qwen representative capture was incorrectly routed through the release-only full-rank promotion gate |
 | 2026-07-23 | Resolved I62 by separating functional bundle producers from heterogeneous source artifact producers and sealing the exact Fresh Task3 inputs |
 | 2026-07-23 | Closed I60 Task2 unified-compatibility false rejection; recorded the pre-existing one-trace Qwen synthetic fixture gap as non-blocking for the real Fresh chain |
@@ -1807,3 +1808,27 @@ counts, rank0-only NCU provenance, manifest checksums, and sealed Task3 input ch
 **Evidence:** New focused test reproduced the exact real failure and then passed after the one-line
 gate isolation. Complete affected regression passes `40/40`; the release path and invalid
 functional rank-inventory tests remain green.
+
+## I64 — CPU controller lacked the Task3 XGBoost runtime — RESOLVED / ENVIRONMENT
+
+**Symptom:** The first GPT CPU-only prebaked Task3 reached slowdown predictor initialization and
+failed with `Slowdown prediction requires xgboost; install it before enabling slowdown.` A direct
+`python3 -m venv` attempt also failed because the controller lacks `ensurepip/python3.12-venv`.
+
+**Root cause:** `/usr/bin/python3` had the numerical stack but not the XGBoost version used by the
+verified Task2 predictor. This was not a kernel-feature gap, a predictor corruption, or a reason to
+rerun Task2.
+
+**Resolution:** Installed `xgboost==2.1.0` with `--no-deps` into the dedicated
+`/data/ycfeng/tmp/sc26_ae_cpu_task3_pydeps_xgboost210_20260723` directory and exported it via
+`PYTHONPATH` only for CPU Task3. Verified `xgb.Booster` model loading and both GPT/Qwen CPU runs.
+The failed run and partial venv directory remain immutable. No product fallback or Task2 rerun was
+introduced.
+
+## I65 — Final clean committed-clone replay — OPEN / FUNCTIONAL GATE
+
+Both Fresh chains, the real functional bundle, and both current-worktree CPU consumers are
+verified. The remaining functional readiness gate is to create a Lore commit, clone that committed
+state into a new path under `/data/ycfeng/tmp`, and rerun `verify-functional` plus GPT/Qwen
+CPU-only Task3 with new output roots. This gate does not request fidelity, distributed accuracy, or
+release qualification.

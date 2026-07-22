@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Closed both Fresh chains and the functional prebaked execution; retained clean committed-clone replay as the final functional gate |
 | 2026-07-23 | Rebased execution on the reduced GPT-175B/Qwen3 functional AE scope and closed the Task2 provenance blocker without rerunning Task2 |
 | 2026-07-20 | Passed the penultimate tracked-snapshot V21 gate, closed I59 locally, and retained final identity, commit, and committed-clone verification as mechanical provenance steps |
 | 2026-07-20 | Added the Session 56 local provenance checkpoint: exact V21 log tracking, runtime-output scope isolation, staged-snapshot replay, and local-only commit boundary |
@@ -2148,11 +2149,11 @@ mechanics and do not change any external qualification status.
 1. **Completed:** implement and verify missing-kernel exact/alias/skip behavior in Task3.
 2. **Completed:** run Qwen3 Fresh Task1 and Fresh Task3 with the 32-rank PP×EP trace vector and rank-0 NCU provenance.
 3. **Completed:** split Task1 and Task2 source compatibility so the verified two-GPU Task2 predictor remains reusable when all Task2 producer blobs and the Echo commit are unchanged.
-4. **In progress:** commit the clean producer, then run GPT-175B Fresh Task1 on one handbook-compliant H800 worker using the 8 PP representatives and rank-0-only NCU.
-5. **Pending:** run GPT-175B Fresh Task3 without rerunning Task2; require report, manifest, marker, finite/nonnegative outputs, and slowdown enabled.
-6. **Pending:** update `build-functional`/`verify-functional` to preserve and validate heterogeneous producer identities, then run CPU-only prebaked Task3 for both representative models.
-7. **Pending:** align `SC26-AE/README.md` with verified commands, hardware, inputs, and outputs; do not modify `sc26-ad.tex`.
-8. **Pending:** run final clean-commit/clean-clone regression before any AE-ready statement.
+4. **Completed:** GPT-175B Fresh Task1 captured the 8 PP representatives and rank-0-only NCU on a handbook-compliant H800 worker.
+5. **Completed:** GPT-175B Fresh Task3 emitted a verified report, manifest, and marker without rerunning Task2.
+6. **Completed:** `build-functional`/`verify-functional` preserved heterogeneous producers; GPT and Qwen CPU-only prebaked Task3 both emitted verified artifacts.
+7. **Completed:** aligned `SC26-AE/README.md` with the verified commands, hardware, inputs, outputs, and functional-only evidence boundary; `sc26-ad.tex` remains unchanged.
+8. **In progress:** create the local Lore commit and replay `verify-functional` plus both CPU-only Task3 commands from a clean committed clone.
 
 Stop conditions remain fail-fast for artifact checksum/provenance failures, real GPU runtime failures,
 or an independent-review `BLOCK`. Fidelity calibration and distributed ground-truth comparison are

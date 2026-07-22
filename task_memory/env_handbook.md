@@ -8,6 +8,7 @@
 | 2026-03-06 | Added `CUDA_DEVICE_MAX_CONNECTIONS=1` prerequisite for Megatron scaling-mode torchrun validation |
 | 2026-03-12 | Added Echo-slowdown shell/Nsight compatibility notes for workflow validation |
 | 2026-07-16 | Added safe `rlaunch`/`brainctl` status handling and predict-only quota-result interpretation |
+| 2026-07-23 | Added the controller CPU-only Task3 `xgboost` dependency procedure without writing to `/tmp` |
 
 # Environment Handbook
 
@@ -143,6 +144,50 @@ SKIP_KERNEL_METRIC=1 bash Echo-slowdown/run_all.sh
 ```
 
 This reuses `Echo-slowdown/merge/input/kernel_metric_output.csv` and still exercises the real `slowdown_collection -> merge -> train -> predict` chain.
+
+## Controller CPU-Only Task3 Requires XGBoost
+
+### Symptoms
+
+- Functional prebaked Task3 reaches the simulator and then exits with:
+  `Slowdown prediction requires xgboost; install it before enabling slowdown.`
+- `/usr/bin/python3` is available, but `python3 -c 'import xgboost'` fails.
+- `python3 -m venv` may also fail because the controller image does not include
+  `ensurepip` / `python3.12-venv`.
+
+### Root Cause
+
+The CPU-only simulator imports the slowdown predictor at runtime. The controller Python includes
+the numerical dependencies but does not necessarily include the XGBoost version used to train the
+prebaked predictor. This is an environment dependency gap; it is not a missing-kernel condition and
+does not require rerunning Task2.
+
+### Verified Procedure
+
+Install the exact Task2 XGBoost version into a dedicated directory under `/data/ycfeng/tmp`, then
+export that directory through `PYTHONPATH` for Task3:
+
+```bash
+export TMPDIR=/data/ycfeng/tmp
+export TEMP=/data/ycfeng/tmp
+export TMP=/data/ycfeng/tmp
+export PIP_CACHE_DIR=/data/ycfeng/tmp/pip-cache
+export TASK3_CPU_PYDEPS=/data/ycfeng/tmp/sc26_ae_cpu_task3_pydeps_xgboost210
+
+eval "$(curl -fsS http://deploy.i.shaipower.com/httpproxy)"
+python3 -m pip install \
+  --target "${TASK3_CPU_PYDEPS}" \
+  --no-deps \
+  'xgboost==2.1.0'
+
+export PYTHONPATH="${TASK3_CPU_PYDEPS}${PYTHONPATH:+:${PYTHONPATH}}"
+python3 -c 'import xgboost; assert xgboost.__version__ == "2.1.0"'
+```
+
+The controller already provides `numpy`, `pandas`, and `scipy`; verify those imports before using
+`--no-deps`. Bind both `TASK3_META_PYTHON` and `TASK3_SIMULATOR_PYTHON` explicitly to `python3` in
+the CPU-only Task3 command. Do not use this controller-only dependency layer as real worker or GPU
+qualification evidence.
 
 ## Safe RJob Inspection and Predict-Only Result Handling
 

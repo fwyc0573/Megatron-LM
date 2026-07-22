@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes            |
 |------------|-------------------------------|
+| 2026-07-23 | Recorded the completed functional bundle/CPU runs, controller XGBoost layer, Qwen verbose-log scale, and final clean-clone commands |
 | 2026-07-23 | Recorded root-owned `/data/ycfeng/SC26-AE` staging restriction and the writable `/data/ycfeng/tmp` functional staging location |
 | 2026-07-23 | Recorded the repo-local bytecode-cache permission issue and the validated `/data/ycfeng/tmp` `PYTHONPYCACHEPREFIX` contract |
 | 2026-07-23 | Recorded the mandatory `/data/ycfeng/tmp` rule, no-Task2-rerun rule, and current clean producer/output roots |
@@ -246,3 +247,26 @@ permission. This environment note does not change the real qualification or rele
 - `/data/ycfeng/SC26-AE` and its Fresh output root are root-owned mode `755` in the controller.
   Functional bundle staging and build logs must use new unique paths under `/data/ycfeng/tmp` in
   this environment; source artifacts remain read-only at their verified original paths.
+
+## Session 60 operational notes — functional prebaked execution
+
+- Real functional distribution root:
+  `/data/ycfeng/tmp/sc26_ae_functional_prebaked_20260722T210958Z`.
+- The distribution is functional-only: `functional_prebaked_not_release_qualified`, 3 bundles,
+  375 files, `6,554,852,341` bytes. Do not describe it as release or fidelity evidence.
+- Controller CPU Task3 uses `/usr/bin/python3` 3.12.3 plus the dedicated XGBoost layer at
+  `/data/ycfeng/tmp/sc26_ae_cpu_task3_pydeps_xgboost210_20260723`. Export that directory through
+  `PYTHONPATH`; do not modify the predictor or rerun Task2.
+- The failed GPT CPU run at
+  `/data/ycfeng/tmp/sc26_ae_cpu_prebaked_20260722T212843Z` and partial venv at
+  `/data/ycfeng/tmp/sc26_ae_cpu_task3_env_20260723` are audit records. Do not delete, overwrite,
+  or reuse them.
+- Qwen CPU simulation is compute-heavy on the controller: the completed outer wall time was
+  `1176 s`, simulator wall time `1150.358588 s`, RSS was approximately `3.3 GB`, and
+  `logs/simulator.log` reached `1,404,200,246` bytes. This is verbose existing simulator output,
+  not a Task2 or slowdown failure.
+- All temporary roots, logs, caches, bytecode, clones, and CPU outputs stay under
+  `/data/ycfeng/tmp`; never use `/tmp`.
+- The final clone must use a new unique path and new simulation IDs. It may reuse the verified
+  functional distribution and controller XGBoost layer, but must not reuse or overwrite prior run
+  directories.

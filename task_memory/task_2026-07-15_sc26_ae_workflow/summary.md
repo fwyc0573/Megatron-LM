@@ -1,9 +1,10 @@
-# Summary — SC'26 AE Workflow (INCOMPLETE)
+# Summary — SC'26 AE Workflow (FUNCTIONAL CLOSEOUT PENDING CLEAN CLONE)
 
 ## Modification History
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Recorded completed GPT/Qwen Fresh and functional prebaked chains; retained clean committed-clone replay as the final functional gate |
 | 2026-07-20 | Closed I59 locally after the penultimate tracked-snapshot V21 replay; final identity, Lore commit, and committed-clone verification remain local-only provenance mechanics |
 | 2026-07-20 | Recorded Session 56 tracked-snapshot V21 GREEN, runtime-output scope TDD repair, and independent follow-up `APPROVE`; final current identity reconciliation remains local-only |
 | 2026-07-20 | Reconciled current clean sim-engine provenance and recorded the Session 56 V21 clean-clone evidence-log remediation boundary; qualification status remains INCOMPLETE |
@@ -50,9 +51,11 @@ points, a centralized and portable artifact layout, and a reusable pre-dataset t
 run without source edits. The intended chain is Task1 workload capture → Task2 slowdown predictor
 → Task3 end-to-end simulation/report.
 
-**Current state: INCOMPLETE.** The local control-plane and synthetic regression evidence is green,
-but final real qualification and pre-dataset release evidence are not complete. This summary must
-not be read as an `AE-ready` approval.
+**Current state: functional chains complete; clean committed-clone replay pending.** GPT-175B and
+Qwen3-A3B have verified Fresh Task1/Task3 artifacts, the shared Task2 predictor retains verified
+two-GPU provenance, the real functional bundle verifies, and both CPU-only prebaked consumers pass.
+This summary must not yet be read as a functional `AE-ready` approval because I65 remains open. It
+never claims distributed accuracy, paper-number fidelity, or release qualification.
 
 ## Deliverables Inventory
 
@@ -90,8 +93,25 @@ own final hash is reported in the parent handoff to avoid a self-referential has
 | This summary | `task_memory/task_2026-07-15_sc26_ae_workflow/summary.md` | Final SHA256 reported externally after write |
 
 The nested `megatron-sim-engine` producer is currently clean: its HEAD and the outer gitlink both
-equal `39755169f73f6c748e8d7376c3a2158c6569436b`. This closes the local I39 discrepancy only; it
+equal `51eed0404635632fd52a99b3f372d5830b1d73b4`. This closes the local I39 discrepancy only; it
 does not qualify a real pre-dataset, release bundle, or AE-ready result.
+
+### Session 60 Functional Deliverables
+
+| Deliverable | Exact path | SHA256 / status |
+|-------------|------------|-----------------|
+| Shared real two-GPU Task2 manifest | `/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4/_shared/task2/runs/task2-20260722T142810Z-192-11368/artifact_manifest.json` | `d344fbfc0f4e56286efe9dd5ee6ac3f125ed3ad34fe8e4599bc9a71f67dda76e`; 18 files |
+| GPT Fresh Task1 manifest | `/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4/gpt175b/task1/runs/gpt175b-20260722T181829Z/artifact_manifest.json` | `490bf26101edbb4594b7c21d14a3a7b858d5aa654b7bfa706224d660fdbc77bd`; 8 traces |
+| GPT Fresh Task3 manifest | `/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4/gpt175b/task3/runs/gpt175b-20260722T194650Z-296-25436/artifact_manifest.json` | `02b89c32f2d3c55628858709b8519933a73dd1a5d7339e1602bcab5125bd161f`; 1,049 files |
+| Qwen Fresh Task3 manifest | `/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4/qwen3_a30b/task3/runs/qwen3_a30b-20260722T173544Z-303-7078/artifact_manifest.json` | `805e646704ec9680481722f75d8df132ccffbab99afcee41f4c4a414b8512a9b`; 281 files |
+| Functional distribution manifest | `/data/ycfeng/tmp/sc26_ae_functional_prebaked_20260722T210958Z/distribution_manifest.json` | `4e07f8f705c7662a60452f0992b01d9a817adb22db40b80b5f6e7a874c972985`; 3 bundles, 375 files |
+| Functional build result | `/data/ycfeng/tmp/sc26_ae_functional_build_results/sc26-ae-functional-20260722T210958Z.json` | `56ddbacd067f87d89f635e94e4491e7ef046f89c535f1dcea24d04b0bb9e9f82` |
+| GPT CPU Task3 report | `/data/ycfeng/tmp/sc26_ae_cpu_prebaked_20260722T213203Z/gpt175b/task3/runs/gpt175b-prebaked-cpu-20260722T213203Z/report.json` | `5490e933ab564ce4b168684b5301fa525bbffee174b0c819c6e27446f6a4e8b3` |
+| GPT CPU Task3 manifest | `/data/ycfeng/tmp/sc26_ae_cpu_prebaked_20260722T213203Z/gpt175b/task3/runs/gpt175b-prebaked-cpu-20260722T213203Z/artifact_manifest.json` | `083a92a613df3538fbfc259b95e470df363f64988d5ad578e27c9918692d8f04`; 1,049 files |
+| GPT CPU Task3 marker | `/data/ycfeng/tmp/sc26_ae_cpu_prebaked_20260722T213203Z/gpt175b/task3/run_marker.json` | `5095b4100c1dd4b2b0a76f44b4120bead5f8b7255e5be991d47ece386ae20302` |
+| Qwen CPU Task3 report | `/data/ycfeng/tmp/sc26_ae_cpu_prebaked_20260722T213415Z/qwen3_a30b/task3/runs/qwen3_a30b-prebaked-cpu-20260722T213415Z/report.json` | `00982a081c9385eca97554e21ccdd1c835736f3c36ac6b20c7ac489e3d6d0dca` |
+| Qwen CPU Task3 manifest | `/data/ycfeng/tmp/sc26_ae_cpu_prebaked_20260722T213415Z/qwen3_a30b/task3/runs/qwen3_a30b-prebaked-cpu-20260722T213415Z/artifact_manifest.json` | `0cbb754e43f91bcf93eb1581442235314006ceef82834e8132c241a795a8520d`; 281 files |
+| Qwen CPU Task3 marker | `/data/ycfeng/tmp/sc26_ae_cpu_prebaked_20260722T213415Z/qwen3_a30b/task3/run_marker.json` | `89e058d04128948428083718fca8fa8e5683bce3e873bbb2de5164ba5a1cf8c1` |
 
 ## Validation Status
 
@@ -109,7 +129,15 @@ does not qualify a real pre-dataset, release bundle, or AE-ready result.
 | D27 one-H800 branch | PASS | CUDA/NVML `1/1`, `30` samples, JSON `4,951` bytes | `real_gpu_qualification` component only |
 | Echo exact-two-H800 | BLOCK | Retry2 reached training but failed before prediction parity | Not qualified |
 | Integrated Gate B1 | BLOCK | Echo gate unresolved | Not qualified |
-| Fresh real pre-dataset | NOT QUALIFIED | No complete real trace/predictor/simulator bundle | Not qualified |
+| Fresh release pre-dataset | NOT QUALIFIED | Functional chain complete; release qualification intentionally not performed | Not qualified |
+| GPT real Fresh fake-level chain | PASS | Task1 traces `8`; Task3 manifest files `1049`; rank0 step `8276.64 ms` | `runtime_measurement_requires_external_single_gpu_qualification` |
+| Qwen real Fresh fake-level chain | PASS | Task1 traces `32`; Task3 manifest files `281`; rank0 step `3051.24 ms` | `runtime_measurement_requires_external_single_gpu_qualification` |
+| Shared two-GPU predictor | PASS / reused | GPUs `0,1`; rows `727`; validation MSE `0.04124828706619175`; test MSE `0.061428837844613504` | Verified real Task2 artifact |
+| Functional distribution | PASS | Bundles `3`; files `375`; bytes `6,554,852,341` | `functional_prebaked_not_release_qualified` |
+| GPT CPU-only prebaked Task3 | PASS | Outer wall `62 s`; simulator wall `40.619282 s`; manifest files `1049` | `local_synthetic_not_gpu_qualification` |
+| Qwen CPU-only prebaked Task3 | PASS | Outer wall `1176 s`; simulator wall `1150.358588 s`; manifest files `281` | `local_synthetic_not_gpu_qualification` |
+| Task2 commands in current completion phase | PASS | `0` | No predictor retraining |
+| Functional package regression | PASS | `40/40` in `10.81 s`; exit `0` | Current worktree |
 
 ### Local numeric examples
 
@@ -119,14 +147,15 @@ are useful for scale checking only; they are not real performance claims.
 
 ## Open Items / Future Extensions
 
-1. Preserve the clean sim-engine producer identity and revalidate it at tracked-snapshot/release gates.
-2. Qualify the current `v1.2-ae` image by immutable digest and complete the exact-two-H800 gate.
-3. Collect real Task1/Task2/Task3 artifacts and complete checksum/provenance/data-quality checks.
-4. Rehearse the final bundle from a clean clone before any separately approved publication.
-5. Supply an authority-approved interpreter digest and validate the nested chain on the canonical worker before reconsidering I55.
+1. Create the local Lore commit and replay `verify-functional` plus GPT/Qwen CPU-only Task3 from a
+   new clean committed clone under `/data/ycfeng/tmp`.
+2. Preserve release qualification, distributed accuracy, and paper-number fidelity as separate
+   future work; this functional task does not attempt to close them.
+3. Keep DeepSeek-V3 deferred and do not substitute it for the formal GPT/Qwen scope.
 
-Until those items pass, the task remains `INCOMPLETE`, and no local synthetic result may be promoted
-to `AE-ready` or `release_pre_dataset`.
+Until item 1 passes, `functional-AE-ready=NO`. Even after functional closeout,
+`release-ready=NO`, `distributed-accuracy-qualified=NO`, and `paper-fidelity-reproduced=NO` remain
+the required boundaries.
 
 ---
 
