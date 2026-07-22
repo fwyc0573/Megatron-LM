@@ -247,6 +247,64 @@ task3_current_commits() {
     task3_assert_sim_engine_provenance
 }
 
+task3_source_compatibility_mode() {
+    local label=$1
+    local recorded_main_commit=$2
+    local recorded_echo_commit=$3
+    local recorded_sim_commit=$4
+    local commit_pattern='^[0-9a-f]{40}$'
+
+    [[ "${recorded_main_commit}" =~ ${commit_pattern} ]] || {
+        task3_error "${label} Megatron-LM commit is invalid: ${recorded_main_commit}"
+        return 1
+    }
+    [[ "${recorded_echo_commit}" =~ ${commit_pattern} ]] || {
+        task3_error "${label} Echo-slowdown commit is invalid: ${recorded_echo_commit}"
+        return 1
+    }
+    [[ "${recorded_sim_commit}" =~ ${commit_pattern} ]] || {
+        task3_error "${label} megatron-sim-engine commit is invalid: ${recorded_sim_commit}"
+        return 1
+    }
+
+    if [[ "${recorded_main_commit}" == "${TASK3_MAIN_COMMIT}" &&
+          "${recorded_echo_commit}" == "${TASK3_ECHO_COMMIT}" &&
+          "${recorded_sim_commit}" == "${TASK3_SIM_COMMIT}" ]]; then
+        printf '%s\n' exact
+        return 0
+    fi
+
+    [[ "${recorded_echo_commit}" == "${TASK3_ECHO_COMMIT}" ]] || {
+        task3_error "${label} Echo-slowdown commit differs from the current producer."
+        return 1
+    }
+    git -C "${TASK3_REPO_ROOT}" merge-base --is-ancestor \
+        "${recorded_main_commit}" "${TASK3_MAIN_COMMIT}" >/dev/null 2>&1 || {
+        task3_error "${label} outer commit is not an ancestor of the current producer."
+        return 1
+    }
+    git -C "${TASK3_REPO_ROOT}" diff --quiet --no-ext-diff \
+        "${recorded_main_commit}..${TASK3_MAIN_COMMIT}" -- \
+        . ':(exclude)megatron-sim-engine' || {
+        task3_error \
+            "${label} producer advancement changes files outside megatron-sim-engine."
+        return 1
+    }
+    if git -C "${TASK3_REPO_ROOT}" diff --quiet --no-ext-diff \
+        "${recorded_main_commit}..${TASK3_MAIN_COMMIT}" -- megatron-sim-engine; then
+        task3_error \
+            "${label} producer advancement does not contain a simulator gitlink change."
+        return 1
+    fi
+    git -C "${TASK3_SIM_ENGINE_ROOT}" merge-base --is-ancestor \
+        "${recorded_sim_commit}" "${TASK3_SIM_COMMIT}" >/dev/null 2>&1 || {
+        task3_error "${label} simulator commit is not an ancestor of the current simulator."
+        return 1
+    }
+
+    printf '%s\n' simulator_only_reuse
+}
+
 task3_assert_real_producer_file() {
     local variable_name=$1
     local configured_path=$2
@@ -747,6 +805,15 @@ expected_topology = {
     "exp": int(exp_text),
 }
 
+
+def validated_source_commits(value, label):
+    if not isinstance(value, dict) or set(value) != set(expected_commits):
+        fail(f"{label} source_commits schema is invalid")
+    for key, commit in value.items():
+        if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+            fail(f"{label} source commit is invalid for {key}")
+    return value
+
 capture_marker = load_object(capture_marker_path, "Task1 capture marker")
 if capture_marker.get("schema_version") != "sc26-ae-task1-capture-marker-v1":
     fail("Task1 capture marker schema is invalid")
@@ -772,8 +839,9 @@ if task1_manifest.get("task") != "task1" or task1_manifest.get("artifact_source"
     fail("Task1 manifest identity is invalid")
 if task1_manifest.get("model") != model or task1_manifest.get("capture_id") != capture_id:
     fail("Task1 manifest model/capture_id mismatch")
-if task1_manifest.get("source_commits") != expected_commits:
-    fail("Fresh Task1 producer commits differ from the current checkout")
+task1_source_commits = validated_source_commits(
+    task1_manifest.get("source_commits"), "Fresh Task1"
+)
 if task1_manifest.get("simulation_topology") != expected_topology:
     fail("Task1 simulation topology differs from the frozen Task3 topology")
 if task1_manifest.get("profile") != profile:
@@ -908,8 +976,9 @@ if task2_manifest.get("artifact_source") != "fresh":
     fail("Task2 manifest must describe fresh predictor artifacts")
 if task2_manifest.get("predictor_run_id") != predictor_run_id:
     fail("Task2 manifest predictor_run_id mismatch")
-if task2_manifest.get("source_commits") != expected_commits:
-    fail("Fresh Task2 producer commits differ from the current checkout")
+task2_source_commits = validated_source_commits(
+    task2_manifest.get("source_commits"), "Fresh Task2"
+)
 task2_evidence = task2_manifest.get("execution_evidence")
 if execution_mode == "real" and task2_evidence not in {
     "real_exact_two_h800_qualified",
@@ -974,6 +1043,8 @@ payload = {
     "scaler_path": str(scaler_path),
     "task1_manifest": str(task1_manifest_path),
     "task2_manifest": str(task2_manifest_path),
+    "task1_source_commits": task1_source_commits,
+    "task2_source_commits": task2_source_commits,
     "distribution_manifest": "",
     "source_assets_dir": "",
     "task1_root": str(task1_run),
@@ -1033,6 +1104,34 @@ payload = {
 pathlib.Path(output_text).write_text(
     json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
 )
+PY
+
+    local task1_compatibility_mode task2_compatibility_mode
+    task1_compatibility_mode=$(task3_source_compatibility_mode \
+        'Fresh Task1' \
+        "$(task3_json_field "${resolved_json}" task1_source_commits.megatron_lm)" \
+        "$(task3_json_field "${resolved_json}" task1_source_commits.echo_slowdown)" \
+        "$(task3_json_field "${resolved_json}" task1_source_commits.megatron_sim_engine)")
+    task2_compatibility_mode=$(task3_source_compatibility_mode \
+        'Fresh Task2' \
+        "$(task3_json_field "${resolved_json}" task2_source_commits.megatron_lm)" \
+        "$(task3_json_field "${resolved_json}" task2_source_commits.echo_slowdown)" \
+        "$(task3_json_field "${resolved_json}" task2_source_commits.megatron_sim_engine)")
+
+    "${TASK3_META_PYTHON}" - "${resolved_json}" \
+        "${task1_compatibility_mode}" "${task2_compatibility_mode}" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["source_compatibility"] = {
+    "policy": "exact_or_simulator_only_ancestor_v1",
+    "task1": sys.argv[2],
+    "task2": sys.argv[3],
+}
+path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 PY
 
     task3_assign_resolved_fields "${resolved_json}"
