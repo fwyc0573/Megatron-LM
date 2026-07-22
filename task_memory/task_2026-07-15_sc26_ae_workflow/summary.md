@@ -1,9 +1,10 @@
-# Summary — SC'26 AE Workflow (FUNCTIONAL CLOSEOUT PENDING CLEAN CLONE)
+# Summary — SC'26 AE Workflow (FUNCTIONAL FAKE-LEVEL READY)
 
 ## Modification History
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Closed the exact-producer clean-clone bundle and GPT/Qwen CPU replay; functional fake-level AE status is ready |
 | 2026-07-23 | Recorded completed GPT/Qwen Fresh and functional prebaked chains; retained clean committed-clone replay as the final functional gate |
 | 2026-07-20 | Closed I59 locally after the penultimate tracked-snapshot V21 replay; final identity, Lore commit, and committed-clone verification remain local-only provenance mechanics |
 | 2026-07-20 | Recorded Session 56 tracked-snapshot V21 GREEN, runtime-output scope TDD repair, and independent follow-up `APPROVE`; final current identity reconciliation remains local-only |
@@ -51,11 +52,13 @@ points, a centralized and portable artifact layout, and a reusable pre-dataset t
 run without source edits. The intended chain is Task1 workload capture → Task2 slowdown predictor
 → Task3 end-to-end simulation/report.
 
-**Current state: functional chains complete; clean committed-clone replay pending.** GPT-175B and
-Qwen3-A3B have verified Fresh Task1/Task3 artifacts, the shared Task2 predictor retains verified
-two-GPU provenance, the real functional bundle verifies, and both CPU-only prebaked consumers pass.
-This summary must not yet be read as a functional `AE-ready` approval because I65 remains open. It
-never claims distributed accuracy, paper-number fidelity, or release qualification.
+**Current state: functional fake-level workflow complete at exact producer commit
+`c7288c66f0a6c3d0445edc841a6e5982d3b22f09`.** GPT-175B and Qwen3-A3B have verified Fresh
+Task1/Task3 artifacts, the shared Task2 predictor retains verified two-GPU provenance, the final
+commit-bound functional bundle verifies, and both CPU-only prebaked consumers pass from a clean
+clone. I65 is resolved for this deliberately reduced functional scope. This is
+`functional-fake-level-AE-ready=YES`; it never claims distributed accuracy, paper-number fidelity,
+or release qualification.
 
 ## Deliverables Inventory
 
@@ -113,6 +116,26 @@ does not qualify a real pre-dataset, release bundle, or AE-ready result.
 | Qwen CPU Task3 manifest | `/data/ycfeng/tmp/sc26_ae_cpu_prebaked_20260722T213415Z/qwen3_a30b/task3/runs/qwen3_a30b-prebaked-cpu-20260722T213415Z/artifact_manifest.json` | `0cbb754e43f91bcf93eb1581442235314006ceef82834e8132c241a795a8520d`; 281 files |
 | Qwen CPU Task3 marker | `/data/ycfeng/tmp/sc26_ae_cpu_prebaked_20260722T213415Z/qwen3_a30b/task3/run_marker.json` | `89e058d04128948428083718fca8fa8e5683bce3e873bbb2de5164ba5a1cf8c1` |
 
+### Session 61 Exact-Producer Clean-Clone Deliverables
+
+The table below supersedes Session 60 only for the functional distribution and CPU-only consumer
+artifacts. Fresh Task1/Task3 and shared two-GPU Task2 inputs are unchanged.
+
+| Deliverable | Exact path | SHA256 / status |
+|-------------|------------|-----------------|
+| Exact functional producer | `/data/ycfeng/tmp/sc26_ae_clean_clone_20260723T060352_c7288c6` | outer `c7288c66f0a6c3d0445edc841a6e5982d3b22f09`; Echo `1390b4416ded08bc1b9cd0620d329d81d4470bf9`; sim-engine `51eed0404635632fd52a99b3f372d5830b1d73b4`; tracked statuses `0/0/0` |
+| Preserved older-bundle mismatch | `/data/ycfeng/tmp/sc26_ae_clean_clone_verify_functional_20260723T060352.log` | `64646269b1945f2e45612a519d220d7e10c855aa2da3ca663769a0fcaecba96e`; expected exact-commit rejection |
+| Final functional distribution manifest | `/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/distribution_manifest.json` | `6e9ab347df9107b9f2ada1900db47e56f246f6b445ed06d62b5e2b4960a50468`; 3 bundles, 375 files, 6,554,852,354 bytes |
+| Final functional build result | `/data/ycfeng/tmp/sc26_ae_functional_clean_build_results/sc26-ae-functional-clean-20260723T063212-c7288c6.json` | `bc2947922b1711d5f17db386ddde3c279fd11f8d6bb84750bb07b17609888109` |
+| Final functional build log | `/data/ycfeng/tmp/sc26_ae_functional_clean_build_results/sc26-ae-functional-clean-20260723T063212-c7288c6.build.log` | `ee6c53c951d1665c7ad33a2085241af69b81c170328f94df4ec1a07aea1e65a0` |
+| Final functional verify log | `/data/ycfeng/tmp/sc26_ae_functional_clean_build_results/sc26-ae-functional-clean-20260723T063212-c7288c6.verify.log` | `02e3f4f5a876ba8eec446dba76520197931dced767d079615e85f516adfad351` |
+| Final GPT CPU report | `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/runs/gpt175b-clean-final-cpu-20260723T063628/report.json` | `20ea1637fe418915be987a51caa5cc7e3c37378c4a4e718c02becda97e485ecb` |
+| Final GPT CPU manifest | `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/runs/gpt175b-clean-final-cpu-20260723T063628/artifact_manifest.json` | `d2f2838d4f605645b9258b2caf26250a7956a4c73fe850ed63d64ce6a5f55534`; 1,049 files |
+| Final GPT CPU marker | `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/run_marker.json` | `396096f052448b25b87ad20a28ed3309ad8095a86e4e81591aec08e5a0292d9e` |
+| Final Qwen CPU report | `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/report.json` | `08700cba92a3459362bb682ba5e09069c1f47575b7cbe4d753ef51c48ecefc57` |
+| Final Qwen CPU manifest | `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/artifact_manifest.json` | `4f2903707633e88c62c6e55d98e9fb9ecd9cb4acf9098e2a733aee2c46886a89`; 281 files |
+| Final Qwen CPU marker | `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/run_marker.json` | `2c0c3d0c40e60da84648ffd9c9985d2a4d3b4e74100a337aa7668ebf520d9a04` |
+
 ## Validation Status
 
 ### Local evidence matrix
@@ -138,6 +161,10 @@ does not qualify a real pre-dataset, release bundle, or AE-ready result.
 | Qwen CPU-only prebaked Task3 | PASS | Outer wall `1176 s`; simulator wall `1150.358588 s`; manifest files `281` | `local_synthetic_not_gpu_qualification` |
 | Task2 commands in current completion phase | PASS | `0` | No predictor retraining |
 | Functional package regression | PASS | `40/40` in `10.81 s`; exit `0` | Current worktree |
+| Exact-producer clean clone | PASS | outer/Echo/sim-engine tracked status lines `0/0/0` | Commit-bound functional reproduction |
+| Final functional distribution | PASS | bundles/files/bytes `3/375/6,554,852,354`; build/verify exits `0/0` | `functional_prebaked_not_release_qualified` |
+| Final GPT clean-clone CPU Task3 | PASS | outer wall `63 s`; simulator load/execution/wall `18.015626/23.576013/41.591639 s`; derived delta `0.0 s` | `local_synthetic_not_gpu_qualification` |
+| Final Qwen clean-clone CPU Task3 | PASS | outer wall `1184 s`; simulator load/execution/wall `84.063936/1072.67156/1156.735496 s`; derived delta `0.0 s` | `local_synthetic_not_gpu_qualification` |
 
 ### Local numeric examples
 
@@ -147,15 +174,14 @@ are useful for scale checking only; they are not real performance claims.
 
 ## Open Items / Future Extensions
 
-1. Create the local Lore commit and replay `verify-functional` plus GPT/Qwen CPU-only Task3 from a
-   new clean committed clone under `/data/ycfeng/tmp`.
-2. Preserve release qualification, distributed accuracy, and paper-number fidelity as separate
+1. Preserve release qualification, distributed accuracy, and paper-number fidelity as separate
    future work; this functional task does not attempt to close them.
-3. Keep DeepSeek-V3 deferred and do not substitute it for the formal GPT/Qwen scope.
+2. Keep DeepSeek-V3 deferred and do not substitute it for the formal GPT/Qwen scope.
+3. If a release-qualified package is later required, repeat the release-specific gates rather than
+   promoting this functional distribution.
 
-Until item 1 passes, `functional-AE-ready=NO`. Even after functional closeout,
-`release-ready=NO`, `distributed-accuracy-qualified=NO`, and `paper-fidelity-reproduced=NO` remain
-the required boundaries.
+The current verdict is `functional-fake-level-AE-ready=YES`. The required boundaries remain
+`release-ready=NO`, `distributed-accuracy-qualified=NO`, and `paper-fidelity-reproduced=NO`.
 
 ---
 

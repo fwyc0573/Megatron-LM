@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Recorded the exact-producer clean-clone functional replay and final fake-level AE verdict |
 | 2026-07-23 | Recorded the primary verification checkpoint for real Fresh artifacts, the functional bundle, and both CPU-only consumers before clean-clone replay |
 | 2026-07-23 | Recorded independent StepCode Claude `APPROVE` for isolating the functional 32-rank Qwen gate from release full-rank promotion |
 | 2026-07-23 | Recorded independent StepCode Claude `APPROVE` for the I62 heterogeneous-producer functional packaging diff |
@@ -4149,3 +4150,68 @@ designs recorded in Sessions 57–59.
 Current-worktree Fresh and functional runtime evidence is `PASS` for the reduced fake-level
 workflow. The only remaining functional gate is committed-clone replay. Release qualification,
 distributed accuracy, and paper-number fidelity remain explicitly out of scope and unqualified.
+
+## Review Checkpoint — Session 61 exact-producer clean-clone closeout — 2026-07-23
+
+### Target Component/Phase
+
+Final functional fake-level AE gate: exact-commit clean clone, commit-bound functional bundle,
+bundle verification, and GPT/Qwen CPU-only Task3 replay without rerunning Task2.
+
+### Reviewer Agent Identity
+
+Primary Codex verifier lane `/root`. Sessions 57–59 retain the independent StepCode Claude
+approval for the compatibility and packaging design. This checkpoint performs the final mechanical
+reproduction and does not self-approve a new architecture or provenance policy.
+
+### Inspected Artifacts
+
+- Clean clone `/data/ycfeng/tmp/sc26_ae_clean_clone_20260723T060352_c7288c6` and outer/Echo/
+  sim-engine identities `c7288c66...` / `1390b441...` / `51eed040...`.
+- Preserved older-bundle rejection log
+  `/data/ycfeng/tmp/sc26_ae_clean_clone_verify_functional_20260723T060352.log`.
+- Final distribution
+  `/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6`, its manifest,
+  build result, build log, and verification log.
+- Final GPT run under
+  `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt` and final Qwen run under
+  `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen`.
+- Both report JSON files, report Markdown files, artifact manifests, top-level Task3 markers,
+  command logs, slowdown-trace logs, and repository tracked statuses.
+
+### Identified Issues/Anomalies
+
+1. The older functional bundle was produced by `4dad1774...`, while the clean checkout was
+   `c7288c66...`. The verifier correctly rejected this exact producer mismatch; it was not a
+   Task1, Task2, Task3, checksum, or kernel-coverage defect.
+2. Task3 markers are stored at `<model>/task3/run_marker.json`, outside each versioned run
+   directory. The earlier checkpoint summary named the file correctly but implied the wrong
+   directory during one read-only probe; no runtime artifact was missing.
+3. `simulator_expected_wall_clock_s` and `simulator_wall_clock_delta_s` are derived validation
+   values. The stored v1 report schema contains load, execution, and wall-clock fields only.
+4. Qwen remains operationally expensive on CPU (`1,184 s` outer wall and a roughly 1.4 GB
+   simulator log), but it completed with verified artifacts. This is not a functional failure.
+
+### Remediation/Verification Code Actions Taken
+
+- Preserved exact producer equality and built a new functional distribution from the final source
+  commit using the already verified Fresh artifacts. No arbitrary descendant fallback, verifier
+  weakening, Task2 rerun, or source change was introduced.
+- Verified distribution status `verified`, evidence
+  `functional_prebaked_not_release_qualified`, bundles/files/bytes `3/375/6,554,852,354`, and
+  manifest SHA256 `6e9ab347df9107b9f2ada1900db47e56f246f6b445ed06d62b5e2b4960a50468`.
+- GPT exited `0` in `63 s`; manifest files=`1049`; simulator load/execution/wall=
+  `18.015626/23.576013/41.591639 s`; derived absolute delta=`0.0 s`.
+- Qwen exited `0` in `1184 s`; manifest files=`281`; simulator load/execution/wall=
+  `84.063936/1072.67156/1156.735496 s`; derived absolute delta=`0.0 s`.
+- Confirmed both command logs contain `--enable-slowdown`; marker slowdown scope is
+  `global_rank_0` with rank IDs `[0]`; Task2 entry commands and running Task2 processes=`0`.
+- Confirmed outer, Echo, and sim-engine tracked status line counts=`0/0/0` after replay.
+
+### Review Verdict
+
+`PASS` for the two-model functional fake-level AE workflow. Goal 1 and Goal 2 are mechanically
+closed at the exact producer commit, so `functional-fake-level-AE-ready=YES`. This verdict does not
+promote the artifacts to release qualification, multi-node distributed accuracy, or paper-number
+fidelity: `release-ready=NO`, `distributed-accuracy-qualified=NO`, and
+`paper-fidelity-reproduced=NO`.

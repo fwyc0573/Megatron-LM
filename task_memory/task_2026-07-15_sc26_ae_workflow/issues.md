@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes        |
 |------------|---------------------------|
+| 2026-07-23 | Resolved I65 by rebuilding the functional bundle from the exact final producer commit and replaying both CPU consumers from its clean clone |
 | 2026-07-23 | Resolved I64 controller XGBoost dependency without rerunning Task2 and opened I65 for the final committed-clone replay |
 | 2026-07-23 | Resolved I63: functional Qwen representative capture was incorrectly routed through the release-only full-rank promotion gate |
 | 2026-07-23 | Resolved I62 by separating functional bundle producers from heterogeneous source artifact producers and sealing the exact Fresh Task3 inputs |
@@ -1825,10 +1826,13 @@ rerun Task2.
 The failed run and partial venv directory remain immutable. No product fallback or Task2 rerun was
 introduced.
 
-## I65 — Final clean committed-clone replay — OPEN / FUNCTIONAL GATE
+## I65 — Final clean committed-clone replay — RESOLVED / FUNCTIONAL
 
-Both Fresh chains, the real functional bundle, and both current-worktree CPU consumers are
-verified. The remaining functional readiness gate is to create a Lore commit, clone that committed
-state into a new path under `/data/ycfeng/tmp`, and rerun `verify-functional` plus GPT/Qwen
-CPU-only Task3 with new output roots. This gate does not request fidelity, distributed accuracy, or
-release qualification.
+The first clone of final docs commit `c7288c66...` correctly rejected the older `4dad1774...`
+bundle because functional verification requires the bundle producer to equal the checkout exactly.
+This was not resolved by weakening compatibility. A new functional distribution was built from
+the clean `c7288c66...` clone using the existing real Fresh artifacts and verified two-GPU Task2
+artifact. The new distribution verified, and GPT/Qwen CPU-only Task3 both passed from the same
+clean clone with new output roots, verified manifests/markers, finite nonnegative values, and zero
+Task2 commands. Functional fake-level readiness is closed; fidelity and release qualification
+remain outside scope.

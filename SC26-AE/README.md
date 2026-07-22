@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Closed the clean committed-clone replay and recorded the exact functional bundle producer commit |
 | 2026-07-23 | Recorded verified GPT/Qwen Fresh chains, the real functional bundle, both CPU-only Task3 runs, and the remaining clean-clone gate |
 | 2026-07-23 | Bound CPU-only functional Task3 to an explicit `python3` runtime with XGBoost and `/data/ycfeng/tmp` temporary storage |
 | 2026-07-21 | Replaced the deferred DeepSeek-V3 path with the Qwen3-A3B fake-level workflow (`world_size=256`, `PP=8`, `TP=8`, `EP=4`, `DP=4`) and documented the current evidence boundary |
@@ -44,15 +45,18 @@ real_two_gpu_task2=VERIFIED_REUSED; TASK2_COMMANDS_EXECUTED=0
 real_fresh_task3=GPT_VERIFIED; QWEN3_VERIFIED
 functional_bundle=VERIFIED
 cpu_prebaked_task3=GPT_VERIFIED; QWEN3_VERIFIED
-clean_committed_clone=PENDING
-functional-AE-ready=NO
+functional_bundle_producer_commit=c7288c66f0a6c3d0445edc841a6e5982d3b22f09
+clean_committed_clone=VERIFIED
+functional-fake-level-AE-ready=YES
 release-ready=NO
 ```
 
-The Fresh chains and functional prebaked path are closed. Keep `functional-AE-ready=NO` until the
-same commands are reproduced from a clean committed clone. Historical output may be retained for
-audit, but must not be relabeled as new qualified evidence. This reduced workflow never promotes
-the result to distributed-accuracy or release qualification.
+The Fresh chains and functional prebaked path are closed, including a replay from the exact clean
+producer commit above. Functional distribution verification deliberately requires the current
+checkout to equal the bundle producer recorded in `distribution_manifest.json`; a later docs-only
+descendant is not accepted. Historical output may be retained for audit, but must not be relabeled
+as new qualified evidence. This reduced workflow never promotes the result to distributed-accuracy
+or release qualification.
 
 ## Hardware and topology
 

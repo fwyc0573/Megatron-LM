@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes                                  |
 |------------|------------------------------------------------------|
+| 2026-07-23 | Closed the final exact-producer clean-clone replay after diagnosing the older-bundle commit mismatch without weakening verification |
 | 2026-07-23 | Completed both real Fresh chains, built and reverified the functional bundle, and validated GPT/Qwen CPU-only prebaked Task3 without rerunning Task2 |
 | 2026-07-23 | Closed the real Qwen functional-build rank-policy mismatch with a one-line release-gate isolation and 40-test regression |
 | 2026-07-23 | Closed I62 with heterogeneous source-producer preservation, sealed Fresh Task3 provenance, 39-test regression, and independent `APPROVE` |
@@ -3327,3 +3328,82 @@ both Task3 entries and their shared library, `py_compile` for both packaging too
 changed-path count and running Task2-process count were both `0`. The package regression passed
 `40/40` in `10.81 s`; transcript SHA256 is
 `788ca2e1bf6077a73a3913ae12e1ac38f6dc659650e8653b875d4d77bb163752`.
+
+## Session 61 exact-producer clean-clone replay — 2026-07-23
+
+### Producer-identity failure and root-cause resolution
+
+**Motivation:** Reproduce the full functional path from the final committed source state without
+adding an arbitrary descendant fallback to the distribution verifier.
+
+**Expectation:** The bundle's recorded producer and the clean checkout must match exactly. If an
+older bundle rejects the final commit, preserve the failure and rebuild only the functional bundle
+from the final commit using the already verified Fresh artifacts; Task2 must remain untouched.
+
+**Method:** Cloned commit `c7288c66f0a6c3d0445edc841a6e5982d3b22f09` with Echo commit
+`1390b4416ded08bc1b9cd0620d329d81d4470bf9` and sim-engine commit
+`51eed0404635632fd52a99b3f372d5830b1d73b4`. The older bundle failed deterministically with
+`gpt175b functional bundle producer differs from the current checkout`; its producer was
+`4dad1774a1bcb85ce33c1ad11be458a44ebb018e`. Inspected the verifier and confirmed exact equality
+is intentional. Built a new distribution from the clean `c7288c66...` clone and the existing real
+Fresh output root. No source code, compatibility rule, Fresh artifact, or Task2 artifact changed.
+
+**Result:** New distribution `sc26-ae-functional-clean-20260723T063212-c7288c6` verified with
+3 bundles, 375 files, and `6,554,852,354` bytes. Distribution manifest SHA256 is
+`6e9ab347df9107b9f2ada1900db47e56f246f6b445ed06d62b5e2b4960a50468`; build result SHA256 is
+`bc2947922b1711d5f17db386ddde3c279fd11f8d6bb84750bb07b17609888109`; clean-clone verify log
+SHA256 is `02e3f4f5a876ba8eec446dba76520197931dced767d079615e85f516adfad351`.
+
+### Final GPT/Qwen CPU replay
+
+**Motivation:** Close Goal 2 using the final commit-bound distribution rather than relying on the
+intermediate older-producer bundle.
+
+**Expectation:** Both models must exit `0`, verify manifest/report/marker binding, enable slowdown,
+use global rank 0 for slowdown features, produce finite nonnegative timings with zero wall-clock
+delta, and execute no Task2 command. The clone and nested repositories must remain clean.
+
+**Method:** Ran both model Task3 entries from
+`/data/ycfeng/tmp/sc26_ae_clean_clone_20260723T060352_c7288c6` with CPU/synthetic mode,
+`xgboost==2.1.0`, the new distribution, and unique output/run IDs. Independently verified each
+manifest and marker SHA256 after exit.
+
+**Result:** GPT exited `0` in `63 s`, verified 1,049 files, and measured simulator load/execution/
+wall values `18.015626/23.576013/41.591639 s` with delta `0.0 s`. GPT report/manifest/marker
+SHA256 values are `20ea1637fe418915be987a51caa5cc7e3c37378c4a4e718c02becda97e485ecb`,
+`d2f2838d4f605645b9258b2caf26250a7956a4c73fe850ed63d64ce6a5f55534`, and
+`396096f052448b25b87ad20a28ed3309ad8095a86e4e81591aec08e5a0292d9e`.
+Qwen exited `0` in `1184 s`, verified 281 files, and measured simulator load/execution/wall
+values `84.063936/1072.67156/1156.735496 s` with delta `0.0 s`. Qwen
+report/manifest/marker SHA256 values are
+`08700cba92a3459362bb682ba5e09069c1f47575b7cbe4d753ef51c48ecefc57`,
+`4f2903707633e88c62c6e55d98e9fb9ecd9cb4acf9098e2a733aee2c46886a89`, and
+`2c0c3d0c40e60da84648ffd9c9985d2a4d3b4e74100a337aa7668ebf520d9a04`.
+Both command logs include `--enable-slowdown`; both slowdown logs record one global-rank-0 trace;
+Task2 entry references and running Task2 processes were `0`. Outer, Echo, and sim-engine tracked
+statuses remained clean. The functional fake-level workflow is ready; release/fidelity claims
+remain disallowed.
+
+## Session 62 final after-action documentation reconciliation — 2026-07-23
+
+**Motivation:** The exact-producer replay was complete, but `notes.md`, `review.md`, `summary.md`,
+and the formal functional-chain test report still described clean-clone execution as pending. Two
+read-only probes also clarified the actual marker location and report schema.
+
+**Expectation:** Current documentation must identify `c7288c66...` as the exact bundle producer,
+record Goal 1/Goal 2 as functional PASS, preserve all release/fidelity boundaries, point to the
+top-level Task3 markers, and label wall-clock equality values as derived rather than stored fields.
+No source code, Task2 command, Task3 execution, or paper TeX file may change.
+
+**Method:** Updated only the existing README and task ledgers. Preserved Session 60 artifacts as
+historical intermediate evidence and added a superseding Session 61 inventory with measured paths,
+SHA256 values, bundle counts, report metrics, marker bindings, and the exact-producer failure RCA.
+Ran shell syntax for three Task3 paths, Python compilation for two package tools, `git diff --check`,
+seven semantic documentation assertions, changed-path checks, Task2 process inspection, and nested
+tracked-status inspection. All cache roots were under `/data/ycfeng/tmp`.
+
+**Result:** Shell syntax=`3/3`, Python compilation=`2/2`, semantic documentation assertions=`7/7`,
+and `git diff --check` all passed with exit `0`. `sc26-ad.tex` changed paths=`0`; running Task2
+processes=`0`; Echo and sim-engine tracked status lines=`0/0`. No heavy test suite or workflow was
+rerun because the final change set is documentation-only and the existing package regression
+already passed `40/40` in `10.81 s`.

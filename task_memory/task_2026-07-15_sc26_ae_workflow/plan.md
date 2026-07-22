@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Completed the exact-producer clean-clone bundle build, verification, and GPT/Qwen CPU-only replay |
 | 2026-07-23 | Closed both Fresh chains and the functional prebaked execution; retained clean committed-clone replay as the final functional gate |
 | 2026-07-23 | Rebased execution on the reduced GPT-175B/Qwen3 functional AE scope and closed the Task2 provenance blocker without rerunning Task2 |
 | 2026-07-20 | Passed the penultimate tracked-snapshot V21 gate, closed I59 locally, and retained final identity, commit, and committed-clone verification as mechanical provenance steps |
@@ -2153,7 +2154,7 @@ mechanics and do not change any external qualification status.
 5. **Completed:** GPT-175B Fresh Task3 emitted a verified report, manifest, and marker without rerunning Task2.
 6. **Completed:** `build-functional`/`verify-functional` preserved heterogeneous producers; GPT and Qwen CPU-only prebaked Task3 both emitted verified artifacts.
 7. **Completed:** aligned `SC26-AE/README.md` with the verified commands, hardware, inputs, outputs, and functional-only evidence boundary; `sc26-ad.tex` remains unchanged.
-8. **In progress:** create the local Lore commit and replay `verify-functional` plus both CPU-only Task3 commands from a clean committed clone.
+8. **Completed:** commit `c7288c66f0a6c3d0445edc841a6e5982d3b22f09` was cloned cleanly, produced and verified an exact-commit functional bundle, and replayed GPT/Qwen CPU-only Task3 with verified artifacts.
 
 Stop conditions remain fail-fast for artifact checksum/provenance failures, real GPU runtime failures,
 or an independent-review `BLOCK`. Fidelity calibration and distributed ground-truth comparison are

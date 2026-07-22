@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes            |
 |------------|-------------------------------|
+| 2026-07-23 | Recorded the exact-producer clean-clone bundle and final GPT/Qwen CPU replay operating contract |
 | 2026-07-23 | Recorded the completed functional bundle/CPU runs, controller XGBoost layer, Qwen verbose-log scale, and final clean-clone commands |
 | 2026-07-23 | Recorded root-owned `/data/ycfeng/SC26-AE` staging restriction and the writable `/data/ycfeng/tmp` functional staging location |
 | 2026-07-23 | Recorded the repo-local bytecode-cache permission issue and the validated `/data/ycfeng/tmp` `PYTHONPYCACHEPREFIX` contract |
@@ -270,3 +271,38 @@ permission. This environment note does not change the real qualification or rele
 - The final clone must use a new unique path and new simulation IDs. It may reuse the verified
   functional distribution and controller XGBoost layer, but must not reuse or overwrite prior run
   directories.
+
+## Session 61 operational notes — exact-producer clean-clone replay
+
+- The verified clean clone is
+  `/data/ycfeng/tmp/sc26_ae_clean_clone_20260723T060352_c7288c6` with outer commit
+  `c7288c66f0a6c3d0445edc841a6e5982d3b22f09`, Echo commit
+  `1390b4416ded08bc1b9cd0620d329d81d4470bf9`, and sim-engine commit
+  `51eed0404635632fd52a99b3f372d5830b1d73b4`. All three tracked statuses were clean after the
+  final replay.
+- Functional distribution verification is intentionally bound to exact producer-commit equality.
+  The older bundle produced by `4dad1774a1bcb85ce33c1ad11be458a44ebb018e` therefore failed from
+  the `c7288c66...` clone with `functional bundle producer differs from the current checkout`.
+  The immutable failure log is
+  `/data/ycfeng/tmp/sc26_ae_clean_clone_verify_functional_20260723T060352.log`, SHA256
+  `64646269b1945f2e45612a519d220d7e10c855aa2da3ca663769a0fcaecba96e`. Do not weaken the
+  verifier or add a descendant-commit exception.
+- The final commit-bound distribution is
+  `/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6`, distribution ID
+  `sc26-ae-functional-clean-20260723T063212-c7288c6`. It contains 3 bundles, 375 files, and
+  `6,554,852,354` bytes. Its distribution-manifest SHA256 is
+  `6e9ab347df9107b9f2ada1900db47e56f246f6b445ed06d62b5e2b4960a50468`.
+- Final GPT CPU output root:
+  `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt`. Final Qwen CPU output root:
+  `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen`. Their manifests contain
+  1,049 and 281 files respectively; both top-level Task3 markers are verified and bind the exact
+  run-manifest SHA256.
+- The marker lives at `<output>/<model>/task3/run_marker.json`, not inside the versioned run
+  directory. `report.json` stores load, execution, and wall-clock values; expected wall clock and
+  absolute delta are validation-time derived values, not report-schema fields.
+- Both final command logs explicitly include `--enable-slowdown`, use one global-rank-0 slowdown
+  trace, and reference the reused real two-GPU predictor. Task2 entry commands executed during
+  Session 61: `0`.
+- The functional bundle producer remains `c7288c66...`. A later docs-only ledger commit is not a
+  valid producer for this bundle and must not be used to replay it. AE operators must check out
+  the exact producer commit named in `SC26-AE/README.md` and the distribution manifest.
