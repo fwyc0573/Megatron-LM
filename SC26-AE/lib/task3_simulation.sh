@@ -292,7 +292,8 @@ task3_source_compatibility_mode() {
                 simulator_gitlink_changed=1
                 ;;
             SC26-AE/lib/task3_simulation.sh|\
-            tests/unit/test_sc26_ae_task3_source_compatibility.sh)
+            tests/unit/test_sc26_ae_task3_source_compatibility.sh|\
+            tests/unit/test_sc26_ae_task3_trace_expansion.sh)
                 ;;
             *)
                 task3_error \
@@ -304,18 +305,22 @@ task3_source_compatibility_mode() {
         git -C "${TASK3_REPO_ROOT}" diff --name-only --no-ext-diff \
             "${recorded_main_commit}..${TASK3_MAIN_COMMIT}"
     )
-    if (( ! simulator_gitlink_changed )); then
+    if (( simulator_gitlink_changed )); then
+        git -C "${TASK3_SIM_ENGINE_ROOT}" merge-base --is-ancestor \
+            "${recorded_sim_commit}" "${TASK3_SIM_COMMIT}" >/dev/null 2>&1 || {
+            task3_error "${label} simulator commit is not an ancestor of the current simulator."
+            return 1
+        }
+        printf '%s\n' simulator_only_reuse
+        return 0
+    fi
+
+    [[ "${recorded_sim_commit}" == "${TASK3_SIM_COMMIT}" ]] || {
         task3_error \
             "${label} producer advancement does not contain a simulator gitlink change."
         return 1
-    fi
-    git -C "${TASK3_SIM_ENGINE_ROOT}" merge-base --is-ancestor \
-        "${recorded_sim_commit}" "${TASK3_SIM_COMMIT}" >/dev/null 2>&1 || {
-        task3_error "${label} simulator commit is not an ancestor of the current simulator."
-        return 1
     }
-
-    printf '%s\n' simulator_only_reuse
+    printf '%s\n' task1_consumer_only_reuse
 }
 
 task3_task2_source_compatibility_mode() {
@@ -2178,7 +2183,7 @@ PY
 }
 
 
-# Expand PP×EP representative traces to the simulator's full fake world.
+# Expand representative traces to the simulator's full fake world.
 task3_materialize_simulator_trace() {
     local trace_dir="${TASK3_TRACE_DIR}"
     local simulator_dir="${TASK3_RUN_ROOT}/simulator_trace"
@@ -2187,27 +2192,150 @@ task3_materialize_simulator_trace() {
     local trace_count
     trace_count=$(find "${trace_dir}" -maxdepth 1 -type f -name '*.txt' -printf '.' | wc -c)
     if (( trace_count == TASK3_WORLD_SIZE )); then TASK3_SIMULATOR_TRACE_DIR="${trace_dir}"; return 0; fi
-    if [[ "${TASK3_MODEL_KEY}" != qwen3_a30b ]] || (( trace_count != TASK3_PP * TASK3_EXP )); then
-        task3_error "Simulator trace inventory mismatch: observed=${trace_count}, expected world=${TASK3_WORLD_SIZE} or Qwen PP×EP=${TASK3_PP}×${TASK3_EXP}."
+    local representative_mode expected_representative_count
+    case "${TASK3_MODEL_KEY}" in
+        gpt175b)
+            representative_mode=pp
+            expected_representative_count=${TASK3_PP}
+            ;;
+        qwen3_a30b)
+            representative_mode=pp_ep
+            expected_representative_count=$((TASK3_PP * TASK3_EXP))
+            ;;
+        *)
+            task3_error "Unsupported representative trace model: ${TASK3_MODEL_KEY}"
+            ;;
+    esac
+    if (( trace_count != expected_representative_count )); then
+        task3_error "Simulator trace inventory mismatch: observed=${trace_count}, expected world=${TASK3_WORLD_SIZE}, GPT PP=${TASK3_PP}, or Qwen PP×EP=${TASK3_PP}×${TASK3_EXP}."
     fi
     [[ ! -e "${simulator_dir}" && ! -L "${simulator_dir}" ]] || task3_error "Simulator trace destination already exists: ${simulator_dir}"
     mkdir -p "${simulator_dir}"
-    "${TASK3_META_PYTHON}" - "${trace_dir}" "${simulator_dir}" "${TASK3_WORLD_SIZE}" "${TASK3_PP}" "${TASK3_TP}" "${TASK3_DP}" "${TASK3_EXP}" "${expansion_metadata}" <<'PY2'
-import json,pathlib,re,sys
-src=pathlib.Path(sys.argv[1]).resolve(strict=True); dst=pathlib.Path(sys.argv[2]).resolve(); world,pp,tp,dp,exp=map(int,sys.argv[3:8]); meta=pathlib.Path(sys.argv[8])
-files=sorted(src.glob('*.txt')); reps={}; pat=re.compile(r'_rank([0-9]+)(?:_[^/]*)?\.txt$')
-for f in files:
- m=pat.search(f.name)
- if not m: raise SystemExit(f'representative trace filename lacks rank identity: {f}')
- r=int(m.group(1)); key=(r//(tp*dp),(r%(tp*dp))//tp)
- if key in reps: raise SystemExit(f'duplicate PP×EP representative for {key}: {f}')
- reps[key]=(r,f)
-if len(files)!=pp*exp: raise SystemExit(f'representative trace count changed during expansion: {len(files)}')
-for target in range(world):
- key=(target//(tp*dp),(target%(tp*dp))//tp)
- if key not in reps: raise SystemExit(f'missing PP×EP representative for target rank {target}: {key}')
- source_rank,source=reps[key]; name=source.name.replace(f'_rank{source_rank}_',f'_rank{target}_',1); text=source.read_text(); text=re.sub(rf'(?m)^rank:{source_rank}:',f'rank:{target}:',text); text=text.replace('group=tp,comm_func=broadcast','group=tp,comm_func=load_batch_broadcast'); (dst/name).write_text(text)
-meta.write_text(json.dumps({'schema_version':'sc26-ae-task3-simulator-trace-expansion-v1','source_trace_dir':str(src),'destination_trace_dir':str(dst),'source_trace_file_count':len(files),'destination_trace_file_count':world,'topology':{'world_size':world,'pp_size':pp,'tp_size':tp,'dp_size':dp,'exp_size':exp},'mapping':'target rank maps to captured representative with same PP and EP coordinates; TP coordinate is expanded'},indent=2,sort_keys=True)+'\n')
+    "${TASK3_META_PYTHON}" - \
+        "${trace_dir}" "${simulator_dir}" "${TASK3_WORLD_SIZE}" \
+        "${TASK3_PP}" "${TASK3_TP}" "${TASK3_DP}" "${TASK3_EXP}" \
+        "${representative_mode}" "${expansion_metadata}" <<'PY2'
+import json
+import pathlib
+import re
+import sys
+
+source_dir = pathlib.Path(sys.argv[1]).resolve(strict=True)
+destination_dir = pathlib.Path(sys.argv[2]).resolve()
+world_size, pp_size, tp_size, dp_size, exp_size = map(int, sys.argv[3:8])
+representative_mode = sys.argv[8]
+metadata_path = pathlib.Path(sys.argv[9])
+trace_files = sorted(source_dir.glob("*.txt"))
+rank_pattern = re.compile(r"_rank([0-9]+)(?:_[^/]*)?\.txt$")
+
+if representative_mode == "pp":
+    expected_count = pp_size
+    coordinate_names = ["pp"]
+elif representative_mode == "pp_ep":
+    expected_count = pp_size * exp_size
+    coordinate_names = ["pp", "ep"]
+else:
+    raise SystemExit(f"unsupported representative trace mode: {representative_mode}")
+
+if len(trace_files) != expected_count:
+    raise SystemExit(
+        "representative trace count changed during expansion: "
+        f"expected={expected_count}, observed={len(trace_files)}"
+    )
+
+
+def coordinates(rank):
+    pp_rank = rank // (tp_size * dp_size)
+    if representative_mode == "pp":
+        return (pp_rank,)
+    ep_rank = (rank % (tp_size * dp_size)) // tp_size
+    return (pp_rank, ep_rank)
+
+
+def canonical_rank(key):
+    if representative_mode == "pp":
+        return key[0] * tp_size * dp_size
+    return key[0] * tp_size * dp_size + key[1] * tp_size
+
+
+representatives = {}
+for trace_file in trace_files:
+    match = rank_pattern.search(trace_file.name)
+    if match is None:
+        raise SystemExit(
+            f"representative trace filename lacks rank identity: {trace_file}"
+        )
+    source_rank = int(match.group(1))
+    if source_rank < 0 or source_rank >= world_size:
+        raise SystemExit(f"representative rank is outside the fake world: {source_rank}")
+    key = coordinates(source_rank)
+    expected_rank = canonical_rank(key)
+    if source_rank != expected_rank:
+        raise SystemExit(
+            "representative trace rank is not canonical for its coordinates: "
+            f"rank={source_rank}, coordinates={key}, expected={expected_rank}"
+        )
+    if key in representatives:
+        raise SystemExit(
+            f"duplicate representative coordinates {key}: {trace_file}"
+        )
+    representatives[key] = (source_rank, trace_file)
+
+for target_rank in range(world_size):
+    key = coordinates(target_rank)
+    if key not in representatives:
+        raise SystemExit(
+            f"missing representative for target rank {target_rank}: coordinates={key}"
+        )
+    source_rank, source_path = representatives[key]
+    target_name = source_path.name.replace(
+        f"_rank{source_rank}_", f"_rank{target_rank}_", 1
+    )
+    if f"_rank{target_rank}_" not in target_name:
+        raise SystemExit(
+            f"representative trace filename cannot encode target rank: {source_path.name}"
+        )
+    trace_text = source_path.read_text(encoding="utf-8")
+    trace_text = re.sub(
+        rf"(?m)^rank:{source_rank}:", f"rank:{target_rank}:", trace_text
+    )
+    trace_text = trace_text.replace(
+        "group=tp,comm_func=broadcast",
+        "group=tp,comm_func=load_batch_broadcast",
+    )
+    (destination_dir / target_name).write_text(trace_text, encoding="utf-8")
+
+mapping = (
+    "target rank maps to the captured representative with the same PP coordinate; "
+    "TP and DP coordinates are expanded"
+    if representative_mode == "pp"
+    else "target rank maps to the captured representative with the same PP and EP "
+    "coordinates; TP coordinate is expanded"
+)
+metadata_path.write_text(
+    json.dumps(
+        {
+            "schema_version": "sc26-ae-task3-simulator-trace-expansion-v1",
+            "source_trace_dir": str(source_dir),
+            "destination_trace_dir": str(destination_dir),
+            "source_trace_file_count": len(trace_files),
+            "destination_trace_file_count": world_size,
+            "representative_coordinates": coordinate_names,
+            "topology": {
+                "world_size": world_size,
+                "pp_size": pp_size,
+                "tp_size": tp_size,
+                "dp_size": dp_size,
+                "exp_size": exp_size,
+            },
+            "mapping": mapping,
+        },
+        indent=2,
+        sort_keys=True,
+    )
+    + "\n",
+    encoding="utf-8",
+)
 PY2
     local expanded_count
     expanded_count=$(find "${simulator_dir}" -maxdepth 1 -type f -name '*.txt' -printf '.' | wc -c)

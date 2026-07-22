@@ -81,6 +81,10 @@ DIVERGENT_SIM=ffffffffffffffffffffffffffffffffffffffff
 CHANGED_TASK2_MAIN=8d17d6355feaf7c59581eb21509fe54701597098
 CHANGED_TASK2_SIM=$(git -C "${REPO_ROOT}" rev-parse \
     "${CHANGED_TASK2_MAIN}:megatron-sim-engine")
+CONSUMER_ONLY_PARENT=23327306756733f14d4cbfa1599adf0c856449ba
+CONSUMER_ONLY_MAIN=bb326fd377e3daeef2f4e9721ffc3e81f2c6e6a9
+CONSUMER_ONLY_SIM=$(git -C "${REPO_ROOT}" rev-parse \
+    "${CONSUMER_ONLY_MAIN}:megatron-sim-engine")
 
 expect_mode exact exact-current \
     "${TASK3_MAIN_COMMIT}" "${TASK3_ECHO_COMMIT}" "${TASK3_SIM_COMMIT}"
@@ -106,6 +110,13 @@ TASK3_MAIN_COMMIT=${TASK3_ONLY_MAIN}
 TASK3_SIM_COMMIT=${TASK3_ONLY_SIM}
 expect_failure 'simulator commit is not an ancestor' divergent-simulator \
     "${OLD_MAIN}" "${TASK3_ECHO_COMMIT}" "${DIVERGENT_SIM}"
+TASK3_MAIN_COMMIT=${CURRENT_MAIN}
+TASK3_SIM_COMMIT=${CURRENT_SIM}
+
+TASK3_MAIN_COMMIT=${CONSUMER_ONLY_MAIN}
+TASK3_SIM_COMMIT=${CONSUMER_ONLY_SIM}
+expect_mode task1_consumer_only_reuse prior-task1-before-consumer-only-change \
+    "${CONSUMER_ONLY_PARENT}" "${TASK3_ECHO_COMMIT}" "${CONSUMER_ONLY_SIM}"
 TASK3_MAIN_COMMIT=${CURRENT_MAIN}
 TASK3_SIM_COMMIT=${CURRENT_SIM}
 
