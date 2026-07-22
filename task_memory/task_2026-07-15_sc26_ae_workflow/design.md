@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Added task-specific source compatibility: strict Task1 lineage and producer-equivalent Task2 reuse |
 | 2026-07-20 | Added the strict D16 orchestration design: independent MoE rank-0 preflight, observation-only QUICK behavior, fail-fast full gate, and no selected-loop artifacts above threshold |
 | 2026-07-20 | Added the model-aware I53/D16 timing contract: GPT representative timing is diagnostic with no D16 gate, while MoE retains rank0×256 pending independent preflight |
 | 2026-07-20 | Reclassified I55 from pending implementation to completed local wrapper-only semantic hardening; approved digest and worker qualification remain pending |
@@ -235,3 +236,12 @@ The preflight report is copied into the final full manifest only as a strict pro
 raw preflight trace/memory/Nsight files remain isolated from the selected-capture manifest.
 This design is a local control-plane contract and does not claim real timing accuracy or H800
 qualification.
+
+## Task-specific source compatibility
+
+Task1 artifacts are coupled to Megatron tracing/model-partition code and therefore retain the
+strict simulator/Task3-only ancestry allowlist. Task2 artifacts are produced by pinned Echo code
+plus seven tracked outer wrapper/tool files; unrelated Megatron tracing and simulator changes do
+not change the trained predictor. Task2 reuse is accepted only when ancestry, exact Echo identity,
+recorded gitlink bindings, all seven producer blobs, marker, canonical manifest, and file checksums
+all agree. This is producer-equivalence verification, not an arbitrary descendant fallback.

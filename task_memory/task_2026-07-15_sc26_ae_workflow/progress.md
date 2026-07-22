@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes                                  |
 |------------|------------------------------------------------------|
+| 2026-07-23 | Closed the Task2-specific source-compatibility blocker with RED→GREEN tests, real artifact verification, and independent `APPROVE` without rerunning Task2 |
 | 2026-07-20 | Session 56: passed the penultimate tracked-snapshot V21 replay and closed I59 locally; final identity, exact-log restaging, Lore commit, and committed-clone replay remain |
 | 2026-07-20 | Session 56: reproduced and fixed the V21 runtime-output scope defect with TDD, passed a tracked-snapshot replay, and received independent `APPROVE` for the I59 remediation |
 | 2026-07-20 | Session 56: accepted D31/D32, removed reviewer-generated nested `.omc/`, and began exact V21 clean-clone log provenance reconciliation |
@@ -3164,3 +3165,31 @@ snapshot, local Lore commit, and actual committed-clone replay remain in progres
 `OPEN / HIGH / BLOCK`; I53 remains `OPEN / HIGH / WATCH`; I54/I56 remain `PARTIAL / OPEN`; Gate B1
 remains `BLOCKED`; both pre-datasets remain `NOT QUALIFIED`; `AE-ready=NO`; workflow remains
 `INCOMPLETE`.
+
+## Session 57 Task2-specific source compatibility — 2026-07-23
+
+**Motivation:** The dense fake-TP fix changed Megatron Task1 files after the shared predictor was
+trained. The former unified Task1/Task2 allowlist therefore rejected the verified Task2 artifact
+even though Task2's Echo producer and all seven load-bearing outer source blobs were unchanged.
+Rerunning Task2 would violate the user requirement and consume two GPUs without changing the
+predictor contract.
+
+**Expectation:** Keep Task1 strict. Reuse Task2 only when the recorded outer commit is an ancestor,
+the Echo commit is exact and matches its recorded gitlink, the recorded simulator identity matches
+its recorded outer gitlink, all seven Task2 producer blobs are byte-identical, and the existing
+marker/manifest/per-file checksum checks pass.
+
+**Method:** Added `task3_task2_source_compatibility_mode`, routed only Fresh Task2 through it, and
+versioned the recorded policy as `task_specific_source_compatibility_v2`. The focused test first
+failed with exit `127` because the Task2-specific function did not exist, then passed `14/14` after
+the minimal implementation. The real shared Task2 manifest and its 18 listed files were verified
+without invoking any Task2 entry point.
+
+**Result:** `TASK2_COMPATIBILITY=task2_producer_equivalent_reuse`; predictor run
+`task2-20260722T142810Z-192-11368`; `CUDA_VISIBLE_DEVICES=0,1`; dataset rows `727`; model/scaler
+bytes `412174/616`; manifest SHA256
+`d344fbfc0f4e56286efe9dd5ee6ac3f125ed3ad34fe8e4599bc9a71f67dda76e`;
+`TASK2_COMMANDS_EXECUTED=0`. StepCode Claude returned `APPROVE`. Unit Task3 contracts passed
+`9/9`. The broader synthetic integration remains baseline-failing because its Qwen fixture has one
+trace while the current product requires 32; no production failure was introduced and no fixture
+repair was undertaken in this focused step.

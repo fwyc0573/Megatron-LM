@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes        |
 |------------|---------------------------|
+| 2026-07-23 | Closed I60 Task2 unified-compatibility false rejection; recorded the pre-existing one-trace Qwen synthetic fixture gap as non-blocking for the real Fresh chain |
 | 2026-07-20 | Resolved I59 locally after the penultimate exact-log tracked snapshot reproduced strict V21; external qualification blockers remain unchanged |
 | 2026-07-20 | Added I59 candidate tracked-snapshot GREEN, runtime-output scope root-cause repair, and independent follow-up `APPROVE`; final identity replay remains the local closure gate |
 | 2026-07-20 | Opened I59 for the V21 clean-clone ignored-log dependency, recorded D31/D32 approval, and began exact-log provenance reconciliation |
@@ -1753,3 +1754,27 @@ attribute and runtime-output exclusion as root-cause fixes. The subsequent penul
 tracked-snapshot replay completed with exit `0`, so I59 is `RESOLVED / LOCAL`. The authoritative
 hashes and sole current V21 identity must still be regenerated after this ledger update and replayed
 from the final staged tree before the local commit is created.
+
+## I60 — Unified Task1/Task2 source compatibility rejected unchanged Task2 producer — RESOLVED
+
+**Root cause:** Task1 and Task2 were evaluated by the same simulator-only path allowlist. Dense
+Task1 tracing changes are correctly incompatible with old Task1 artifacts but irrelevant to a
+Task2 predictor whose exact Echo commit and load-bearing wrapper/tool blobs are unchanged.
+
+**Resolution:** Task1 retains the strict allowlist. Task2 now has a separate conjunction-only source
+contract plus the existing artifact verification. Focused tests pass `14/14`; the real two-GPU
+artifact resolves as `task2_producer_equivalent_reuse`; independent verdict is `APPROVE`.
+
+## I61 — Synthetic Task3 integration Qwen fixture contains one trace — OPEN / TEST-ONLY
+
+The current product requires the 32-rank Qwen PP×EP representative vector, while
+`tests/integration/test_sc26_ae_task3_contract.sh` still creates a one-trace prebaked fixture. The
+same failure reproduces from an untouched `9baafdf` clean clone, so it is not caused by the Task2
+compatibility change. Per the user's direction not to spend substantial time on test harnesses,
+this fixture alignment is deferred and does not replace real Fresh-chain evidence.
+
+## I62 — Functional packager requires exact current commits — OPEN / DIRECT BLOCKER
+
+`SC26-AE/tools/package_prebaked.py build-functional` still rejects verified artifacts produced by
+compatible heterogeneous commits. This must be fixed only after GPT Fresh Task3 closes, preserving
+each source artifact's real producer identity and all checksum/provenance gates.

@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Deferred DeepSeek-V3 repair and fidelity/distributed validation outside the current two-model functional AE session |
 | 2026-07-19 | Added future design work for Task1/Task2/Task3 source snapshots, qualified evidence state, trusted paths, package schema, and issuer authentication |
 | 2026-07-19 | Superseded the stale I39 dirty-worktree future item with a current clean-provenance status and future revalidation-only scope |
 | 2026-07-19 | Listed work explicitly outside the current docs/local-validation session; no future item is treated as completed evidence |
@@ -74,3 +75,9 @@ implemented with RED→GREEN tests:
 - obtain an approved cryptographic issuer-authentication protocol.
 
 These are not completed deliverables, and no synthetic fixture can close them.
+
+## Deferred model and fidelity work
+
+- DeepSeek-V3 tracing/runtime RCA and repair are deferred; the current functional release uses GPT-175B and Qwen3-A30B.
+- Real distributed multi-node/multi-GPU accuracy comparison and paper-number fidelity are outside the current AE functional-badge scope.
+- Broader similar-kernel alias research is unnecessary unless a future workload has exactly one defensible canonical match.

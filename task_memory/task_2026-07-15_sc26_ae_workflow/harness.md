@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Added the reduced two-model functional acceptance gates and Task2 non-rerun/kernel-skip invariants |
 | 2026-07-19 | Added Session 45 control-plane gates for producer binding, full-rank promotion, qualified pointer publication, frozen inputs, and issuer authentication; synthetic evidence remains non-qualifying |
 | 2026-07-19 | Added the D30 writable-temp-root portability invariant; test environment repair does not relax qualification gates |
 | 2026-07-19 | Reconciled the current Echo/B1 resource block with D45 semantic quota evidence (`129/128`); historical D26 PASS remains historical |
@@ -259,3 +260,13 @@ The following gates are now explicit and fail-closed for any future release atte
 These gates supplement, and do not weaken, the existing no-fallback, fail-fast, checksum,
 provenance, real-vs-synthetic, quota, and data-quality rules. Synthetic local tests remain
 `local_synthetic_not_gpu_qualification`.
+
+## Session 57 reduced functional gates
+
+- Representative models are exactly `gpt175b` and `qwen3_a30b`; DeepSeek-V3 is deferred.
+- GPT Task1 must contain the 8 PP representative ranks; Qwen Task1 must contain all 32 PP×EP representatives.
+- NCU provenance must be Task1 global rank 0 only.
+- Task2 must retain real two-GPU evidence, verified marker/manifest/checksums, model, scaler, and dataset; Task3 kernel gaps never authorize a Task2 rerun.
+- Task3 must enable slowdown and produce report, manifest, and marker with finite nonnegative timings.
+- Missing slowdown features use exact, then one unambiguous canonical alias, otherwise `missing_skip` with baseline duration unchanged.
+- Functional distribution and CPU-only Task3 remain mandatory before AE-ready; fidelity and real distributed ground-truth accuracy are outside this functional gate.

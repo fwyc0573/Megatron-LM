@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Rebased execution on the reduced GPT-175B/Qwen3 functional AE scope and closed the Task2 provenance blocker without rerunning Task2 |
 | 2026-07-20 | Passed the penultimate tracked-snapshot V21 gate, closed I59 locally, and retained final identity, commit, and committed-clone verification as mechanical provenance steps |
 | 2026-07-20 | Added the Session 56 local provenance checkpoint: exact V21 log tracking, runtime-output scope isolation, staged-snapshot replay, and local-only commit boundary |
 | 2026-07-20 | Recorded the independent MoE rank-0 preflight orchestration: QUICK observes without applying D16, while full enforces 7200 seconds before the 256-rank capture |
@@ -2141,3 +2142,18 @@ scope/syntax=`36/36`, runtime-output exclusion=`1`, and `git diff --check=PASS`.
 local I59 closure gate. Final current-identity generation, exact-log restaging, final staged-tree
 replay, local Lore commit, and actual committed-clone verification remain mandatory provenance
 mechanics and do not change any external qualification status.
+
+## Session 57 streamlined completion plan — 2026-07-23
+
+1. **Completed:** implement and verify missing-kernel exact/alias/skip behavior in Task3.
+2. **Completed:** run Qwen3 Fresh Task1 and Fresh Task3 with the 32-rank PP×EP trace vector and rank-0 NCU provenance.
+3. **Completed:** split Task1 and Task2 source compatibility so the verified two-GPU Task2 predictor remains reusable when all Task2 producer blobs and the Echo commit are unchanged.
+4. **In progress:** commit the clean producer, then run GPT-175B Fresh Task1 on one handbook-compliant H800 worker using the 8 PP representatives and rank-0-only NCU.
+5. **Pending:** run GPT-175B Fresh Task3 without rerunning Task2; require report, manifest, marker, finite/nonnegative outputs, and slowdown enabled.
+6. **Pending:** update `build-functional`/`verify-functional` to preserve and validate heterogeneous producer identities, then run CPU-only prebaked Task3 for both representative models.
+7. **Pending:** align `SC26-AE/README.md` with verified commands, hardware, inputs, and outputs; do not modify `sc26-ad.tex`.
+8. **Pending:** run final clean-commit/clean-clone regression before any AE-ready statement.
+
+Stop conditions remain fail-fast for artifact checksum/provenance failures, real GPU runtime failures,
+or an independent-review `BLOCK`. Fidelity calibration and distributed ground-truth comparison are
+outside this reduced functional scope.

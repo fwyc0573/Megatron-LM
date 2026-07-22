@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes            |
 |------------|-------------------------------|
+| 2026-07-23 | Recorded the mandatory `/data/ycfeng/tmp` rule, no-Task2-rerun rule, and current clean producer/output roots |
 | 2026-07-20 | Recorded the penultimate tracked-snapshot V21 PASS and local I59 closure; final identity/commit replay remains mandatory |
 | 2026-07-20 | Added Session 56 staged-audit/runtime-output scope findings, task-archive whitespace handling, and independent follow-up `APPROVE` |
 | 2026-07-20 | Recorded the D31 exact V21 log-tracking boundary and the D32 cleanup of reviewer-generated nested `.omc/` runtime state |
@@ -228,3 +229,12 @@ permission. This environment note does not change the real qualification or rele
   it is excluded by the repository's Git info exclude, contains `881` bytes, and is not staged. It
   is distinct from the D32-authorized nested path and was not removed. The nested
   `megatron-sim-engine/.omc` remains absent.
+
+## Session 57 operational notes
+
+- Temporary root: `/data/ycfeng/tmp`; never use `/tmp` for files, logs, or caches.
+- Heavy `brainctl get replica` calls require `timeout 60s systemd-run --scope -p MemoryMax=2G`.
+- Clean producer: `/data/ycfeng/sc26_ae_task3_qwen`.
+- Shared output root: `/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4`.
+- Shared Task2 predictor is immutable and must not be rerun for missing Task3 kernels.
+- StepCode review temporary evidence: `/data/ycfeng/tmp/stepcode_sc26_task2_compat/`.

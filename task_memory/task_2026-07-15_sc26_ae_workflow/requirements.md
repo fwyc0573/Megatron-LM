@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes                                       |
 |------------|----------------------------------------------------------|
+| 2026-07-23 | Captured the reduced two-model functional AE scope, Task2 non-rerun rule, missing-kernel slowdown policy, and `/data/ycfeng/tmp` runtime rule |
 | 2026-07-20 | Captured D31 approval to track exactly the V21-required evidence logs and D32 approval to delete the reviewer-generated nested `.omc/` runtime state |
 | 2026-07-19 | Added D30: latest user instruction makes all test/validation/rehearsal failures autonomous when they serve the AE scripts and reusable pre-dataset, without relaxing release gates |
 | 2026-07-19 | Clarified the test-autonomy gate across all AE-serving test/control-plane surfaces and retained real qualification hard blocks |
@@ -187,3 +188,24 @@
 
 ## A1. Gate A 批准与执行授权
 [Original Request] 批准 Gate A，完成已审查的 plan；允许启用并行 team 模式和 subagents，以尽可能加速当前任务的执行速度。
+
+## D60. Reduced functional AE target
+[Original Request] 当前只要求 fake-level Task1/2/3 功能链可运行，不要求在真实分布式多节点多卡环境验证精度；AE 目标是获得开源与功能可运行徽章，不要求复现论文数值。
+
+## D61. Representative model scope
+[Original Request] 当前正式代表模型为 `gpt175b` 与 `qwen3_a30b`；DeepSeek-V3 问题记录到 docs 后暂存，不在本轮修复范围内。
+
+## D62. Task1 rank scope
+[Original Request] GPT dense Task1 只 trace 8 个 PP representative ranks：`0,128,256,384,512,640,768,896`；Qwen3 MoE Task1 trace 32 个 PP×EP representatives：`0,8,16,...,248`；Task1 NCU 只采集 global rank 0。
+
+## D63. Qwen3 topology
+[Original Request] Qwen3-A3B workload tracing 使用 `world_size=256, pp=8, tp=8, ep=4, dp=4`。
+
+## D64. Task2 hardware and reuse
+[Original Request] Task2 必须使用两个真实 GPU。Task3 缺少 kernel feature 时不得因此重新运行 Task2；已有已校验 two-GPU dataset/predictor 应直接复用。
+
+## D65. Missing-kernel slowdown behavior
+[Original Request] Task3 对缺失 kernel feature 的处理顺序为 exact feature、唯一明确的类似 kernel alias、否则跳过 slowdown；跳过时 `slowdown_factor=0` 且 `predicted_duration=baseline_duration`。当前关注 workflow 正常和输出一般逻辑合理，不关注 fidelity。
+
+## D66. Temporary-storage and heavy-command safety
+[Original Request] 禁止向 `/tmp` 写 temporary files、logs 或 caches；统一使用 `/data/ycfeng/tmp`。`brainctl get replica` 等重命令必须使用 `timeout 60s` 和 `systemd-run --scope -p MemoryMax=2G`。

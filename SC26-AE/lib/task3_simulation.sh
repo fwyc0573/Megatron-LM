@@ -318,6 +318,111 @@ task3_source_compatibility_mode() {
     printf '%s\n' simulator_only_reuse
 }
 
+task3_task2_source_compatibility_mode() {
+    local label=$1
+    local recorded_main_commit=$2
+    local recorded_echo_commit=$3
+    local recorded_sim_commit=$4
+    local commit_pattern='^[0-9a-f]{40}$'
+    local recorded_echo_gitlink recorded_sim_gitlink
+    local relative_path recorded_blob current_blob object_type
+    local task2_source_files=(
+        SC26-AE/lib/common.sh
+        SC26-AE/lib/task2_echo.sh
+        SC26-AE/task2_gpt175b.sh
+        SC26-AE/task2_qwen3_a30b.sh
+        SC26-AE/task2_dsv3.sh
+        SC26-AE/tools/artifact_manifest.py
+        SC26-AE/tools/echo_metrics.py
+    )
+
+    [[ "${recorded_main_commit}" =~ ${commit_pattern} ]] || {
+        task3_error "${label} Megatron-LM commit is invalid: ${recorded_main_commit}"
+        return 1
+    }
+    [[ "${recorded_echo_commit}" =~ ${commit_pattern} ]] || {
+        task3_error "${label} Echo-slowdown commit is invalid: ${recorded_echo_commit}"
+        return 1
+    }
+    [[ "${recorded_sim_commit}" =~ ${commit_pattern} ]] || {
+        task3_error "${label} megatron-sim-engine commit is invalid: ${recorded_sim_commit}"
+        return 1
+    }
+
+    if [[ "${recorded_main_commit}" == "${TASK3_MAIN_COMMIT}" &&
+          "${recorded_echo_commit}" == "${TASK3_ECHO_COMMIT}" &&
+          "${recorded_sim_commit}" == "${TASK3_SIM_COMMIT}" ]]; then
+        printf '%s\n' exact
+        return 0
+    fi
+
+    [[ "${recorded_echo_commit}" == "${TASK3_ECHO_COMMIT}" ]] || {
+        task3_error "${label} Echo-slowdown commit differs from the current producer."
+        return 1
+    }
+    git -C "${TASK3_REPO_ROOT}" merge-base --is-ancestor \
+        "${recorded_main_commit}" "${TASK3_MAIN_COMMIT}" >/dev/null 2>&1 || {
+        task3_error "${label} outer commit is not an ancestor of the current producer."
+        return 1
+    }
+
+    recorded_echo_gitlink=$(git -C "${TASK3_REPO_ROOT}" rev-parse \
+        "${recorded_main_commit}:Echo-slowdown" 2>/dev/null) || {
+        task3_error "${label} recorded outer commit has no Echo-slowdown gitlink."
+        return 1
+    }
+    [[ "${recorded_echo_gitlink}" == "${recorded_echo_commit}" ]] || {
+        task3_error "${label} recorded Echo-slowdown commit does not match its outer gitlink."
+        return 1
+    }
+    recorded_sim_gitlink=$(git -C "${TASK3_REPO_ROOT}" rev-parse \
+        "${recorded_main_commit}:megatron-sim-engine" 2>/dev/null) || {
+        task3_error "${label} recorded outer commit has no megatron-sim-engine gitlink."
+        return 1
+    }
+    [[ "${recorded_sim_gitlink}" == "${recorded_sim_commit}" ]] || {
+        task3_error "${label} recorded simulator commit does not match its outer gitlink."
+        return 1
+    }
+
+    for relative_path in "${task2_source_files[@]}"; do
+        recorded_blob=$(git -C "${TASK3_REPO_ROOT}" rev-parse \
+            "${recorded_main_commit}:${relative_path}" 2>/dev/null) || {
+            task3_error "${label} recorded Task2 producer source is missing: ${relative_path}"
+            return 1
+        }
+        current_blob=$(git -C "${TASK3_REPO_ROOT}" rev-parse \
+            "${TASK3_MAIN_COMMIT}:${relative_path}" 2>/dev/null) || {
+            task3_error "${label} current Task2 producer source is missing: ${relative_path}"
+            return 1
+        }
+        object_type=$(git -C "${TASK3_REPO_ROOT}" cat-file -t \
+            "${recorded_blob}" 2>/dev/null) || {
+            task3_error "${label} cannot inspect recorded Task2 producer source: ${relative_path}"
+            return 1
+        }
+        [[ "${object_type}" == blob ]] || {
+            task3_error "${label} recorded Task2 producer source is not a blob: ${relative_path}"
+            return 1
+        }
+        object_type=$(git -C "${TASK3_REPO_ROOT}" cat-file -t \
+            "${current_blob}" 2>/dev/null) || {
+            task3_error "${label} cannot inspect current Task2 producer source: ${relative_path}"
+            return 1
+        }
+        [[ "${object_type}" == blob ]] || {
+            task3_error "${label} current Task2 producer source is not a blob: ${relative_path}"
+            return 1
+        }
+        [[ "${recorded_blob}" == "${current_blob}" ]] || {
+            task3_error "${label} Task2 producer source changed: ${relative_path}"
+            return 1
+        }
+    done
+
+    printf '%s\n' task2_producer_equivalent_reuse
+}
+
 task3_assert_real_producer_file() {
     local variable_name=$1
     local configured_path=$2
@@ -1125,7 +1230,7 @@ PY
         "$(task3_json_field "${resolved_json}" task1_source_commits.megatron_lm)" \
         "$(task3_json_field "${resolved_json}" task1_source_commits.echo_slowdown)" \
         "$(task3_json_field "${resolved_json}" task1_source_commits.megatron_sim_engine)")
-    task2_compatibility_mode=$(task3_source_compatibility_mode \
+    task2_compatibility_mode=$(task3_task2_source_compatibility_mode \
         'Fresh Task2' \
         "$(task3_json_field "${resolved_json}" task2_source_commits.megatron_lm)" \
         "$(task3_json_field "${resolved_json}" task2_source_commits.echo_slowdown)" \
@@ -1140,7 +1245,7 @@ import sys
 path = pathlib.Path(sys.argv[1])
 payload = json.loads(path.read_text(encoding="utf-8"))
 payload["source_compatibility"] = {
-    "policy": "exact_or_simulator_only_ancestor_v1",
+    "policy": "task_specific_source_compatibility_v2",
     "task1": sys.argv[2],
     "task2": sys.argv[3],
 }
