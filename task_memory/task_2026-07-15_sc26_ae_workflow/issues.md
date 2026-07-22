@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes        |
 |------------|---------------------------|
+| 2026-07-23 | Resolved I62 by separating functional bundle producers from heterogeneous source artifact producers and sealing the exact Fresh Task3 inputs |
 | 2026-07-23 | Closed I60 Task2 unified-compatibility false rejection; recorded the pre-existing one-trace Qwen synthetic fixture gap as non-blocking for the real Fresh chain |
 | 2026-07-20 | Resolved I59 locally after the penultimate exact-log tracked snapshot reproduced strict V21; external qualification blockers remain unchanged |
 | 2026-07-20 | Added I59 candidate tracked-snapshot GREEN, runtime-output scope root-cause repair, and independent follow-up `APPROVE`; final identity replay remains the local closure gate |
@@ -1773,8 +1774,20 @@ same failure reproduces from an untouched `9baafdf` clean clone, so it is not ca
 compatibility change. Per the user's direction not to spend substantial time on test harnesses,
 this fixture alignment is deferred and does not replace real Fresh-chain evidence.
 
-## I62 — Functional packager requires exact current commits — OPEN / DIRECT BLOCKER
+## I62 — Functional packager requires exact current commits — RESOLVED / LOCAL
 
-`SC26-AE/tools/package_prebaked.py build-functional` still rejects verified artifacts produced by
-compatible heterogeneous commits. This must be fixed only after GPT Fresh Task3 closes, preserving
-each source artifact's real producer identity and all checksum/provenance gates.
+**Root cause:** The functional packager conflated the current packager checkout with the producers
+of the already verified Task1, Task2, and Task3 source artifacts. Real Fresh evidence was therefore
+rejected whenever those artifacts came from different compatible commits.
+
+**Resolution:** Functional bundles now keep the current checkout as the bundle producer while
+recording Task1/Task2/Task3 producers separately in `source_artifact_commits`. The Task3
+`resolved_inputs.json` and its embedded Task1/Task2 manifests are checked by size and SHA256, and
+only the two deployed compatibility schemas are accepted. The release distribution schema and its
+flat producer structure are unchanged.
+
+**Evidence:** The original heterogeneous case failed with `ValueError: shared Task2 functional
+source identity is invalid`. The repaired functional suite passes `15/15`; the complete package
+unit suite passes `39/39`. Independent StepCode Claude verdict is `APPROVE` with two informational
+WATCH items and explicitly states that the diff is safe to commit before real
+`build-functional`/`verify-functional`.

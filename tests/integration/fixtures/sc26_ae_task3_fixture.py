@@ -505,6 +505,32 @@ def build_functional_source(repo_root: pathlib.Path, output_root: pathlib.Path) 
         )
         shutil.copy2(task1_manifest, task3_root / "provenance/task1_manifest.json")
         shutil.copy2(task2_manifest, task3_root / "provenance/task2_manifest.json")
+        stable_json(
+            task3_root / "provenance/resolved_inputs.json",
+            {
+                "schema_version": "sc26-ae-task3-resolved-inputs-v1",
+                "artifact_source": "fresh",
+                "capture_id": capture_id,
+                "predictor_run_id": predictor_run_id,
+                "task1_source_commits": commits,
+                "task2_source_commits": commits,
+                "source_compatibility": {
+                    "policy": "task_specific_source_compatibility_v2",
+                    "task1": "exact",
+                    "task2": "exact",
+                },
+                "input_expectations": {
+                    "task1_manifest": {
+                        "sha256": sha256(task1_manifest),
+                        "size_bytes": task1_manifest.stat().st_size,
+                    },
+                    "task2_manifest": {
+                        "sha256": sha256(task2_manifest),
+                        "size_bytes": task2_manifest.stat().st_size,
+                    },
+                },
+            },
+        )
         task3_manifest = create_manifest(
             module,
             task3_root,

@@ -109,6 +109,133 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _update_marker_manifest_digest(marker_path: Path, manifest_path: Path) -> None:
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    marker["manifest_sha256"] = sha256(manifest_path)
+    marker["artifact_manifest_sha256"] = marker["manifest_sha256"]
+    stable_json(marker_path, marker)
+
+
+def _functional_producer_commits(seed: str) -> dict[str, str]:
+    simulator_seed = {"1": "2", "3": "4", "5": "6", "7": "8", "9": "b"}[seed]
+    return {
+        "megatron_lm": seed * 40,
+        "echo_slowdown": "a" * 40,
+        "megatron_sim_engine": simulator_seed * 40,
+    }
+
+
+def set_heterogeneous_functional_provenance(root: Path) -> dict[str, object]:
+    """Make each synthetic source artifact carry a distinct producer identity."""
+
+    artifact_module = load_module(
+        ARTIFACT_MODULE_PATH, "sc26_ae_artifact_manifest_heterogeneous_fixture"
+    )
+    task2_commits = _functional_producer_commits("1")
+    task2_marker_path = root / "_shared/task2/predictor_marker.json"
+    task2_marker = json.loads(task2_marker_path.read_text(encoding="utf-8"))
+    task2_root = root / task2_marker["run_path"]
+    task2_manifest_path = task2_root / "artifact_manifest.json"
+    task2_manifest = json.loads(task2_manifest_path.read_text(encoding="utf-8"))
+    task2_manifest["source_commits"] = task2_commits
+    stable_json(task2_manifest_path, task2_manifest)
+    _rewrite_manifest(artifact_module, task2_root)
+    _update_marker_manifest_digest(task2_marker_path, task2_manifest_path)
+    task2_manifest = json.loads(task2_manifest_path.read_text(encoding="utf-8"))
+
+    producers: dict[str, object] = {"shared_task2": {"task2": task2_commits}}
+    model_settings = {
+        "gpt175b": {
+            "task1": _functional_producer_commits("3"),
+            "task3": _functional_producer_commits("5"),
+            "compatibility": {
+                "policy": "task_specific_source_compatibility_v2",
+                "task1": "task1_consumer_only_reuse",
+                "task2": "task2_producer_equivalent_reuse",
+            },
+        },
+        "qwen3_a30b": {
+            "task1": _functional_producer_commits("7"),
+            "task3": _functional_producer_commits("9"),
+            "compatibility": {
+                "policy": "exact_or_simulator_only_ancestor_v1",
+                "task1": "simulator_only_reuse",
+                "task2": "simulator_only_reuse",
+            },
+        },
+    }
+    for model, settings in model_settings.items():
+        task1_marker_path = root / model / "task1/capture_marker.json"
+        task1_marker = json.loads(task1_marker_path.read_text(encoding="utf-8"))
+        task1_root = task1_marker_path.parent / task1_marker["run_path"]
+        task1_manifest_path = task1_root / "artifact_manifest.json"
+        task1_manifest = json.loads(task1_manifest_path.read_text(encoding="utf-8"))
+        task1_manifest["source_commits"] = settings["task1"]
+        stable_json(task1_manifest_path, task1_manifest)
+        _rewrite_manifest(artifact_module, task1_root)
+        _update_marker_manifest_digest(task1_marker_path, task1_manifest_path)
+        task1_manifest = json.loads(task1_manifest_path.read_text(encoding="utf-8"))
+
+        task3_marker_path = root / model / "task3/run_marker.json"
+        task3_marker = json.loads(task3_marker_path.read_text(encoding="utf-8"))
+        task3_root = task3_marker_path.parent / task3_marker["run_path"]
+        task3_manifest_path = task3_root / "artifact_manifest.json"
+        shutil.copy2(task1_manifest_path, task3_root / "provenance/task1_manifest.json")
+        shutil.copy2(task2_manifest_path, task3_root / "provenance/task2_manifest.json")
+        stable_json(
+            task3_root / "provenance/resolved_inputs.json",
+            {
+                "schema_version": "sc26-ae-task3-resolved-inputs-v1",
+                "artifact_source": "fresh",
+                "capture_id": task1_manifest["capture_id"],
+                "predictor_run_id": task2_manifest["predictor_run_id"],
+                "task1_source_commits": settings["task1"],
+                "task2_source_commits": task2_commits,
+                "source_compatibility": settings["compatibility"],
+                "input_expectations": {
+                    "task1_manifest": {
+                        "sha256": sha256(task1_manifest_path),
+                        "size_bytes": task1_manifest_path.stat().st_size,
+                    },
+                    "task2_manifest": {
+                        "sha256": sha256(task2_manifest_path),
+                        "size_bytes": task2_manifest_path.stat().st_size,
+                    },
+                },
+            },
+        )
+        task3_manifest = json.loads(task3_manifest_path.read_text(encoding="utf-8"))
+        task3_manifest["source_commits"] = settings["task3"]
+        stable_json(task3_manifest_path, task3_manifest)
+        _rewrite_manifest(artifact_module, task3_root)
+        _update_marker_manifest_digest(task3_marker_path, task3_manifest_path)
+        producers[model] = {
+            "task1": settings["task1"],
+            "task3": settings["task3"],
+        }
+    return producers
+
+
+def mutate_functional_task3_resolved_input(
+    root: Path, model: str, key: str, value: object
+) -> None:
+    """Mutate sealed Task3 input metadata while keeping fixture checksums valid."""
+
+    artifact_module = load_module(
+        ARTIFACT_MODULE_PATH,
+        "sc26_ae_artifact_manifest_resolved_input_{}_{}".format(model, key),
+    )
+    marker_path = root / model / "task3/run_marker.json"
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    task3_root = marker_path.parent / marker["run_path"]
+    resolved_path = task3_root / "provenance/resolved_inputs.json"
+    resolved = json.loads(resolved_path.read_text(encoding="utf-8"))
+    resolved[key] = value
+    stable_json(resolved_path, resolved)
+    manifest_path = _rewrite_manifest(artifact_module, task3_root)
+    _update_marker_manifest_digest(marker_path, manifest_path)
+
+
 def full_moe_capture_summary() -> dict[str, object]:
     return {
         "capture_scope": "full",
@@ -215,6 +342,48 @@ def augment_functional_contract_source(
         marker["manifest_sha256"] = sha256(manifest_path)
         marker["artifact_manifest_sha256"] = sha256(manifest_path)
         stable_json(marker_path, marker)
+
+        task2_manifest_path = (
+            root
+            / "_shared/task2/runs/predictor-contract-001/artifact_manifest.json"
+        )
+        task2_manifest = json.loads(task2_manifest_path.read_text(encoding="utf-8"))
+        task3_dir = root / model / "task3"
+        task3_root = task3_dir / "runs" / f"{model}-contract-task3"
+        shutil.copy2(manifest_path, task3_root / "provenance/task1_manifest.json")
+        shutil.copy2(
+            task2_manifest_path, task3_root / "provenance/task2_manifest.json"
+        )
+        stable_json(
+            task3_root / "provenance/resolved_inputs.json",
+            {
+                "schema_version": "sc26-ae-task3-resolved-inputs-v1",
+                "artifact_source": "fresh",
+                "capture_id": manifest["capture_id"],
+                "predictor_run_id": task2_manifest["predictor_run_id"],
+                "task1_source_commits": manifest["source_commits"],
+                "task2_source_commits": task2_manifest["source_commits"],
+                "source_compatibility": {
+                    "policy": "task_specific_source_compatibility_v2",
+                    "task1": "exact",
+                    "task2": "exact",
+                },
+                "input_expectations": {
+                    "task1_manifest": {
+                        "sha256": sha256(manifest_path),
+                        "size_bytes": manifest_path.stat().st_size,
+                    },
+                    "task2_manifest": {
+                        "sha256": sha256(task2_manifest_path),
+                        "size_bytes": task2_manifest_path.stat().st_size,
+                    },
+                },
+            },
+        )
+        task3_manifest_path = _rewrite_manifest(artifact_module, task3_root)
+        _update_marker_manifest_digest(
+            task3_dir / "run_marker.json", task3_manifest_path
+        )
 
 
 @contextmanager
@@ -385,6 +554,32 @@ def build_contract_source(
         )
         shutil.copy2(task1_manifest, task3_root / "provenance/task1_manifest.json")
         shutil.copy2(task2_manifest, task3_root / "provenance/task2_manifest.json")
+        stable_json(
+            task3_root / "provenance/resolved_inputs.json",
+            {
+                "schema_version": "sc26-ae-task3-resolved-inputs-v1",
+                "artifact_source": "fresh",
+                "capture_id": capture_id,
+                "predictor_run_id": predictor_run_id,
+                "task1_source_commits": commits,
+                "task2_source_commits": commits,
+                "source_compatibility": {
+                    "policy": "task_specific_source_compatibility_v2",
+                    "task1": "exact",
+                    "task2": "exact",
+                },
+                "input_expectations": {
+                    "task1_manifest": {
+                        "sha256": sha256(task1_manifest),
+                        "size_bytes": task1_manifest.stat().st_size,
+                    },
+                    "task2_manifest": {
+                        "sha256": sha256(task2_manifest),
+                        "size_bytes": task2_manifest.stat().st_size,
+                    },
+                },
+            },
+        )
         task3_manifest = create_manifest(
             artifact_module,
             task3_root,
@@ -506,6 +701,128 @@ def test_build_and_verify_functional_two_model_distribution(tmp_path: Path) -> N
     assert verified["bundle_count"] == 3
     with pytest.raises(ValueError, match="distribution manifest schema"):
         module.verify_distribution(REPO_ROOT, staging_root)
+
+
+def test_functional_distribution_preserves_heterogeneous_source_producers(
+    tmp_path: Path,
+) -> None:
+    """Functional packaging must preserve the producers Task3 actually consumed."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_functional_heterogeneous")
+    source_root = tmp_path / "functional-source"
+    build_functional_fixture(source_root)
+    source_producers = set_heterogeneous_functional_provenance(source_root)
+    staging_root = tmp_path / "staging" / "functional"
+
+    module.build_functional_distribution(
+        repo_root=REPO_ROOT,
+        output_root=source_root,
+        staging_root=staging_root,
+        distribution_id="functional-heterogeneous-001",
+        result_json=tmp_path / "work" / "result.json",
+    )
+
+    distribution = json.loads(
+        (staging_root / "distribution_manifest.json").read_text(encoding="utf-8")
+    )
+    bundle_producer = source_commits()
+    for key, source_artifacts in source_producers.items():
+        assert distribution["producer_commits"][key] == {
+            "bundle": bundle_producer,
+            **source_artifacts,
+        }
+        entry = distribution["bundles"][key]
+        bundle_root = staging_root / entry["root"]
+        bundle_manifest = json.loads(
+            (bundle_root / "artifact_manifest.json").read_text(encoding="utf-8")
+        )
+        assert bundle_manifest["source_commits"] == bundle_producer
+        assert bundle_manifest["source_artifact_commits"] == source_artifacts
+        assert entry["source_artifact_commits"] == source_artifacts
+    assert (
+        staging_root
+        / "bundles/gpt175b/provenance/source_task3_resolved_inputs.json"
+    ).is_file()
+    assert (
+        staging_root
+        / "bundles/qwen3_a30b/provenance/source_task3_resolved_inputs.json"
+    ).is_file()
+    assert module.verify_functional_distribution(REPO_ROOT, staging_root)[
+        "distribution_id"
+    ] == "functional-heterogeneous-001"
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        (
+            "task1_source_commits",
+            _functional_producer_commits("3"),
+            "resolved Task1 commits differ",
+        ),
+        (
+            "task2_source_commits",
+            _functional_producer_commits("5"),
+            "resolved Task2 commits differ",
+        ),
+        (
+            "source_compatibility",
+            {
+                "policy": "unsupported_descendant_reuse",
+                "task1": "exact",
+                "task2": "exact",
+            },
+            "source compatibility policy is unsupported",
+        ),
+    ],
+)
+def test_functional_distribution_rejects_unsealed_task3_provenance(
+    tmp_path: Path, key: str, value: object, message: str
+) -> None:
+    """Functional packaging rejects Task3 inputs outside the sealed contract."""
+
+    module = load_module(
+        MODULE_PATH, "sc26_ae_package_functional_resolved_input_{}".format(key)
+    )
+    source_root = tmp_path / "functional-source"
+    build_functional_fixture(source_root)
+    mutate_functional_task3_resolved_input(source_root, "gpt175b", key, value)
+
+    with pytest.raises(ValueError, match=message):
+        module.build_functional_distribution(
+            repo_root=REPO_ROOT,
+            output_root=source_root,
+            staging_root=tmp_path / "staging" / "functional",
+            distribution_id="functional-invalid-provenance-001",
+            result_json=tmp_path / "work" / "result.json",
+        )
+
+
+def test_functional_verifier_rejects_tampered_nested_source_producer(
+    tmp_path: Path,
+) -> None:
+    """Offline verification rejects distribution-level producer substitution."""
+
+    module = load_module(MODULE_PATH, "sc26_ae_package_functional_producer_tamper")
+    source_root = tmp_path / "functional-source"
+    build_functional_fixture(source_root)
+    staging_root = tmp_path / "staging" / "functional"
+    module.build_functional_distribution(
+        repo_root=REPO_ROOT,
+        output_root=source_root,
+        staging_root=staging_root,
+        distribution_id="functional-producer-tamper-001",
+        result_json=tmp_path / "work" / "result.json",
+    )
+    distribution_path = staging_root / "distribution_manifest.json"
+    distribution = json.loads(distribution_path.read_text(encoding="utf-8"))
+    distribution["producer_commits"]["gpt175b"]["task1"] = (
+        _functional_producer_commits("7")
+    )
+    stable_json(distribution_path, distribution)
+
+    with pytest.raises(ValueError, match="bundle source producers differ"):
+        module.verify_functional_distribution(REPO_ROOT, staging_root)
 
 
 def test_functional_model_scope_replaces_deepseek_with_qwen3() -> None:

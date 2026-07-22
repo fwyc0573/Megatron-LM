@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes                                  |
 |------------|------------------------------------------------------|
+| 2026-07-23 | Closed I62 with heterogeneous source-producer preservation, sealed Fresh Task3 provenance, 39-test regression, and independent `APPROVE` |
 | 2026-07-23 | Closed the Task2-specific source-compatibility blocker with RED→GREEN tests, real artifact verification, and independent `APPROVE` without rerunning Task2 |
 | 2026-07-20 | Session 56: passed the penultimate tracked-snapshot V21 replay and closed I59 locally; final identity, exact-log restaging, Lore commit, and committed-clone replay remain |
 | 2026-07-20 | Session 56: reproduced and fixed the V21 runtime-output scope defect with TDD, passed a tracked-snapshot replay, and received independent `APPROVE` for the I59 remediation |
@@ -3193,3 +3194,29 @@ bytes `412174/616`; manifest SHA256
 `9/9`. The broader synthetic integration remains baseline-failing because its Qwen fixture has one
 trace while the current product requires 32; no production failure was introduced and no fixture
 repair was undertaken in this focused step.
+
+## Session 58 Functional heterogeneous-producer packaging — 2026-07-23
+
+**Motivation:** Real Fresh artifacts were produced by multiple compatible outer commits, but the
+functional packager required every Task1/Task2/Task3 source manifest to equal the current checkout.
+That conflated bundle generation identity with source artifact identity and directly blocked the
+functional prebaked chain.
+
+**Expectation:** Keep generated functional bundles bound to the current checkout, preserve each
+source artifact's actual producer, seal the exact Task1/Task2 inputs consumed by Fresh Task3, accept
+only the two deployed compatibility schemas, detect offline substitution, and leave the release
+schema and CPU-only consumer interface unchanged.
+
+**Method:** Added layered `source_artifact_commits`, copied the verified Fresh Task3
+`resolved_inputs.json`, cross-checked its embedded manifests and size/SHA256 expectations, and
+extracted one shared functional Task1 rank/NCU validator. Updated synthetic fixtures to keep Task3
+provenance synchronized after Task1 changes. Added focused negative cases for Task1/Task2 producer
+mismatch, unsupported compatibility policy, and distribution-level source-producer tampering.
+
+**Result:** The focused heterogeneous test first failed with `ValueError: shared Task2 functional
+source identity is invalid`, then passed. The pre-fix functional regression reproduced `7 failed,
+4 passed`; after the root-cause repair it passed `15/15`. The complete affected unit file passed
+`39/39` in `37.80 s`. `py_compile`, `bash -n`, and `git diff --check` passed after directing Python
+bytecode cache to `/data/ycfeng/tmp`. StepCode Claude independently returned `APPROVE`; its two
+WATCH notes confirm that the functional-only commit relaxation is re-bound by provenance checks and
+that the closed compatibility allowlist is intentional. No Task2 command was executed.

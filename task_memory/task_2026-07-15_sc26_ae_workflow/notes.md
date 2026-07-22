@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes            |
 |------------|-------------------------------|
+| 2026-07-23 | Recorded the repo-local bytecode-cache permission issue and the validated `/data/ycfeng/tmp` `PYTHONPYCACHEPREFIX` contract |
 | 2026-07-23 | Recorded the mandatory `/data/ycfeng/tmp` rule, no-Task2-rerun rule, and current clean producer/output roots |
 | 2026-07-20 | Recorded the penultimate tracked-snapshot V21 PASS and local I59 closure; final identity/commit replay remains mandatory |
 | 2026-07-20 | Added Session 56 staged-audit/runtime-output scope findings, task-archive whitespace handling, and independent follow-up `APPROVE` |
@@ -238,3 +239,6 @@ permission. This environment note does not change the real qualification or rele
 - Shared output root: `/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4`.
 - Shared Task2 predictor is immutable and must not be rerun for missing Task3 kernels.
 - StepCode review temporary evidence: `/data/ycfeng/tmp/stepcode_sc26_task2_compat/`.
+- Repo-local `__pycache__` may be unwritable in the shared worktree. Static Python validation must
+  set `PYTHONPYCACHEPREFIX` to a task-specific directory under `/data/ycfeng/tmp`; do not change
+  repository permissions and do not redirect caches to `/tmp`.
