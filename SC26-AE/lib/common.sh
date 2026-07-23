@@ -73,30 +73,63 @@ ae_validate_repo_relative_path() {
     [[ "${path}" != *$'\n'* ]] || ae_die "${variable_name} must not contain a newline."
 }
 
-ae_gitlink_commit() {
-    local submodule_path=${1:-}
-    local repo_root stage_line mode commit
+ae_source_commit() {
+    local source_path=${1:-}
+    local repo_root stage_line mode commit source_file
 
-    ae_validate_repo_relative_path "submodule path" "${submodule_path}" || return 1
+    ae_validate_repo_relative_path "source path" "${source_path}" || return 1
     repo_root=$(ae_repo_root) || return 1
-    stage_line=$(git -C "${repo_root}" ls-files --stage -- "${submodule_path}") || \
-        ae_die "Failed to inspect submodule gitlink: ${submodule_path}"
+    source_file="${repo_root}/${source_path}/.source_commit"
+    if [[ -f "${source_file}" ]]; then
+        commit=$(tr -d '[:space:]' <"${source_file}") || \
+            ae_die "Failed to read source identity: ${source_file}"
+        [[ "${commit}" =~ ^[0-9a-f]{40}$ ]] || {
+            ae_die "Invalid source identity in ${source_file}: ${commit}"
+            return 1
+        }
+        printf '%s\n' "${commit}"
+        return 0
+    fi
+
+    stage_line=$(git -C "${repo_root}" ls-files --stage -- "${source_path}") || \
+        ae_die "Failed to inspect source directory: ${source_path}"
     [[ $(wc -l <<< "${stage_line}") -eq 1 ]] || \
-        ae_die "Expected exactly one gitlink entry for: ${submodule_path}"
+        ae_die "Expected one source identity or source identity entry for: ${source_path}"
     read -r mode commit _ <<< "${stage_line}"
     [[ "${mode}" == "160000" && "${commit}" =~ ^[0-9a-f]{40}$ ]] || \
-        ae_die "Path is not a pinned gitlink: ${submodule_path}"
+        ae_die "Path is neither a source directory with .source_commit nor a pinned source identity: ${source_path}"
     printf '%s\n' "${commit}"
 }
 
-ae_assert_submodule_clean() {
-    local submodule_path=${1:-}
-    local repo_root status
+ae_assert_source_clean() {
+    local source_path=${1:-}
+    local repo_root status source_file source_commit
 
-    ae_validate_repo_relative_path "submodule path" "${submodule_path}" || return 1
+    ae_validate_repo_relative_path "source path" "${source_path}" || return 1
     repo_root=$(ae_repo_root) || return 1
-    ae_require_dir "${repo_root}/${submodule_path}" || return 1
-    status=$(git -C "${repo_root}/${submodule_path}" status --short --untracked-files=all) || \
-        ae_die "Failed to inspect submodule status: ${submodule_path}"
-    [[ -z "${status}" ]] || ae_die "Submodule is not clean: ${submodule_path}"
+    ae_require_dir "${repo_root}/${source_path}" || return 1
+    source_file="${repo_root}/${source_path}/.source_commit"
+    if [[ -f "${source_file}" ]]; then
+        source_commit=$(tr -d '[:space:]' <"${source_file}") || \
+            ae_die "Failed to read source identity: ${source_file}"
+        [[ "${source_commit}" =~ ^[0-9a-f]{40}$ ]] || {
+            ae_die "Invalid source identity in ${source_file}: ${source_commit}"
+            return 1
+        }
+        [[ ! -e "${repo_root}/${source_path}/.git" ]] || {
+            ae_die "Vendored source directory must not contain Git metadata: ${source_path}"
+            return 1
+        }
+        status=$(git -C "${repo_root}" status --short --untracked-files=all -- "${source_path}") || \
+            ae_die "Failed to inspect vendored source status: ${source_path}"
+        [[ -z "${status}" ]] || {
+            ae_die "Vendored source directory is not clean: ${source_path}"
+            return 1
+        }
+        return 0
+    fi
+
+    status=$(git -C "${repo_root}/${source_path}" status --short --untracked-files=all) || \
+        ae_die "Failed to inspect source status: ${source_path}"
+    [[ -z "${status}" ]] || ae_die "Source checkout is not clean: ${source_path}"
 }

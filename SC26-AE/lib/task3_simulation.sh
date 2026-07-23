@@ -236,10 +236,10 @@ task3_load_model_config() {
 task3_current_commits() {
     TASK3_MAIN_COMMIT=$(git -C "${TASK3_REPO_ROOT}" rev-parse HEAD 2>/dev/null) || \
         task3_error "Cannot resolve the current Megatron-LM commit."
-    TASK3_ECHO_COMMIT=$(git -C "${TASK3_REPO_ROOT}" rev-parse HEAD:Echo-slowdown 2>/dev/null) || \
-        task3_error "Cannot resolve the Echo-slowdown gitlink commit."
-    TASK3_SIM_COMMIT=$(git -C "${TASK3_REPO_ROOT}" rev-parse HEAD:megatron-sim-engine 2>/dev/null) || \
-        task3_error "Cannot resolve the megatron-sim-engine gitlink commit."
+    TASK3_ECHO_COMMIT=$(ae_source_commit Echo-slowdown) || \
+        task3_error "Cannot resolve the Echo-slowdown source identity."
+    TASK3_SIM_COMMIT=$(ae_source_commit megatron-sim-engine) || \
+        task3_error "Cannot resolve the megatron-sim-engine source identity."
     [[ "${TASK3_MAIN_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || task3_error "Invalid Megatron-LM commit."
     [[ "${TASK3_ECHO_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || task3_error "Invalid Echo-slowdown commit."
     [[ "${TASK3_SIM_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || task3_error "Invalid megatron-sim-engine commit."
@@ -284,12 +284,12 @@ task3_source_compatibility_mode() {
         return 1
     }
     local changed_path
-    local simulator_gitlink_changed=0
+    local simulator_source_identity_changed=0
     while IFS= read -r changed_path; do
         [[ -n "${changed_path}" ]] || continue
         case "${changed_path}" in
             megatron-sim-engine)
-                simulator_gitlink_changed=1
+                simulator_source_identity_changed=1
                 ;;
             SC26-AE/lib/task3_simulation.sh|\
             tests/unit/test_sc26_ae_task3_source_compatibility.sh|\
@@ -305,7 +305,7 @@ task3_source_compatibility_mode() {
         git -C "${TASK3_REPO_ROOT}" diff --name-only --no-ext-diff \
             "${recorded_main_commit}..${TASK3_MAIN_COMMIT}"
     )
-    if (( simulator_gitlink_changed )); then
+    if (( simulator_source_identity_changed )); then
         git -C "${TASK3_SIM_ENGINE_ROOT}" merge-base --is-ancestor \
             "${recorded_sim_commit}" "${TASK3_SIM_COMMIT}" >/dev/null 2>&1 || {
             task3_error "${label} simulator commit is not an ancestor of the current simulator."
@@ -317,7 +317,7 @@ task3_source_compatibility_mode() {
 
     [[ "${recorded_sim_commit}" == "${TASK3_SIM_COMMIT}" ]] || {
         task3_error \
-            "${label} producer advancement does not contain a simulator gitlink change."
+            "${label} producer advancement does not contain a simulator source identity change."
         return 1
     }
     printf '%s\n' task1_consumer_only_reuse
@@ -329,7 +329,7 @@ task3_task2_source_compatibility_mode() {
     local recorded_echo_commit=$3
     local recorded_sim_commit=$4
     local commit_pattern='^[0-9a-f]{40}$'
-    local recorded_echo_gitlink recorded_sim_gitlink
+    local recorded_echo_source_identity recorded_sim_source_identity
     local relative_path recorded_blob current_blob object_type
     local task2_source_files=(
         SC26-AE/lib/common.sh
@@ -371,22 +371,22 @@ task3_task2_source_compatibility_mode() {
         return 1
     }
 
-    recorded_echo_gitlink=$(git -C "${TASK3_REPO_ROOT}" rev-parse \
+    recorded_echo_source_identity=$(git -C "${TASK3_REPO_ROOT}" rev-parse \
         "${recorded_main_commit}:Echo-slowdown" 2>/dev/null) || {
-        task3_error "${label} recorded outer commit has no Echo-slowdown gitlink."
+        task3_error "${label} recorded outer commit has no Echo-slowdown source identity."
         return 1
     }
-    [[ "${recorded_echo_gitlink}" == "${recorded_echo_commit}" ]] || {
-        task3_error "${label} recorded Echo-slowdown commit does not match its outer gitlink."
+    [[ "${recorded_echo_source_identity}" == "${recorded_echo_commit}" ]] || {
+        task3_error "${label} recorded Echo-slowdown commit does not match its outer source identity."
         return 1
     }
-    recorded_sim_gitlink=$(git -C "${TASK3_REPO_ROOT}" rev-parse \
+    recorded_sim_source_identity=$(git -C "${TASK3_REPO_ROOT}" rev-parse \
         "${recorded_main_commit}:megatron-sim-engine" 2>/dev/null) || {
-        task3_error "${label} recorded outer commit has no megatron-sim-engine gitlink."
+        task3_error "${label} recorded outer commit has no megatron-sim-engine source identity."
         return 1
     }
-    [[ "${recorded_sim_gitlink}" == "${recorded_sim_commit}" ]] || {
-        task3_error "${label} recorded simulator commit does not match its outer gitlink."
+    [[ "${recorded_sim_source_identity}" == "${recorded_sim_commit}" ]] || {
+        task3_error "${label} recorded simulator commit does not match its outer source identity."
         return 1
     }
 
@@ -443,17 +443,27 @@ task3_assert_real_producer_file() {
         task3_error \
             "Real Task3 ${variable_name} must be a regular canonical producer file: ${configured_path}"
 
-    expected_blob=$(git -C "${canonical_root}" rev-parse \
-        "${TASK3_SIM_COMMIT}:${relative_path}" 2>/dev/null) || \
-        task3_error \
-            "Real Task3 ${variable_name} is not tracked by pinned commit ${TASK3_SIM_COMMIT}: ${relative_path}"
-    object_type=$(git -C "${canonical_root}" cat-file -t "${expected_blob}" 2>/dev/null) || \
-        task3_error \
-            "Cannot inspect pinned Task3 producer object for ${variable_name}: ${relative_path}"
+    if [[ -f "${canonical_root}/.source_commit" ]]; then
+        expected_blob=$(git -C "${TASK3_REPO_ROOT}" rev-parse \
+            "HEAD:megatron-sim-engine/${relative_path}" 2>/dev/null) || \
+            task3_error \
+                "Real Task3 ${variable_name} is not tracked by the vendored producer: ${relative_path}"
+        object_type=$(git -C "${TASK3_REPO_ROOT}" cat-file -t "${expected_blob}" 2>/dev/null) || \
+            task3_error \
+                "Cannot inspect vendored Task3 producer object for ${variable_name}: ${relative_path}"
+    else
+        expected_blob=$(git -C "${canonical_root}" rev-parse \
+            "${TASK3_SIM_COMMIT}:${relative_path}" 2>/dev/null) || \
+            task3_error \
+                "Real Task3 ${variable_name} is not tracked by pinned commit ${TASK3_SIM_COMMIT}: ${relative_path}"
+        object_type=$(git -C "${canonical_root}" cat-file -t "${expected_blob}" 2>/dev/null) || \
+            task3_error \
+                "Cannot inspect pinned Task3 producer object for ${variable_name}: ${relative_path}"
+    fi
     [[ "${object_type}" == blob ]] || \
         task3_error \
             "Pinned Task3 producer path is not a file for ${variable_name}: ${relative_path}"
-    actual_blob=$(git -C "${canonical_root}" hash-object --no-filters \
+    actual_blob=$(git -C "${TASK3_REPO_ROOT}" hash-object --no-filters \
         "${configured_path}" 2>/dev/null) || \
         task3_error \
             "Cannot hash canonical Task3 producer file for ${variable_name}: ${configured_path}"
@@ -478,13 +488,18 @@ task3_assert_sim_engine_provenance() {
         return 0
     fi
 
-    ae_assert_submodule_clean megatron-sim-engine || \
+    ae_assert_source_clean megatron-sim-engine || \
         task3_error "Task3 megatron-sim-engine producer is dirty; clean it before qualification."
-    selected_head=$(git -C "${selected_root}" rev-parse HEAD 2>/dev/null) || \
-        task3_error "Cannot resolve the checked-out megatron-sim-engine producer commit."
+    if [[ -f "${canonical_root}/.source_commit" ]]; then
+        selected_head=$(tr -d '[:space:]' <"${canonical_root}/.source_commit") || \
+            task3_error "Cannot resolve the vendored megatron-sim-engine source identity."
+    else
+        selected_head=$(git -C "${selected_root}" rev-parse HEAD 2>/dev/null) || \
+            task3_error "Cannot resolve the checked-out megatron-sim-engine producer commit."
+    fi
     [[ "${selected_head}" == "${TASK3_SIM_COMMIT}" ]] || \
         task3_error \
-            "Checked-out megatron-sim-engine commit ${selected_head} differs from outer gitlink ${TASK3_SIM_COMMIT}."
+            "Selected megatron-sim-engine source identity ${selected_head} differs from ${TASK3_SIM_COMMIT}."
 
     if [[ "${TASK3_EXECUTION_MODE:-real}" == real ]]; then
         task3_assert_real_producer_file \
@@ -1476,7 +1491,7 @@ if distribution.get("compatible_commits") != {
     "echo_slowdown": echo_commit,
     "megatron_sim_engine": sim_commit,
 }:
-    fail("prebaked compatible commits differ from the consumer gitlinks")
+    fail("prebaked compatible commits differ from the consumer source identities")
 
 file_entries = distribution.get("files")
 if not isinstance(file_entries, list) or not file_entries:
@@ -2199,6 +2214,10 @@ task3_materialize_simulator_trace() {
             expected_representative_count=${TASK3_PP}
             ;;
         qwen3_a30b)
+            representative_mode=pp_ep
+            expected_representative_count=$((TASK3_PP * TASK3_EXP))
+            ;;
+        dsv3)
             representative_mode=pp_ep
             expected_representative_count=$((TASK3_PP * TASK3_EXP))
             ;;

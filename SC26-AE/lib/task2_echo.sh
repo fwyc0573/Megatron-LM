@@ -931,31 +931,52 @@ task2_new_id() {
     task2_safe_id "$TASK2_PREDICTOR_RUN_ID"
 }
 
+task2_source_identity() {
+    local source_path=$1 source_file
+    source_file="${TASK2_REPO_ROOT}/${source_path}/.source_commit"
+    if [[ -f "${source_file}" ]]; then
+        tr -d '[:space:]' <"${source_file}"
+    else
+        git -C "${TASK2_REPO_ROOT}" rev-parse "HEAD:${source_path}"
+    fi
+}
+
 task2_gitlink_commit() {
-    local expected source_head
-    source_head=$(git -C "$TASK2_SOURCE_REPO" rev-parse HEAD 2>/dev/null) || {
-        task2_error "cannot resolve Echo-slowdown source HEAD"; return 1;
-    }
+    local expected source_head source_identity_file
+    source_identity_file="$TASK2_SOURCE_REPO/.source_commit"
+    if [[ -f "$source_identity_file" ]]; then
+        source_head=$(tr -d '[:space:]' <"$source_identity_file") || {
+            task2_error "cannot resolve Echo-slowdown source identity"; return 1;
+        }
+    else
+        source_head=$(git -C "$TASK2_SOURCE_REPO" rev-parse HEAD 2>/dev/null) || {
+            task2_error "cannot resolve Echo-slowdown source HEAD"; return 1;
+        }
+    fi
     if [[ "$TASK2_MODE" == synthetic && -n "$TASK2_EXPECTED_COMMIT" ]]; then
         expected=$TASK2_EXPECTED_COMMIT
-        TASK2_COMMIT_PROVENANCE="explicit_test_gitlink_override"
+        TASK2_COMMIT_PROVENANCE="explicit_test_source identity_override"
     else
         [[ "$TASK2_MAIN_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
-            task2_error "main-repository commit is unavailable for Echo-slowdown gitlink validation"; return 1;
+            task2_error "main-repository commit is unavailable for Echo-slowdown source identity validation"; return 1;
         }
-        expected=$(git -C "$TASK2_REPO_ROOT" rev-parse "${TASK2_MAIN_COMMIT}:Echo-slowdown" 2>/dev/null) || {
-            task2_error "cannot resolve main-repository Echo-slowdown gitlink commit"; return 1;
-        }
-        TASK2_COMMIT_PROVENANCE="main_repository_gitlink"
+        expected=$(task2_source_identity Echo-slowdown) || return 1
+        TASK2_COMMIT_PROVENANCE="main_repository_source_identity"
     fi
     [[ "$expected" == "$source_head" ]] || {
-        task2_error "Echo source HEAD ${source_head} does not match expected gitlink ${expected}"; return 1;
+        task2_error "Echo source HEAD ${source_head} does not match expected source identity ${expected}"; return 1;
     }
     TASK2_ECHO_COMMIT=$expected
 }
 
 task2_assert_source_clean() {
     local status
+    if [[ -f "$TASK2_SOURCE_REPO/.source_commit" ]]; then
+        ae_assert_source_clean Echo-slowdown || {
+            task2_error "cannot inspect vendored Echo-slowdown status"; return 1;
+        }
+        return 0
+    fi
     status=$(git -C "$TASK2_SOURCE_REPO" status --porcelain 2>/dev/null) || {
         task2_error "cannot inspect Echo-slowdown status"; return 1;
     }
@@ -1048,9 +1069,15 @@ task2_is_known_historical() {
 
 task2_source_inventory() {
     local tracked_file=$1 included_file=$2 path
-    git -C "$TASK2_SOURCE_REPO" ls-tree -r --name-only "$TASK2_ECHO_COMMIT" >"$tracked_file" 2>/dev/null || {
+    if [[ -f "$TASK2_SOURCE_REPO/.source_commit" ]]; then
+        git -C "$TASK2_REPO_ROOT" ls-tree -r --name-only HEAD:Echo-slowdown >"$tracked_file" 2>/dev/null || {
+            task2_error "cannot enumerate pinned vendored Echo source"; return 1;
+        }
+    else
+        git -C "$TASK2_SOURCE_REPO" ls-tree -r --name-only "$TASK2_ECHO_COMMIT" >"$tracked_file" 2>/dev/null || {
         task2_error "cannot enumerate pinned Echo tracked source"; return 1;
-    }
+        }
+    fi
     : >"$included_file" || return 1
     while IFS= read -r path; do
         [[ -n "$path" ]] || continue
@@ -1072,10 +1099,17 @@ task2_extract_snapshot() {
     done
     # Exclusions happen at archive creation time; no post-extraction deletion
     # is permitted by the Task2 source contract.
-    git -C "$TASK2_SOURCE_REPO" archive --format=tar "$TASK2_ECHO_COMMIT" -- . "${excludes[@]}" \
-        | tar -xf - -C "$TASK2_SOURCE_ROOT" || {
+    if [[ -f "$TASK2_SOURCE_REPO/.source_commit" ]]; then
+        git -C "$TASK2_REPO_ROOT" archive --format=tar HEAD:Echo-slowdown -- "${excludes[@]}" \
+            | tar -xf - -C "$TASK2_SOURCE_ROOT" || {
+            task2_error "filtered vendored Echo archive extraction failed"; return 1;
+        }
+    else
+        git -C "$TASK2_SOURCE_REPO" archive --format=tar "$TASK2_ECHO_COMMIT" -- . "${excludes[@]}" \
+            | tar -xf - -C "$TASK2_SOURCE_ROOT" || {
         task2_error "filtered git archive extraction failed"; return 1;
-    }
+        }
+    fi
     while IFS= read -r path; do
         [[ -n "$path" ]] || continue
         [[ -e "$TASK2_SOURCE_ROOT/$path" ]] || {
@@ -1244,10 +1278,7 @@ task2_write_artifact_manifest() {
     [[ "$megatron_commit" =~ ^[0-9a-f]{40}$ ]] || {
         task2_error "recorded Megatron-LM source commit is invalid for artifact manifest"; return 1;
     }
-    sim_engine_commit=$(git -C "$TASK2_REPO_ROOT" rev-parse \
-        "${TASK2_MAIN_COMMIT}:megatron-sim-engine" 2>/dev/null) || {
-        task2_error "cannot resolve megatron-sim-engine source commit for artifact manifest"; return 1;
-    }
+    sim_engine_commit=$(task2_source_identity megatron-sim-engine) || return 1
     "$TASK2_META_PYTHON" - "$metadata_file" "$megatron_commit" "$TASK2_ECHO_COMMIT" \
         "$sim_engine_commit" "$TASK2_PREDICTOR_RUN_ID" "$TASK2_MODE" "$TASK2_MODEL_KEY" <<'PY'
 import json
@@ -1311,10 +1342,7 @@ task2_verify_run() {
     [[ "$megatron_commit" =~ ^[0-9a-f]{40}$ ]] || {
         task2_error "recorded Megatron-LM commit is invalid while verifying Task2 bundle"; return 1;
     }
-    sim_engine_commit=$(git -C "$TASK2_REPO_ROOT" rev-parse \
-        "${TASK2_MAIN_COMMIT}:megatron-sim-engine" 2>/dev/null) || {
-        task2_error "cannot resolve current megatron-sim-engine commit while verifying Task2 bundle"; return 1;
-    }
+    sim_engine_commit=$(task2_source_identity megatron-sim-engine) || return 1
     "$TASK2_META_PYTHON" - "$run_root/artifact_manifest.json" "$run_root" "$TASK2_ECHO_COMMIT" \
         "$megatron_commit" "$sim_engine_commit" "$TASK2_PREDICTOR_RUN_ID" <<'PY'
 import json
@@ -1368,7 +1396,7 @@ payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 if payload.get("schema_version") != "sc26-ae-echo-provenance-v1":
     raise SystemExit("unexpected Task2 provenance schema")
 if payload.get("echo_commit") != sys.argv[2]:
-    raise SystemExit("Task2 provenance Echo commit differs from current gitlink")
+    raise SystemExit("Task2 provenance Echo commit differs from current source identity")
 if payload.get("automatic_fallback") is not False:
     raise SystemExit("Task2 provenance must state automatic fallback is disabled")
 PY
@@ -1786,7 +1814,7 @@ task2_main() {
     task2_require_command sha256sum || return 1
     task2_require_command "$TASK2_META_PYTHON" || return 1
     task2_require_file "$TASK2_ARTIFACT_TOOL" || return 1
-    [[ -e "$TASK2_SOURCE_REPO/.git" ]] || { task2_error "Echo-slowdown is not a Git checkout"; return 1; }
+    [[ -d "$TASK2_SOURCE_REPO" ]] || { task2_error "Echo-slowdown source directory is missing"; return 1; }
     TASK2_MAIN_COMMIT=$(git -C "$TASK2_REPO_ROOT" rev-parse HEAD 2>/dev/null) || {
         task2_error "cannot resolve main-repository source commit"; return 1;
     }

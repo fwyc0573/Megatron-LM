@@ -69,10 +69,19 @@ def git_output(repo_root: pathlib.Path, *arguments: str) -> str:
 
 
 def source_commits(repo_root: pathlib.Path) -> Dict[str, str]:
+    def source_identity(path: str) -> str:
+        source_file = repo_root / path / ".source_commit"
+        if source_file.is_file():
+            value = source_file.read_text(encoding="utf-8").strip()
+            if len(value) != 40 or any(ch not in "0123456789abcdef" for ch in value):
+                raise ValueError(f"invalid source identity: {source_file}")
+            return value
+        return git_output(repo_root, "rev-parse", f"HEAD:{path}")
+
     return {
         "megatron_lm": git_output(repo_root, "rev-parse", "HEAD"),
-        "echo_slowdown": git_output(repo_root, "rev-parse", "HEAD:Echo-slowdown"),
-        "megatron_sim_engine": git_output(repo_root, "rev-parse", "HEAD:megatron-sim-engine"),
+        "echo_slowdown": source_identity("Echo-slowdown"),
+        "megatron_sim_engine": source_identity("megatron-sim-engine"),
     }
 
 
@@ -104,7 +113,7 @@ def trace_text(rank: int) -> str:
         [
             f"rank:{rank}:forward_step(stage_id=0,batch_id=0,mg_state=steady,duration=4.000,timestamp=100.000,cmd_uid=fwd-{rank})",
             f"rank:{rank}:backward_step(stage_id=0,batch_id=0,mg_state=steady,duration=6.000,timestamp=104.000,cmd_uid=bwd-{rank})",
-            f"rank:{rank}:ddp_grad_comm(stage_id=0,batch_id=0,mg_state=steady,duration=0.500,timestamp=105.000,trigger_cmd_uid=bwd-{rank})",
+            f"rank:{rank}:ddp_grad_comm(stage_id=0,batch_id=0,mg_state=steady,duration=0.500,timestamp=105.000,trigger_cmd_uid=bwd-{rank},comm_uid=ddp-{rank})",
             f"rank:{rank}:optimizer_step(stage_id=0,batch_id=0,mg_state=finalize,duration=1.500,timestamp=110.000,cmd_uid=opt-{rank})",
         ]
     ) + "\n"
@@ -121,7 +130,25 @@ def slowdown_assets(root: pathlib.Path, model: str) -> None:
         },
     )
     stable_json(root / "kernel_features.json", {"bwd-0": {"synthetic_feature": 1.0}})
-    stable_json(root / "backward_kernel_blueprints.json", {"bwd-0": ["synthetic_kernel"]})
+    stable_json(
+        root / "backward_kernel_blueprints.json",
+        {
+            "bwd-0": {
+                "rank": 0,
+                "stage_id": 0,
+                "batch_id": 0,
+                "mg_state": "steady",
+                "kernels": [{"kernel_name": "synthetic_kernel"}],
+                "launch_markers": [
+                    {
+                        "comm_uid": "ddp-0",
+                        "baseline_offset_ms": 0.0,
+                        "trigger_offset_ms": 0.0,
+                    }
+                ],
+            }
+        },
+    )
 
 
 def build_prebaked(repo_root: pathlib.Path, output_root: pathlib.Path) -> Dict[str, Any]:
@@ -170,7 +197,20 @@ def build_prebaked(repo_root: pathlib.Path, output_root: pathlib.Path) -> Dict[s
     for model, specification in MODEL_SPECS.items():
         capture_id = f"synthetic-{model}-capture"
         model_root = output_root / "bundles" / model
-        write_text(model_root / "trace/rank0.txt", trace_text(0))
+        pp_size = specification["topology"]["pp"]
+        tp_size = specification["topology"]["tp"]
+        dp_size = specification["topology"]["dp"]
+        exp_size = specification["topology"]["exp"]
+        if exp_size == 1:
+            rank_ids = [pp * tp_size * dp_size for pp in range(pp_size)]
+        else:
+            rank_ids = [
+                pp * tp_size * dp_size + exp * tp_size
+                for pp in range(pp_size)
+                for exp in range(exp_size)
+            ]
+        for rank in rank_ids:
+            write_text(model_root / f"trace/trace_rank{rank}_synthetic.txt", trace_text(rank))
         write_text(model_root / "nsys/capture.sqlite", "synthetic sqlite fixture\n")
         slowdown_assets(model_root / "slowdown_assets", model)
         model_manifest = create_manifest(
@@ -244,7 +284,23 @@ def build_fresh_inputs(repo_root: pathlib.Path, output_root: pathlib.Path, model
 
     task1_dir = output_root / model / "task1"
     task1_root = task1_dir / "runs" / capture_id
-    write_text(task1_root / "runtime/profiler_log/synthetic/rank0.txt", trace_text(0))
+    pp_size = specification["topology"]["pp"]
+    tp_size = specification["topology"]["tp"]
+    dp_size = specification["topology"]["dp"]
+    exp_size = specification["topology"]["exp"]
+    if exp_size == 1:
+        rank_ids = [pp * tp_size * dp_size for pp in range(pp_size)]
+    else:
+        rank_ids = [
+            pp * tp_size * dp_size + exp * tp_size
+            for pp in range(pp_size)
+            for exp in range(exp_size)
+        ]
+    for rank in rank_ids:
+        write_text(
+            task1_root / "runtime/profiler_log/synthetic" / f"trace_rank{rank}_synthetic.txt",
+            trace_text(rank),
+        )
     write_text(task1_root / "nsys/capture.sqlite", "synthetic sqlite fixture\n")
     task1_manifest = create_manifest(
         module,
@@ -380,7 +436,9 @@ def build_functional_source(repo_root: pathlib.Path, output_root: pathlib.Path) 
         # test remains fast while preserving the exact producer cardinality.
         for rank in rank_ids:
             write_text(
-                task1_root / "runtime/profiler_log/synthetic" / f"rank{rank}.txt",
+                task1_root
+                / "runtime/profiler_log/synthetic"
+                / f"trace_rank{rank}_synthetic.txt",
                 trace_text(rank),
             )
             stable_json(
@@ -627,7 +685,23 @@ payloads = {
         "execution_evidence": "local_synthetic_fixture",
     },
     "kernel_features.json": {value: {"synthetic_feature": 1.0} for value in sorted(backward)},
-    "backward_kernel_blueprints.json": {value: ["synthetic_kernel"] for value in sorted(backward)},
+    "backward_kernel_blueprints.json": {
+        value: {
+            "rank": 0,
+            "stage_id": 0,
+            "batch_id": 0,
+            "mg_state": "steady",
+            "kernels": [{"kernel_name": "synthetic_kernel"}],
+            "launch_markers": [
+                {
+                    "comm_uid": f"ddp-{value.removeprefix('bwd-')}",
+                    "baseline_offset_ms": 0.0,
+                    "trigger_offset_ms": 0.0,
+                }
+            ],
+        }
+        for value in sorted(backward)
+    },
 }
 for name, payload in payloads.items():
     (root / name).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -818,10 +892,10 @@ for argument in "$@"; do
 done
 [[ "${rank_id}" =~ ^[0-9]+$ ]]
 mkdir -p "${PWD}/profiler_log/synthetic" "${PWD}/memory_traces_scaling"
-cat > "${PWD}/profiler_log/synthetic/trace_rank${rank_id}.txt" <<EOF
+cat > "${PWD}/profiler_log/synthetic/trace_rank${rank_id}_synthetic.txt" <<EOF
 rank:${rank_id}:forward_step(stage_id=0,batch_id=0,mg_state=steady,duration=4.000,timestamp=100.000,cmd_uid=fwd-${rank_id})
 rank:${rank_id}:backward_step(stage_id=0,batch_id=0,mg_state=steady,duration=6.000,timestamp=104.000,cmd_uid=bwd-${rank_id})
-rank:${rank_id}:ddp_grad_comm(stage_id=0,batch_id=0,mg_state=steady,duration=0.500,timestamp=105.000,trigger_cmd_uid=bwd-${rank_id})
+rank:${rank_id}:ddp_grad_comm(stage_id=0,batch_id=0,mg_state=steady,duration=0.500,timestamp=105.000,trigger_cmd_uid=bwd-${rank_id},comm_uid=ddp-${rank_id})
 rank:${rank_id}:optimizer_step(stage_id=0,batch_id=0,mg_state=finalize,duration=1.500,timestamp=110.000,cmd_uid=opt-${rank_id})
 EOF
 cat > "${PWD}/memory_traces_scaling/memory_trace_rank${rank_id}.json" <<JSON

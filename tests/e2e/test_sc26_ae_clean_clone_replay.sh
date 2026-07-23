@@ -11,7 +11,7 @@
 set -euo pipefail
 
 SOURCE_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
-TMP_PARENT=${SC26_AE_TMP_ROOT:-${TMPDIR:-/tmp}}
+TMP_PARENT=${SC26_AE_TMP_ROOT:-${TMPDIR:-/data/ycfeng/tmp}}
 mkdir -p -- "${TMP_PARENT}"
 TEST_ROOT=$(mktemp -d "${TMP_PARENT%/}/sc26-ae-clean-clone-replay.XXXXXX")
 CLONE_ROOT="${TEST_ROOT}/clone"
@@ -23,30 +23,8 @@ mkdir -p "${OUTSIDE_ROOT}" "${LOG_ROOT}"
 
 git clone --no-local --no-recurse-submodules --quiet "${SOURCE_ROOT}" "${CLONE_ROOT}"
 
-clone_pinned_repo() {
-    local source_repo=$1
-    local destination=$2
-    local commit=$3
-    mkdir -p "$(dirname -- "${destination}")"
-    git clone --local --no-hardlinks --quiet "${source_repo}" "${destination}"
-    git -C "${destination}" checkout --detach --quiet "${commit}"
-}
-
-ECHO_COMMIT=$(git -C "${SOURCE_ROOT}" rev-parse HEAD:Echo-slowdown)
-SIM_COMMIT=$(git -C "${SOURCE_ROOT}" rev-parse HEAD:megatron-sim-engine)
-COLLECTIVE_SIM_COMMIT=$(git -C "${SOURCE_ROOT}/megatron-sim-engine" \
-    rev-parse HEAD:src/core/cc_backend/collective-sim)
-
-# Populate pinned submodules from local object stores.  A real public replay
-# uses `git clone --recursive`; this equivalent local path is deterministic and
-# does not turn a network failure into a hidden fallback.
-clone_pinned_repo "${SOURCE_ROOT}/Echo-slowdown" \
-    "${CLONE_ROOT}/Echo-slowdown" "${ECHO_COMMIT}"
-clone_pinned_repo "${SOURCE_ROOT}/megatron-sim-engine" \
-    "${CLONE_ROOT}/megatron-sim-engine" "${SIM_COMMIT}"
-clone_pinned_repo "${SOURCE_ROOT}/megatron-sim-engine/src/core/cc_backend/collective-sim" \
-    "${CLONE_ROOT}/megatron-sim-engine/src/core/cc_backend/collective-sim" \
-    "${COLLECTIVE_SIM_COMMIT}"
+ECHO_COMMIT=$(tr -d '[:space:]' <"${SOURCE_ROOT}/Echo-slowdown/.source_commit")
+SIM_COMMIT=$(tr -d '[:space:]' <"${SOURCE_ROOT}/megatron-sim-engine/.source_commit")
 
 # Copy only the evaluator-facing source surface.  In particular, do not copy
 # the current worktree's ignored SC26-AE/output captures into the clean clone.
@@ -83,15 +61,16 @@ git -C "${CLONE_ROOT}" add \
     tests/integration/test_sc26_ae_setup.sh \
     tests/integration/test_sc26_ae_task1_contracts.sh \
     tests/integration/test_sc26_ae_task2_contract.sh
-git -C "${CLONE_ROOT}" commit --quiet -m "Create ephemeral synthetic AE replay surface"
+if ! git -C "${CLONE_ROOT}" diff --cached --quiet; then
+    git -C "${CLONE_ROOT}" commit --quiet -m "Create ephemeral synthetic AE replay surface"
+fi
 
 [[ -z "$(git -C "${CLONE_ROOT}" status --porcelain --untracked-files=all)" ]]
-[[ "$(git -C "${CLONE_ROOT}" rev-parse HEAD:Echo-slowdown)" == "${ECHO_COMMIT}" ]]
-[[ "$(git -C "${CLONE_ROOT}" rev-parse HEAD:megatron-sim-engine)" == "${SIM_COMMIT}" ]]
-[[ "$(git -C "${CLONE_ROOT}/Echo-slowdown" status --porcelain --untracked-files=all)" == "" ]]
-[[ "$(git -C "${CLONE_ROOT}/megatron-sim-engine" status --porcelain --untracked-files=all)" == "" ]]
-[[ "$(git -C "${CLONE_ROOT}/megatron-sim-engine/src/core/cc_backend/collective-sim" \
-    status --porcelain --untracked-files=all)" == "" ]]
+[[ "$(tr -d '[:space:]' <"${CLONE_ROOT}/Echo-slowdown/.source_commit")" == "${ECHO_COMMIT}" ]]
+[[ "$(tr -d '[:space:]' <"${CLONE_ROOT}/megatron-sim-engine/.source_commit")" == "${SIM_COMMIT}" ]]
+[[ ! -e "${CLONE_ROOT}/Echo-slowdown/.git" ]]
+[[ ! -e "${CLONE_ROOT}/megatron-sim-engine/.git" ]]
+[[ ! -e "${CLONE_ROOT}/megatron-sim-engine/.gitmodules" ]]
 [[ ! -e "${CLONE_ROOT}/SC26-AE/output" ]]
 
 run_case() {
@@ -121,7 +100,7 @@ run_case task1_task2_task3_fresh_chain \
 # counts explicit so a future missing entry cannot be hidden by a passing
 # aggregate test.
 grep -Fq 'PASS_COUNT=6' "${LOG_ROOT}/setup_public_contract.log"
-grep -Fq 'PASS_COUNT=38' "${LOG_ROOT}/task1_public_entries.log"
+grep -Fq 'PASS_COUNT=46' "${LOG_ROOT}/task1_public_entries.log"
 grep -Fq 'Task2 snapshot-only execution' "${LOG_ROOT}/task2_public_entries.log"
 grep -Fq 'MODEL_PASS_COUNT=3' "${LOG_ROOT}/task3_prebaked_public_entries.log"
 grep -Fq 'CHAIN_PASS_COUNT=1' "${LOG_ROOT}/task1_task2_task3_fresh_chain.log"
@@ -132,10 +111,6 @@ grep -Fq 'EVIDENCE_CLASS=local_synthetic_not_gpu_qualification' \
 
 # Tests must not dirty the isolated source or any pinned producer.
 [[ -z "$(git -C "${CLONE_ROOT}" status --porcelain --untracked-files=all)" ]]
-[[ -z "$(git -C "${CLONE_ROOT}/Echo-slowdown" status --porcelain --untracked-files=all)" ]]
-[[ -z "$(git -C "${CLONE_ROOT}/megatron-sim-engine" status --porcelain --untracked-files=all)" ]]
-[[ -z "$(git -C "${CLONE_ROOT}/megatron-sim-engine/src/core/cc_backend/collective-sim" \
-    status --porcelain --untracked-files=all)" ]]
 
 printf 'PUBLIC_TASK1_ENTRY_COUNT=3\n'
 printf 'PUBLIC_TASK2_ENTRY_COUNT=3\n'
@@ -143,9 +118,9 @@ printf 'PUBLIC_TASK3_ENTRY_COUNT=3\n'
 printf 'SETUP_CONTRACT_CASE_COUNT=6\n'
 printf 'FRESH_ATOMIC_CHAIN_COUNT=1\n'
 printf 'OUTER_CLONE_STATUS=clean\n'
-printf 'ECHO_SUBMODULE_STATUS=clean\n'
-printf 'SIM_ENGINE_STATUS=clean\n'
-printf 'COLLECTIVE_SIM_STATUS=clean\n'
+printf 'ECHO_SOURCE_STATUS=clean\n'
+printf 'SIM_ENGINE_SOURCE_STATUS=clean\n'
+printf 'COLLECTIVE_SIM_STATUS=optional_absent\n'
 printf 'EVIDENCE_CLASS=local_synthetic_not_gpu_qualification\n'
 printf 'REPLAY_ROOT=%s\n' "${TEST_ROOT}"
 printf '%s\n' 'PASS: isolated clean-clone-style nine-entry synthetic replay completed.'

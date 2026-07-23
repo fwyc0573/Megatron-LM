@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Updated the bundle note for the relaxed usability-only `verify-functional` check |
 | 2026-07-23 | Created the canonical-branch checklist for scripts, compact evidence, external artifacts, and verification commands |
 
 ## 1. Canonical delivery identity
@@ -190,9 +191,10 @@ The following roots are intentionally external. Their anchor manifests and hashe
 
 The last bundle was built and verified at exact producer commit
 `c7288c66f0a6c3d0445edc841a6e5982d3b22f09`. It is retained as historical verified evidence.
-After the archive/document commit is finalized, the complete external bundle must be rebuilt from
-that new exact commit; its distribution manifest cannot be committed into its own producer commit
-without creating a commit-hash self-reference.
+`verify-functional` now checks bundle completeness, checksums, and the source identities recorded
+in `Echo-slowdown/.source_commit` and `megatron-sim-engine/.source_commit`; an external bundle
+stays usable on later commits of `sc26-ae-functional` without rebuilding, as long as those
+identities are unchanged.
 
 ## 6. Quick verification commands
 

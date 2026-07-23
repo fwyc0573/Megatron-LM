@@ -67,7 +67,7 @@ expected = {
     },
     "qwen3_a30b": {
         "step": 22.5, "forward": 6.0, "backward": 11.0, "optimizer": 2.5,
-        "pp": 4, "microbatches": 16, "pp_shape": [256, 1, 2048],
+        "pp": 8, "microbatches": 32, "pp_shape": [256, 1, 2048],
     },
     "dsv3": {
         "step": 24.5, "forward": 6.5, "backward": 12.0, "optimizer": 3.0,

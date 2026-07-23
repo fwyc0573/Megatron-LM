@@ -1,7 +1,0 @@
-MANIFEST_STATUS=verified
-MANIFEST_FILE_COUNT=13
-MANIFEST_STATUS=verified
-MANIFEST_FILE_COUNT=13
-[PASS] Task2 gpt175b predictor_run_id=integration-one (local evidence; no GPU qualification claim)
-PASS: canonical Task2 verification accepts qualified evidence
-PASS: coherent tamper remains generic-manifest verified

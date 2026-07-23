@@ -757,8 +757,8 @@ metadata_scope_selected=$(ae_task1_selected_ranks qwen3_a30b 0)
     ae_task1_write_metadata_and_summary \
         "$(command -v python3)" "${metadata_scope_metadata}" "${metadata_scope_summary}" \
         "${metadata_scope_inventory}" qwen3_a30b qwen3-full-probe "${metadata_scope_selected}" 0 \
-        "$(git rev-parse HEAD)" "$(ae_gitlink_commit Echo-slowdown)" \
-        "$(ae_gitlink_commit megatron-sim-engine)" 0 "${metadata_scope_batch_log}" \
+        "$(git rev-parse HEAD)" "$(ae_source_commit Echo-slowdown)" \
+        "$(ae_source_commit megatron-sim-engine)" 0 "${metadata_scope_batch_log}" \
         runtime_measurement_requires_external_single_gpu_qualification representative_ep 1.25
 "$(command -v python3)" - "${metadata_scope_metadata}" <<'PY'
 import json
@@ -798,7 +798,7 @@ metadata_timing_rejected() {
         "$(command -v python3)" "${metadata_path}" "${summary_path}" \
         "${metadata_scope_inventory}" qwen3_a30b "qwen3-${case_name}" \
         "${metadata_scope_selected}" 0 "$(git rev-parse HEAD)" \
-        "$(ae_gitlink_commit Echo-slowdown)" "$(ae_gitlink_commit megatron-sim-engine)" \
+        "$(ae_source_commit Echo-slowdown)" "$(ae_source_commit megatron-sim-engine)" \
         0 "${metadata_scope_batch_log}" \
         runtime_measurement_requires_external_single_gpu_qualification full "$@" \
         >"${log_path}" 2>&1

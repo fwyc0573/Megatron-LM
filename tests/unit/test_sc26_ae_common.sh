@@ -46,7 +46,7 @@ ae_require_command bash
 expect_failure "missing_sc26_command" ae_require_command missing_sc26_command
 pass "command validation"
 
-TMP_PARENT=${SC26_AE_TMP_ROOT:-${TMPDIR:-/tmp}}
+TMP_PARENT=${SC26_AE_TMP_ROOT:-${TMPDIR:-/data/ycfeng/tmp}}
 mkdir -p -- "${TMP_PARENT}"
 TEMP_ROOT=$(mktemp -d "${TMP_PARENT%/}/sc26-ae-common.XXXXXX")
 mkdir -p "${TEMP_ROOT}/dir"
@@ -68,10 +68,10 @@ pass "safe output path construction"
 
 repo_from_function=$(ae_repo_root)
 [[ ${repo_from_function} == "${REPO_ROOT}" ]] || fail "unexpected repo root: ${repo_from_function}"
-echo_commit=$(ae_gitlink_commit Echo-slowdown)
-[[ ${echo_commit} =~ ^[0-9a-f]{40}$ ]] || fail "invalid Echo gitlink commit: ${echo_commit}"
-ae_assert_submodule_clean Echo-slowdown
-pass "gitlink and clean submodule validation"
+echo_commit=$(ae_source_commit Echo-slowdown)
+[[ ${echo_commit} =~ ^[0-9a-f]{40}$ ]] || fail "invalid Echo source identity: ${echo_commit}"
+ae_assert_source_clean Echo-slowdown
+pass "source identity and clean vendored directory validation"
 
 FAKE_BIN="${TEMP_ROOT}/fake-bin"
 mkdir -p "${FAKE_BIN}"
@@ -84,8 +84,8 @@ fi
 exec /usr/bin/git "$@"
 SH
 chmod +x "${FAKE_BIN}/git"
-expect_failure "not clean" env PATH="${FAKE_BIN}:${PATH}" bash -c "source '${COMMON_SH}'; ae_assert_submodule_clean Echo-slowdown"
-pass "dirty submodule rejection"
+expect_failure "not clean" env PATH="${FAKE_BIN}:${PATH}" bash -c "source '${COMMON_SH}'; ae_assert_source_clean Echo-slowdown"
+pass "dirty vendored directory rejection"
 
 printf 'PASS_COUNT=%d\n' "${PASS_COUNT}"
 [[ ${PASS_COUNT} -eq 7 ]] || fail "expected 7 cases, got ${PASS_COUNT}"

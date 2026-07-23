@@ -1,0 +1,35 @@
+Training Metrics and Cost Analysis Report
+Generated on: Thu Aug 21 04:39:41 AM HKT 2025
+============================================================
+
+Setting (world_size / pp / tp)	DP (Data Parallelism)	micro_num_batch
+8192 / 16 / 8	64	96
+8192 / 32 / 8	32	192
+8192 / 32 / 4	64	96
+8192 / 64 / 8	16	384
+8192 / 64 / 4	32	192
+8192 / 64 / 2	64	96
+
+Configuration Parameters:
+  Global Batch Size: 6144
+  Sequence Length: 2048
+  World Size: 8192 cards
+  Dataset Size: 500,000,000,000 tokens
+  Total Machines: 1024
+  Machine Cost: $188.16/day
+
+Results Table:
+Setting                                            Load (s)   Exec (s)   Step (s)      Throughput         Days      Cost (USD)
+---------------------------------------- ---------- ---------- ---------- --------------- ------------ ---------------
+pp16_tp8_ep1_expnNone_dp64_nl96_hs20480_sl2048       4.36      24.87     35.948          2 350028         16.5        $3185520
+pp32_tp4_ep1_expnNone_dp64_nl96_hs20480_sl2048       5.18      17.60     37.904          3 331966         17.4        $3358849
+pp32_tp8_ep1_expnNone_dp32_nl96_hs20480_sl2048       8.77      74.51     56.652          5 222107         26.1        $5020198
+pp64_tp2_ep1_expnNone_dp64_nl96_hs20480_sl2048       5.50       9.59     27.605          0 455822         12.7        $2446177
+pp64_tp4_ep1_expnNone_dp32_nl96_hs20480_sl2048       9.05      30.05     34.845          1 361107         16.0        $3087789
+pp64_tp8_ep1_expnNone_dp16_nl96_hs20480_sl2048      19.09     130.69     40.811          4 308320         18.8        $3616447
+
+Performance Analysis:
+------------------------------------------------------------
+Best Throughput: pp64_tp2_ep1_expnNone_dp64_nl96_hs20480_sl2048 (455822 tokens/s)
+Lowest Cost: pp64_tp2_ep1_expnNone_dp64_nl96_hs20480_sl2048 ($2446177)
+Fastest Training: pp64_tp2_ep1_expnNone_dp64_nl96_hs20480_sl2048 (12.7 days)

@@ -792,7 +792,12 @@ if gate_decision_applied_text != gate_enforced_text:
     raise SystemExit(
         "[ERROR] D16 preflight gate_decision_applied must match d16_gate_enforced"
     )
-expected_gate_enforced = "1" if requested_capture_scope == "full" else "0"
+# A Qwen3 representative-EP capture is the complete fresh capture scope for
+# its topology (PP x EP representatives), so it must carry the same D16 gate
+# decision as an explicitly full capture.  Only the quick scope is exempt.
+expected_gate_enforced = (
+    "1" if requested_capture_scope in {"full", "representative_ep"} else "0"
+)
 if gate_enforced_text != expected_gate_enforced:
     raise SystemExit(
         "[ERROR] D16 preflight gate enforcement must match requested capture scope"
@@ -1021,7 +1026,10 @@ if payload["gate_decision_applied"] is not payload["d16_gate_enforced"]:
     raise SystemExit(
         "[ERROR] D16 preflight gate decision must match d16_gate_enforced"
     )
-expected_gate_enforced = payload["requested_capture_scope"] == "full"
+expected_gate_enforced = payload["requested_capture_scope"] in {
+    "full",
+    "representative_ep",
+}
 if payload["d16_gate_enforced"] is not expected_gate_enforced:
     raise SystemExit(
         "[ERROR] D16 preflight gate enforcement must match requested capture scope"
@@ -2305,8 +2313,8 @@ ae_run_task1() {
             ae_task1_assert_source_provenance "${repo_root}" "${main_commit}" || return 1
         fi
     fi
-    echo_commit=$(ae_gitlink_commit Echo-slowdown) || return 1
-    sim_commit=$(ae_gitlink_commit megatron-sim-engine) || return 1
+    echo_commit=$(ae_source_commit Echo-slowdown) || return 1
+    sim_commit=$(ae_source_commit megatron-sim-engine) || return 1
 
     if [[ "${model_key}" == "qwen3_a30b" || "${model_key}" == "dsv3" ]]; then
         ae_task1_write_metadata_and_summary \

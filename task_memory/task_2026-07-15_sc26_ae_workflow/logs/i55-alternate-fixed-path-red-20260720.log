@@ -1,3 +1,0 @@
-synthetic caller accepted an alternate fixed interpreter path
-Task2 nested interpreter chain was not bound to the fixed executable
-Task2 real runtime binding failures=1 passes=11

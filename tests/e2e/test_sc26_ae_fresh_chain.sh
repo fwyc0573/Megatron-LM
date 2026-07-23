@@ -6,7 +6,7 @@ set -euo pipefail
 REPO_ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 FIXTURE_HELPER="${REPO_ROOT}/tests/integration/fixtures/sc26_ae_task3_fixture.py"
 MANIFEST_TOOL="${REPO_ROOT}/SC26-AE/tools/artifact_manifest.py"
-TMP_PARENT=${SC26_AE_TMP_ROOT:-${TMPDIR:-/tmp}}
+TMP_PARENT=${SC26_AE_TMP_ROOT:-${TMPDIR:-/data/ycfeng/tmp}}
 mkdir -p -- "${TMP_PARENT}"
 TEST_ROOT=$(mktemp -d "${TMP_PARENT%/}/sc26-ae-fresh-chain.XXXXXX")
 TOOLS_ROOT="${TEST_ROOT}/tools"
@@ -26,7 +26,7 @@ AE_TASK1_TEST_CAPTURE_ID="${CAPTURE_ID}" \
 AE_TASK1_TORCHRUN="${TOOLS_ROOT}/torchrun" \
 AE_MEGATRON_PYTHON="$(command -v python3)" \
 AE_NSYS_BIN="${TOOLS_ROOT}/nsys" \
-QUICK=1 \
+QUICK=0 \
 SCALE_GPU=0 \
 CAPTURE_NSYS=1 \
     bash "${REPO_ROOT}/SC26-AE/task1_qwen3_a30b.sh" \
@@ -99,12 +99,8 @@ model = "qwen3_a30b"
 main_commit = __import__("subprocess").check_output(
     ["git", "-C", str(repo_root), "rev-parse", "HEAD"], text=True
 ).strip()
-echo_commit = __import__("subprocess").check_output(
-    ["git", "-C", str(repo_root), "rev-parse", "HEAD:Echo-slowdown"], text=True
-).strip()
-sim_commit = __import__("subprocess").check_output(
-    ["git", "-C", str(repo_root), "rev-parse", "HEAD:megatron-sim-engine"], text=True
-).strip()
+echo_commit = (repo_root / "Echo-slowdown/.source_commit").read_text(encoding="utf-8").strip()
+sim_commit = (repo_root / "megatron-sim-engine/.source_commit").read_text(encoding="utf-8").strip()
 expected_commits = {
     "megatron_lm": main_commit,
     "echo_slowdown": echo_commit,
@@ -125,15 +121,15 @@ assert task1_manifest["precision"] == "bf16"
 assert task1_manifest["mock_data"] is True
 assert task1_manifest["ddp_overlap"] is True
 assert task1_manifest["simulation_topology"] == {
-    "world_size": 256, "local_size": 8, "pp": 4, "tp": 8, "dp": 8, "exp": 8
+    "world_size": 256, "local_size": 8, "pp": 8, "tp": 8, "dp": 4, "exp": 4
 }
 assert task1_manifest["capture_runtime"]["physical_gpu_count"] == 1
 assert task1_manifest["capture_runtime"]["scaling_min_warmup_iters"] == 3
 assert task1_manifest["capture_runtime"]["scaling_profile_iters"] == 1
 task1_summary = task1_manifest["capture_summary"]
-assert task1_summary["selected_rank_count"] == 4
-assert task1_summary["trace_file_count"] == 4
-assert task1_summary["memory_json_count"] == 4
+assert task1_summary["selected_rank_count"] == 32
+assert task1_summary["trace_file_count"] == 32
+assert task1_summary["memory_json_count"] == 32
 assert task1_summary["capture_nsys"] is True
 assert task1_summary["d16_gate_applicable"] is True
 assert task1_summary["estimate_basis_rank"] == 0
@@ -199,15 +195,33 @@ assert pathlib.Path(resolved["task2_manifest"]).resolve() == task2_manifest_path
 
 input_evidence = json.loads((task3_root / "provenance/input_evidence.json").read_text(encoding="utf-8"))
 assert input_evidence["artifact_source"] == "fresh"
-assert input_evidence["trace_file_count"] == 4
+assert input_evidence["trace_file_count"] == 32
 assert "distribution_manifest" not in input_evidence
 assert all(entry["size_bytes"] > 0 and len(entry["sha256"]) == 64 for entry in input_evidence["trace_files"])
 
 builder = json.loads((test_root / "builder.json").read_text(encoding="utf-8"))
-expected_backward = {"bwd-0", "bwd-64", "bwd-128", "bwd-192"}
-assert set(builder["backward_cmd_uids"]) == expected_backward
+assert set(builder["backward_cmd_uids"]) == {"bwd-0"}
 assets = json.loads((task3_root / "slowdown_assets/manifest.json").read_text(encoding="utf-8"))
-assert set(assets["backward_cmd_uids"]) == expected_backward
+assert set(assets["backward_cmd_uids"]) == {"bwd-0"}
+expected_backward = {
+    f"bwd-{pp_stage * 8 * 4 + exp_rank * 8}"
+    for pp_stage in range(8)
+    for exp_rank in range(4)
+}
+blueprints = json.loads(
+    (task3_root / "slowdown_assets/backward_kernel_blueprints.json").read_text(
+        encoding="utf-8"
+    )
+)
+assert set(blueprints) == expected_backward
+expansion = json.loads(
+    (task3_root / "provenance/slowdown_blueprint_expansion.json").read_text(
+        encoding="utf-8"
+    )
+)
+assert expansion["source_blueprint_count"] == 1
+assert expansion["expanded_blueprint_count"] == 32
+assert set(expansion["expanded_trigger_cmd_uids"]) == expected_backward
 
 report = json.loads((task3_root / "report.json").read_text(encoding="utf-8"))
 assert report["rank0_step_time_ms"] == 22.5

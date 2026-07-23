@@ -1,4 +1,0 @@
-Task2 sidecar validator did not reject a missing run-root argument
-/data/ycfeng/tmp/sc26-ae-task2-runtime-binding.cIcKP0/task2_echo_nested_library.sh: line 450: $1: unbound variable
-Task2 nested interpreter chain was not bound to the fixed executable
-Task2 real runtime binding failures=1 passes=11

@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Relaxed `verify-functional` to usability checks and added the external-bundle AE usage guide |
 | 2026-07-23 | Declared `sc26-ae-functional` as the single GPT/Qwen delivery branch and linked the checksum-backed artifact checklist |
 | 2026-07-23 | Closed the clean committed-clone replay and recorded the exact functional bundle producer commit |
 | 2026-07-23 | Recorded verified GPT/Qwen Fresh chains, the real functional bundle, both CPU-only Task3 runs, and the remaining clean-clone gate |
@@ -90,11 +91,10 @@ release-ready=NO
 ```
 
 The Fresh chains and functional prebaked path are closed, including a replay from the exact clean
-producer commit above. That archived bundle remains valid only at its recorded producer commit.
-Functional distribution verification deliberately requires the current checkout to equal the
-bundle producer recorded in `distribution_manifest.json`; a later docs/evidence descendant is not
-accepted. After changing the canonical branch, build a new complete bundle externally from the
-new exact commit rather than weakening this check. Historical output may be retained for audit,
+producer commit above. Functional distribution verification checks that the bundle's dataset and
+predictor files are complete and checksum-intact and that the bundle's Echo-slowdown and
+megatron-sim-engine source identities match the checked-in `.source_commit` files; it does not
+require the checkout to equal the bundle's recorded outer producer commit. Historical output may be retained for audit,
 but must not be relabeled as new qualified evidence. This reduced workflow never promotes the
 result to distributed-accuracy or release qualification.
 
@@ -160,7 +160,7 @@ The compact archive and historical functional record use these source identities
 | Archived exact functional producer | `c7288c66f0a6c3d0445edc841a6e5982d3b22f09` |
 | Echo-slowdown | `1390b4416ded08bc1b9cd0620d329d81d4470bf9` |
 | megatron-sim-engine | `51eed0404635632fd52a99b3f372d5830b1d73b4` |
-| collective-sim nested gitlink | `6e06e3f5140cd4e2e7c12a35586ebcdc0f410df0` |
+| collective-sim | optional historical backend; not vendored in the AE path |
 | Current worker image | `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae` (immutable digest unresolved; no release qualification) |
 
 The current status is intentionally explicit:
@@ -328,6 +328,68 @@ The exact report fields are `rank0_step_time_ms`, `rank0_forward_step_duration_s
 
 ## Task3 path B: functional prebaked (CPU-only)
 
+### For AE reviewers: run Task3 from the distributed external bundle
+
+If you received an external functional bundle (a directory such as
+`sc26_ae_functional_final_<timestamp>_<commit>` containing `distribution_manifest.json` and
+`bundles/{gpt175b,qwen3_a30b,shared_task2}/`), you can run the end-to-end Task3 simulation on a
+CPU-only machine without any GPU. The bundle is a pure data package: it carries the Task1 traces
+and the Task2 dataset/predictor weights, and it intentionally contains no shell scripts. All
+entry-point scripts come from this repository.
+
+Step-by-step:
+
+```bash
+# 1. Get the code (the bundle itself has no scripts)
+git clone <repository-url> && cd <repository>
+git switch sc26-ae-functional
+# Echo-slowdown and megatron-sim-engine are vendored directories in this branch.
+# No submodule initialization is required.
+
+# 2. Check the CPU-only Python runtime: python3 with numpy, pandas, and xgboost==2.1.0
+python3 -c 'import numpy, pandas, xgboost; print(xgboost.__version__)'   # must print 2.1.0
+
+# 3. Point temporary storage away from /tmp if your host requires it
+export TMPDIR=/path/to/scratch TEMP=/path/to/scratch TMP=/path/to/scratch
+
+# 4. (Optional) verify the bundle's integrity before running
+python3 SC26-AE/tools/package_prebaked.py verify-functional \
+  --repo-root "$PWD" \
+  --prebaked-root /absolute/path/to/external-bundle
+# Expected: DISTRIBUTION_STATUS=verified
+
+# 5. Run CPU-only Task3 for both models
+AE_OUTPUT_ROOT=/path/to/scratch/sc26_ae_output \
+ARTIFACT_SOURCE=prebaked \
+PREBAKED_ROOT=/absolute/path/to/external-bundle \
+TASK3_EXECUTION_MODE=synthetic \
+TASK3_ALLOW_FUNCTIONAL_PREBAKED=1 \
+SIMULATOR_HARDWARE_TYPE=cpu \
+TASK3_META_PYTHON=python3 \
+TASK3_SIMULATOR_PYTHON=python3 \
+bash SC26-AE/task3_gpt175b.sh
+
+AE_OUTPUT_ROOT=/path/to/scratch/sc26_ae_output \
+ARTIFACT_SOURCE=prebaked \
+PREBAKED_ROOT=/absolute/path/to/external-bundle \
+TASK3_EXECUTION_MODE=synthetic \
+TASK3_ALLOW_FUNCTIONAL_PREBAKED=1 \
+SIMULATOR_HARDWARE_TYPE=cpu \
+TASK3_META_PYTHON=python3 \
+TASK3_SIMULATOR_PYTHON=python3 \
+bash SC26-AE/task3_qwen3_a30b.sh
+```
+
+Each run ends with a `[PASS] Task3 model=... artifact_source=prebaked` line and writes
+`report.json`, `report.md`, `run_marker.json`, and `artifact_manifest.json` under
+`$AE_OUTPUT_ROOT/<model>/task3/`. As a rough guide on one CPU controller, the GPT-175B simulation
+finishes in a few minutes, while the Qwen3-A3B simulation takes roughly 20 minutes
+(`simulator_execution_time_s` around 1000-1250 s); do not interrupt it early.
+
+The rest of this section documents how a bundle producer builds and verifies such a distribution.
+
+### Building and verifying a functional distribution
+
 After the real Fresh Task3 chains are closed, create a functional distribution from the real
 artifacts:
 
@@ -353,42 +415,20 @@ The bundle evidence class is fixed to:
 functional_prebaked_not_release_qualified
 ```
 
-Use a functional bundle only with explicit opt-in and CPU/synthetic execution:
-
-```bash
-export TMPDIR=/data/ycfeng/tmp
-export TEMP=/data/ycfeng/tmp
-export TMP=/data/ycfeng/tmp
-
-# This must print 2.1.0. If it fails, follow task_memory/env_handbook.md.
-python3 -c 'import xgboost; print(xgboost.__version__)'
-
-AE_OUTPUT_ROOT=/data/ycfeng/tmp/sc26_ae_output_functional \
-ARTIFACT_SOURCE=prebaked \
-PREBAKED_ROOT=/absolute/path/to/functional-bundle \
-TASK3_EXECUTION_MODE=synthetic \
-TASK3_ALLOW_FUNCTIONAL_PREBAKED=1 \
-SIMULATOR_HARDWARE_TYPE=cpu \
-TASK3_META_PYTHON=python3 \
-TASK3_SIMULATOR_PYTHON=python3 \
-bash SC26-AE/task3_gpt175b.sh
-
-AE_OUTPUT_ROOT=/data/ycfeng/tmp/sc26_ae_output_functional \
-ARTIFACT_SOURCE=prebaked \
-PREBAKED_ROOT=/absolute/path/to/functional-bundle \
-TASK3_EXECUTION_MODE=synthetic \
-TASK3_ALLOW_FUNCTIONAL_PREBAKED=1 \
-SIMULATOR_HARDWARE_TYPE=cpu \
-TASK3_META_PYTHON=python3 \
-TASK3_SIMULATOR_PYTHON=python3 \
-bash SC26-AE/task3_qwen3_a30b.sh
-```
+Use a functional bundle only with explicit opt-in and CPU/synthetic execution. The exact run
+commands are listed in "For AE reviewers: run Task3 from the distributed external bundle" above;
+the same commands apply to a locally built bundle by pointing `PREBAKED_ROOT` at the staging root.
+On this host, use `/data/ycfeng/tmp` for `TMPDIR`/`TEMP`/`TMP` and `AE_OUTPUT_ROOT`; if
+`python3 -c 'import xgboost; print(xgboost.__version__)'` does not print `2.1.0`, follow
+`task_memory/env_handbook.md`.
 
 The functional path must also emit report, manifest, and marker files. These outputs prove fake-
 level workflow wiring only; they do not become H800, Fresh, or release qualification.
 
-The packager's production CLI is strict about exact producer/source identity and does not accept a
-descendant checkout as a substitute. There is no automatic fresh-to-prebaked fallback: select
+The packager validates bundle structure, dataset/predictor completeness, and file checksums, and
+checks that the bundle's Echo-slowdown and megatron-sim-engine source identities match the
+`.source_commit` files in the current checkout. It does not require the checkout to equal the bundle's recorded producer commit.
+There is no automatic fresh-to-prebaked fallback: select
 `ARTIFACT_SOURCE=fresh` or `ARTIFACT_SOURCE=prebaked` explicitly. A missing kernel follows the
 documented exact-match, unique-alias, or `missing_skip` policy; it does not trigger Task2 rerun.
 The functional package is a local/synthetic distribution, not a release package.
@@ -400,8 +440,9 @@ The functional package is a local/synthetic distribution, not a release package.
 * One visible GPU for Task2: stop; Task2 requires two distinct physical GPU IDs.
 * A missing Task3 kernel: use exact match, one unambiguous alias, or `missing_skip` baseline;
   do not recollect the predictor dataset.
-* A producer-commit mismatch: check out the exact producer named by the distribution manifest or
-  build a new external bundle from the exact current commit. Do not weaken the verifier.
+* A source-identity mismatch (`Echo-slowdown` or `megatron-sim-engine`): switch to the canonical
+  `sc26-ae-functional` branch and verify the two `.source_commit` files; the bundle only depends on
+  these two vendored components, not on the outer commit.
 
 `collective-sim` is optional background infrastructure for historical simulator work. The formal
 fake-level AE path explicitly uses the analytical backend and does not silently fall back to

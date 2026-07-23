@@ -71,17 +71,15 @@ def write_text(path: Path, text: str) -> None:
 
 
 def source_commits() -> dict[str, str]:
+    def source_identity(name: str) -> str:
+        return (REPO_ROOT / name / ".source_commit").read_text(encoding="utf-8").strip()
+
     return {
         "megatron_lm": subprocess.check_output(
             ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"], text=True
         ).strip(),
-        "echo_slowdown": subprocess.check_output(
-            ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD:Echo-slowdown"], text=True
-        ).strip(),
-        "megatron_sim_engine": subprocess.check_output(
-            ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD:megatron-sim-engine"],
-            text=True,
-        ).strip(),
+        "echo_slowdown": source_identity("Echo-slowdown"),
+        "megatron_sim_engine": source_identity("megatron-sim-engine"),
     }
 
 

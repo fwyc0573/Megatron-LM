@@ -157,10 +157,19 @@ def _git(repo_root: pathlib.Path, *args: str) -> str:
 
 
 def _source_commits(repo_root: pathlib.Path) -> Dict[str, str]:
+    def source_identity(path: str) -> str:
+        source_file = repo_root / path / ".source_commit"
+        if source_file.is_file():
+            value = source_file.read_text(encoding="utf-8").strip()
+            if COMMIT_PATTERN.fullmatch(value) is None:
+                raise ValueError("invalid source identity: {}".format(source_file))
+            return value
+        return _git(repo_root, "rev-parse", "HEAD:{}".format(path))
+
     return {
         "megatron_lm": _git(repo_root, "rev-parse", "HEAD"),
-        "echo_slowdown": _git(repo_root, "rev-parse", "HEAD:Echo-slowdown"),
-        "megatron_sim_engine": _git(repo_root, "rev-parse", "HEAD:megatron-sim-engine"),
+        "echo_slowdown": source_identity("Echo-slowdown"),
+        "megatron_sim_engine": source_identity("megatron-sim-engine"),
     }
 
 
@@ -979,7 +988,7 @@ def verify_distribution(repo_root: pathlib.Path, prebaked_root: pathlib.Path) ->
         "echo_slowdown": expected_commits["echo_slowdown"],
         "megatron_sim_engine": expected_commits["megatron_sim_engine"],
     }:
-        raise ValueError("distribution compatible commits differ from current gitlinks")
+        raise ValueError("distribution compatible commits differ from current source identities")
     _validate_distribution_files(prebaked_root, distribution)
     declared_total = distribution.get("total_size_bytes")
     if (
@@ -1095,7 +1104,6 @@ def _validate_functional_bundle_entry(
     root: pathlib.Path,
     key: str,
     entry: Mapping[str, Any],
-    expected_commits: Mapping[str, str],
     producer_record: Mapping[str, Any],
 ) -> Dict[str, Any]:
     """Validate one non-release functional bundle without promoting evidence."""
@@ -1125,8 +1133,6 @@ def _validate_functional_bundle_entry(
     bundle_commits = _validated_source_commits(
         producer_record.get("bundle"), "{} functional bundle".format(key)
     )
-    if bundle_commits != dict(expected_commits):
-        raise ValueError("{} functional bundle producer differs from the current checkout".format(key))
     source_artifact_commits = {
         task: _validated_source_commits(
             producer_record.get(task), "{} functional {}".format(key, task)
@@ -1134,7 +1140,7 @@ def _validate_functional_bundle_entry(
         for task in expected_record_keys - {"bundle"}
     }
     if manifest.get("source_commits") != bundle_commits:
-        raise ValueError("{} functional producer commits differ from the current checkout".format(key))
+        raise ValueError("{} functional producer commits differ from the distribution record".format(key))
     if entry.get("producer_commits") != bundle_commits:
         raise ValueError("{} bundle producer differs from its nested manifest".format(key))
     if entry.get("source_artifact_commits") != source_artifact_commits:
@@ -1222,7 +1228,7 @@ def verify_functional_distribution(repo_root: pathlib.Path, prebaked_root: pathl
         "echo_slowdown": expected_commits["echo_slowdown"],
         "megatron_sim_engine": expected_commits["megatron_sim_engine"],
     }:
-        raise ValueError("functional distribution compatible commits differ from current gitlinks")
+        raise ValueError("functional distribution compatible commits differ from current source identities")
     _validate_distribution_files(prebaked_root, distribution)
     bundles = distribution.get("bundles")
     if not isinstance(bundles, Mapping) or set(bundles) != FUNCTIONAL_BUNDLES:
@@ -1236,7 +1242,6 @@ def verify_functional_distribution(repo_root: pathlib.Path, prebaked_root: pathl
             prebaked_root,
             key,
             bundles[key],
-            expected_commits,
             producer_records[key],
         )
         for key in sorted(FUNCTIONAL_BUNDLES)
