@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes        |
 |------------|---------------------------|
+| 2026-07-23 | Recorded the cross-worktree task_memory merge boundary and the resulting commit-bound bundle rebuild requirement. |
 | 2026-07-23 | Resolved I69: force-added Git-ignored compact traces/logs so all indexed evidence is tracked without changing artifact bytes |
 | 2026-07-23 | Resolved I68: corrected the consolidation process check's self-match false positive without changing Task2 behavior |
 | 2026-07-23 | Resolved I67: synchronized the public README with the current formal two-model and nine-entry documentation contract |
@@ -1911,3 +1912,14 @@ validated evidence.
 
 **Verification:** Every indexed path is staged (`INDEXED_ARTIFACTS_STAGED=177`), no ignored
 evidence file remains, all `177` SHA256 checks pass, and the non-evidence staged diff check passes.
+
+
+## I70 — Documentation merge changes commit-bound producer identity — OPEN / DOCUMENTATION
+
+**Problem:** The canonical branch now includes 18 recovered task-memory test reports and a merge audit, so its HEAD is the current post-merge canonical commit, while the existing final functional bundle remains bound to its earlier producer commit.
+
+**Root cause:** The merge intentionally changed repository history through a documentation-only commit; exact-producer verification correctly treats any commit change as a different producer.
+
+**Resolution:** No runtime artifact, dataset, predictor, trace, or bundle was edited. The current bundle remains valid only for its recorded producer commit; if a new release bundle is required from this canonical branch, rebuild and verify it from the current canonical HEAD.
+
+**Verification:** Cross-worktree audit reports `18/18` merged SHA256 checks PASS, `git diff --check` PASS, and zero runtime/source changes.

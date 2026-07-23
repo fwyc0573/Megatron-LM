@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Cross-worktree `task_memory` merge review: approved 18 direct current-workflow reports, rejected bulk nested-log copying, and preserved canonical ledger conflicts and bundle provenance boundaries. |
 | 2026-07-23 | Reviewed staged archive completeness and approved force-added ignored evidence with byte-preserving CRLF handling |
 | 2026-07-23 | Recorded the independent canonical-branch provenance review and reconciliation |
 | 2026-07-23 | Recorded the exact-producer clean-clone functional replay and final fake-level AE verdict |
@@ -4342,3 +4343,12 @@ whitespace under the default whitespace policy.
 `PASS`: `INDEXED_ARTIFACTS_STAGED=177`, `EVIDENCE_FILES_STAGED=180`, ignored evidence count `0`,
 checksum pass `177/177`, and non-evidence staged diff check `PASS`. The final external bundle must
 still be rebuilt only after the canonical commit; Task2 remains unchanged.
+
+
+## Checkpoint: Cross-Worktree Task-Memory Merge (2026-07-23)
+
+- **Target Component/Phase:** canonical task-memory evidence inventory and merge
+- **Reviewer Agent Identity:** primary `/root`
+- **Inspected Artifacts:** six related worktrees; `/data/ycfeng/tmp/sc26_ae_task_memory_inventory.json`; `/data/ycfeng/tmp/sc26_ae_task_memory_diff.json`; 18 copied reports; merge audit report
+- **Identified Issues/Anomalies:** 5,438 missing path instances were mostly nested historical logs or unrelated February tasks; 48 ledger conflicts existed and must not overwrite canonical files.
+- **Remediation/Verification Code Actions Taken:** merged 18 direct current-workflow test reports only; preserved canonical ledgers; recorded source branch/commit, size, and SHA256; `git diff --check` and post-copy hash checks are required before commit.

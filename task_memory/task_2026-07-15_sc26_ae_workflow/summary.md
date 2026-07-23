@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Added the cross-worktree `task_memory` audit and merged 18 missing direct test reports without changing runtime artifacts or predictor provenance. |
 | 2026-07-23 | Added the single `sc26-ae-functional` delivery branch and checksum-backed compact evidence inventory |
 | 2026-07-23 | Clarified intermediate versus final package-suite timing in the consolidation report and refreshed its hash |
 | 2026-07-23 | Closed the exact-producer clean-clone bundle and GPT/Qwen CPU replay; functional fake-level AE status is ready |
@@ -164,9 +165,9 @@ Current task-ledger hashes after this consolidation pass are:
 requirements.md  ad8e69f89cfa93a8b19481a7b2317df3d0b96e56d9499fae409f86786b570817
 plan.md         8b932ec820743eeb32741370a4362a4d5564167b35c67782aac286d4a089a543
 notes.md        67db0243cdf060de068d60e8029dda473790b785492129fc01dd7a2f13e41554
-progress.md     85687e47f72edad9bb485d7db899aa2f3fcbb702457662ab3334a8f780e50d52
-issues.md       a0777fae9d386b3b9096cebf1f14d623ad32f84a982e9c3ce3035a11a62e491a
-review.md       76913a7aa75f63c2dc9e0353b7f4b2e3b17f6963bbbd296832f7769a217bd9d6
+progress.md     fa76381c5b0b7f7e9892096a3a92aaad05e3476f31b8e1a29c42561136cddaee
+issues.md       a264d8b4c07a2fa8da1e9917eb7521c1f0c8f3721f06228c618690670b61c521
+review.md       a6cab6b0881ece4f894f70ef5225da9ce4e60e32f7101e9b3a1097200487c4d7
 ```
 
 The compact archive contains 177 indexed files totaling 16,048,905 bytes. Seven multi-gigabyte or

@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes                                  |
 |------------|------------------------------------------------------|
+| 2026-07-23 | Audited six related worktrees and merged 18 missing direct test reports into canonical `sc26-ae-functional`; excluded nested logs and unrelated historical tasks with source/hash provenance. |
 | 2026-07-23 | Completed the pre-commit staged-archive audit: force-added ignored compact files and preserved exact CRLF evidence bytes |
 | 2026-07-23 | Started Session 63 artifact consolidation and created the single `sc26-ae-functional` branch |
 | 2026-07-23 | Closed the final exact-producer clean-clone replay after diagnosing the older-bundle commit mismatch without weakening verification |
@@ -3517,3 +3518,11 @@ because its parent shell also contained the syntax file names; it was not a runn
 The static checks were rerun without the process scan, then the `/proc` scan was executed as a
 separate command with runtime-built suffixes and returned `TASK2_REAL_PROCESS_COUNT=0` and
 `PROCESS_SCOPE_STATUS=PASS`.
+
+
+## 2026-07-23 Cross-Worktree Task-Memory Merge
+
+- **Motivation:** canonical `sc26-ae-functional` lacked 18 direct test reports present in related worktrees.
+- **Expectation:** restore reviewable historical evidence while avoiding unrelated worker logs and ledger overwrites.
+- **Method:** compared 6,679 file records by relative path and SHA256; copied only 18 direct reports from `sc26-ae` and `sc26-ae-exec-clean-20260717`; wrote `test_report_2026-07-23_task_memory_cross_worktree_merge.md`.
+- **Result:** all 18 reports are present with source commit and SHA256 provenance; no runtime artifact, bundle, predictor, or source code changed.
