@@ -1,0 +1,14 @@
+{
+  "schema_version": "sc26-ae-rank0-report-v1",
+  "model": "qwen3_a30b",
+  "artifact_source": "prebaked",
+  "rank_id": 0,
+  "rank0_step_time_ms": 3051.24,
+  "rank0_forward_step_duration_sum_ms": 0.32,
+  "rank0_backward_step_duration_sum_ms": 26.29,
+  "rank0_optimizer_step_duration_sum_ms": 3.62,
+  "rank0_comp_plus_comm_diagnostic_ms": 6221.86,
+  "simulator_load_time_s": 84.063936,
+  "simulator_execution_time_s": 1072.67156,
+  "simulator_wall_clock_s": 1156.735496
+}

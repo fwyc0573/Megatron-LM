@@ -4,6 +4,8 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Added the single `sc26-ae-functional` delivery branch and checksum-backed compact evidence inventory |
+| 2026-07-23 | Clarified intermediate versus final package-suite timing in the consolidation report and refreshed its hash |
 | 2026-07-23 | Closed the exact-producer clean-clone bundle and GPT/Qwen CPU replay; functional fake-level AE status is ready |
 | 2026-07-23 | Recorded completed GPT/Qwen Fresh and functional prebaked chains; retained clean committed-clone replay as the final functional gate |
 | 2026-07-20 | Closed I59 locally after the penultimate tracked-snapshot V21 replay; final identity, Lore commit, and committed-clone verification remain local-only provenance mechanics |
@@ -47,16 +49,19 @@
 
 ## Task Overview
 
-The task is to deliver an AE-friendly SC'26 workflow: nine one-click model-specific shell entry
-points, a centralized and portable artifact layout, and a reusable pre-dataset that AE users can
-run without source edits. The intended chain is Task1 workload capture → Task2 slowdown predictor
-→ Task3 end-to-end simulation/report.
+The current reduced task is to deliver an AE-friendly SC'26 workflow with six formal GPT-175B and
+Qwen3-A3B Task1/2/3 shell entry points, a centralized artifact layout, and a reusable functional
+pre-dataset that AE users can run without source edits. The three DeepSeek-V3 entry points remain
+deferred historical surfaces. The intended chain is Task1 workload capture → Task2 slowdown
+predictor → Task3 end-to-end simulation/report.
 
 **Current state: functional fake-level workflow complete at exact producer commit
 `c7288c66f0a6c3d0445edc841a6e5982d3b22f09`.** GPT-175B and Qwen3-A3B have verified Fresh
 Task1/Task3 artifacts, the shared Task2 predictor retains verified two-GPU provenance, the final
 commit-bound functional bundle verifies, and both CPU-only prebaked consumers pass from a clean
-clone. I65 is resolved for this deliberately reduced functional scope. This is
+clone. The single delivery branch is `sc26-ae-functional`; its compact archive starts from
+`3b1b51eec0162bd00b694c054dc9527016690c9a` and does not relabel the older exact-producer bundle.
+I65 is resolved for this deliberately reduced functional scope. This is
 `functional-fake-level-AE-ready=YES`; it never claims distributed accuracy, paper-number fidelity,
 or release qualification.
 
@@ -136,6 +141,38 @@ artifacts. Fresh Task1/Task3 and shared two-GPU Task2 inputs are unchanged.
 | Final Qwen CPU manifest | `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/artifact_manifest.json` | `4f2903707633e88c62c6e55d98e9fb9ecd9cb4acf9098e2a733aee2c46886a89`; 281 files |
 | Final Qwen CPU marker | `/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/run_marker.json` | `2c0c3d0c40e60da84648ffd9c9985d2a4d3b4e74100a337aa7668ebf520d9a04` |
 
+### Session 63 Canonical Branch and Compact Evidence Deliverables
+
+| Deliverable | Exact path | SHA256 / status |
+|-------------|------------|-----------------|
+| Canonical branch | `refs/heads/sc26-ae-functional` | Created from `3b1b51eec0162bd00b694c054dc9527016690c9a`; one branch for both formal models |
+| Operator README | `SC26-AE/README.md` | `5a92898b9f8c380d800a376a8744d10aa96e55e94eb84417eabe5df134301a67`; 19,701 bytes |
+| Human artifact checklist | `SC26-AE/evidence/INDEX.md` | `06f198b9fe0fe84dc2d1ca0c41a374bc6def0fddbfe15be2a42b7585d1b9cbc4`; 12,956 bytes |
+| Machine artifact index | `SC26-AE/evidence/index.json` | `7d8270e76aaefd43e2965cc146b44b2cf1e72da151f5157fab4b1ef8b1c54a9b`; 166,843 bytes |
+| Compact archive checksum list | `SC26-AE/evidence/checksums.sha256` | `b8cd19ede8343f2fe86aa9f393f4b06645a1e72294a0d24c4b446d327a3df94f`; 177 entries |
+| Branch provenance review | `SC26-AE/evidence/test_records/branch_provenance_review.md` | `8af2363e3db279d2dbca151c9db3c14abffe793736285e6bcbc3a223d7ec1dc7`; 8,107 bytes |
+| Consolidation test report | `task_memory/task_2026-07-15_sc26_ae_workflow/test_report_2026-07-23_artifact_consolidation.md` | `c234def7b4c4387f0b773b473dabbbc60f6737c12bdb25e696522392e2a27f03`; 9,704 bytes |
+| GPT compact Task1 manifest | `SC26-AE/evidence/gpt175b/task1/artifact_manifest.json` | `490bf26101edbb4594b7c21d14a3a7b858d5aa654b7bfa706224d660fdbc77bd`; traces/memory `8/8` |
+| Qwen compact Task1 manifest | `SC26-AE/evidence/qwen3_a30b/task1/artifact_manifest.json` | `a29941939c7b9b19b5d7cc2508ac5be94fafc926934f171d1d7a2602dd6fd123`; traces/memory `32/32` |
+| Shared Task2 dataset | `SC26-AE/evidence/shared_task2/dataset/train_dataset.csv` | `3f6fd7be758f016eb32cb864611348edee0d6e08d9289bb839c57c87879d7eb3`; 727 rows |
+| Shared Task2 predictor | `SC26-AE/evidence/shared_task2/predictor/xgb_model.json` | `6f9474775b1c60a0489abf1f314af1f9366a87d515bb629f9430a12dc605e06e`; 412,174 bytes |
+| Shared Task2 scaler | `SC26-AE/evidence/shared_task2/predictor/standard_scaler.json` | `71fdebff4a797f860f2f9f4088c9f0bdf6ca83ae01df303ca6ddb573df9fa16b`; 616 bytes |
+
+Current task-ledger hashes after this consolidation pass are:
+
+```text
+requirements.md  ad8e69f89cfa93a8b19481a7b2317df3d0b96e56d9499fae409f86786b570817
+plan.md         8b932ec820743eeb32741370a4362a4d5564167b35c67782aac286d4a089a543
+notes.md        67db0243cdf060de068d60e8029dda473790b785492129fc01dd7a2f13e41554
+progress.md     85687e47f72edad9bb485d7db899aa2f3fcbb702457662ab3334a8f780e50d52
+issues.md       a0777fae9d386b3b9096cebf1f14d623ad32f84a982e9c3ce3035a11a62e491a
+review.md       76913a7aa75f63c2dc9e0353b7f4b2e3b17f6963bbbd296832f7769a217bd9d6
+```
+
+The compact archive contains 177 indexed files totaling 16,048,905 bytes. Seven multi-gigabyte or
+expanded runtime roots remain external and are recorded with byte counts and anchor-manifest
+hashes in `index.json`. The original validated trees were not modified or split.
+
 ## Validation Status
 
 ### Local evidence matrix
@@ -174,10 +211,12 @@ are useful for scale checking only; they are not real performance claims.
 
 ## Open Items / Future Extensions
 
-1. Preserve release qualification, distributed accuracy, and paper-number fidelity as separate
+1. After the archive commit is final, rebuild and verify the complete functional bundle externally
+   from that exact commit. Do not commit its manifest into its own producer commit.
+2. Preserve release qualification, distributed accuracy, and paper-number fidelity as separate
    future work; this functional task does not attempt to close them.
-2. Keep DeepSeek-V3 deferred and do not substitute it for the formal GPT/Qwen scope.
-3. If a release-qualified package is later required, repeat the release-specific gates rather than
+3. Keep DeepSeek-V3 deferred and do not substitute it for the formal GPT/Qwen scope.
+4. If a release-qualified package is later required, repeat the release-specific gates rather than
    promoting this functional distribution.
 
 The current verdict is `functional-fake-level-AE-ready=YES`. The required boundaries remain

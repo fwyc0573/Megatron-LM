@@ -1,0 +1,19 @@
+{
+  "artifact_manifest_sha256": "02b89c32f2d3c55628858709b8519933a73dd1a5d7339e1602bcab5125bd161f",
+  "artifact_source": "fresh",
+  "capture_id": "gpt175b-20260722T181829Z",
+  "execution_evidence": "runtime_measurement_requires_external_single_gpu_qualification",
+  "manifest_sha256": "02b89c32f2d3c55628858709b8519933a73dd1a5d7339e1602bcab5125bd161f",
+  "model": "gpt175b",
+  "ncu_metrics_source": "task1_rank0",
+  "predictor_run_id": "task2-20260722T142810Z-192-11368",
+  "run_path": "runs/gpt175b-20260722T194650Z-296-25436",
+  "schema_version": "sc26-ae-task3-run-marker-v1",
+  "simulation_run_id": "gpt175b-20260722T194650Z-296-25436",
+  "slowdown_trace_rank_ids": [
+    0
+  ],
+  "slowdown_trace_scope": "global_rank_0",
+  "task": "task3",
+  "verified": true
+}

@@ -1,0 +1,19 @@
+{
+  "artifact_manifest_sha256": "d2f2838d4f605645b9258b2caf26250a7956a4c73fe850ed63d64ce6a5f55534",
+  "artifact_source": "prebaked",
+  "capture_id": "gpt175b-20260722T181829Z",
+  "execution_evidence": "local_synthetic_not_gpu_qualification",
+  "manifest_sha256": "d2f2838d4f605645b9258b2caf26250a7956a4c73fe850ed63d64ce6a5f55534",
+  "model": "gpt175b",
+  "ncu_metrics_source": "task1_rank0",
+  "predictor_run_id": "task2-20260722T142810Z-192-11368",
+  "run_path": "runs/gpt175b-clean-final-cpu-20260723T063628",
+  "schema_version": "sc26-ae-task3-run-marker-v1",
+  "simulation_run_id": "gpt175b-clean-final-cpu-20260723T063628",
+  "slowdown_trace_rank_ids": [
+    0
+  ],
+  "slowdown_trace_scope": "global_rank_0",
+  "task": "task3",
+  "verified": true
+}

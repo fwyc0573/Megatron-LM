@@ -1,0 +1,21 @@
+megatron-lm scheduling meta info:
+micro_batch_size:1
+num_microbatches:32
+pp size:8, tp size: 8, dp size: 4, exp size: 4, exp_dp size: 1, world_size: 256
+seq_length:256, hidden_size:2048, pipeline_dtype: torch.bfloat16
+stage_id: 0, num_microbatches: 32, num_warmup_microbatches: 7, num_microbatches_remaining: 25
+Scheduling plan for stage 0 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/schedule/stage0_scheduling_plan.txt
+stage_id: 1, num_microbatches: 32, num_warmup_microbatches: 6, num_microbatches_remaining: 26
+Scheduling plan for stage 1 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/schedule/stage1_scheduling_plan.txt
+stage_id: 2, num_microbatches: 32, num_warmup_microbatches: 5, num_microbatches_remaining: 27
+Scheduling plan for stage 2 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/schedule/stage2_scheduling_plan.txt
+stage_id: 3, num_microbatches: 32, num_warmup_microbatches: 4, num_microbatches_remaining: 28
+Scheduling plan for stage 3 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/schedule/stage3_scheduling_plan.txt
+stage_id: 4, num_microbatches: 32, num_warmup_microbatches: 3, num_microbatches_remaining: 29
+Scheduling plan for stage 4 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/schedule/stage4_scheduling_plan.txt
+stage_id: 5, num_microbatches: 32, num_warmup_microbatches: 2, num_microbatches_remaining: 30
+Scheduling plan for stage 5 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/schedule/stage5_scheduling_plan.txt
+stage_id: 6, num_microbatches: 32, num_warmup_microbatches: 1, num_microbatches_remaining: 31
+Scheduling plan for stage 6 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/schedule/stage6_scheduling_plan.txt
+stage_id: 7, num_microbatches: 32, num_warmup_microbatches: 0, num_microbatches_remaining: 32
+Scheduling plan for stage 7 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/schedule/stage7_scheduling_plan.txt

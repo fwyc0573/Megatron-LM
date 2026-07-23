@@ -1,0 +1,15 @@
+{
+  "artifact_manifest_sha256": "a29941939c7b9b19b5d7cc2508ac5be94fafc926934f171d1d7a2602dd6fd123",
+  "capture_id": "qwen3_a30b-20260722T112049Z",
+  "manifest_sha256": "a29941939c7b9b19b5d7cc2508ac5be94fafc926934f171d1d7a2602dd6fd123",
+  "model": "qwen3_a30b",
+  "ncu_feature_csv_path": "ncu/kernel_metric_output.csv",
+  "ncu_feature_csv_sha256": "138c15936f17e3b50d0a74830db7e6f2da25705eafd0913a23ea0c28291d1ab3",
+  "ncu_feature_rank_ids": [
+    0
+  ],
+  "ncu_feature_scope": "global_rank_0",
+  "run_path": "runs/qwen3_a30b-20260722T112049Z",
+  "schema_version": "sc26-ae-task1-capture-marker-v1",
+  "verified": true
+}

@@ -1,0 +1,21 @@
+megatron-lm scheduling meta info:
+micro_batch_size:1
+num_microbatches:48
+pp size:8, tp size: 8, dp size: 16, exp size: 1, exp_dp size: 1, world_size: 1024
+seq_length:2048, hidden_size:12288, pipeline_dtype: torch.bfloat16
+stage_id: 0, num_microbatches: 48, num_warmup_microbatches: 7, num_microbatches_remaining: 41
+Scheduling plan for stage 0 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/runs/gpt175b-clean-final-cpu-20260723T063628/schedule/stage0_scheduling_plan.txt
+stage_id: 1, num_microbatches: 48, num_warmup_microbatches: 6, num_microbatches_remaining: 42
+Scheduling plan for stage 1 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/runs/gpt175b-clean-final-cpu-20260723T063628/schedule/stage1_scheduling_plan.txt
+stage_id: 2, num_microbatches: 48, num_warmup_microbatches: 5, num_microbatches_remaining: 43
+Scheduling plan for stage 2 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/runs/gpt175b-clean-final-cpu-20260723T063628/schedule/stage2_scheduling_plan.txt
+stage_id: 3, num_microbatches: 48, num_warmup_microbatches: 4, num_microbatches_remaining: 44
+Scheduling plan for stage 3 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/runs/gpt175b-clean-final-cpu-20260723T063628/schedule/stage3_scheduling_plan.txt
+stage_id: 4, num_microbatches: 48, num_warmup_microbatches: 3, num_microbatches_remaining: 45
+Scheduling plan for stage 4 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/runs/gpt175b-clean-final-cpu-20260723T063628/schedule/stage4_scheduling_plan.txt
+stage_id: 5, num_microbatches: 48, num_warmup_microbatches: 2, num_microbatches_remaining: 46
+Scheduling plan for stage 5 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/runs/gpt175b-clean-final-cpu-20260723T063628/schedule/stage5_scheduling_plan.txt
+stage_id: 6, num_microbatches: 48, num_warmup_microbatches: 1, num_microbatches_remaining: 47
+Scheduling plan for stage 6 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/runs/gpt175b-clean-final-cpu-20260723T063628/schedule/stage6_scheduling_plan.txt
+stage_id: 7, num_microbatches: 48, num_warmup_microbatches: 0, num_microbatches_remaining: 48
+Scheduling plan for stage 7 written to: /data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063628_gpt/gpt175b/task3/runs/gpt175b-clean-final-cpu-20260723T063628/schedule/stage7_scheduling_plan.txt

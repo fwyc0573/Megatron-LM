@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes                                       |
 |------------|----------------------------------------------------------|
+| 2026-07-23 | Captured the single canonical branch and final artifact/script inventory request |
 | 2026-07-23 | Captured the reduced two-model functional AE scope, Task2 non-rerun rule, missing-kernel slowdown policy, and `/data/ycfeng/tmp` runtime rule |
 | 2026-07-20 | Captured D31 approval to track exactly the V21-required evidence logs and D32 approval to delete the reviewer-generated nested `.omc/` runtime state |
 | 2026-07-19 | Added D30: latest user instruction makes all test/validation/rehearsal failures autonomous when they serve the AE scripts and reusable pre-dataset, without relaxing release gates |
@@ -209,3 +210,6 @@
 
 ## D66. Temporary-storage and heavy-command safety
 [Original Request] 禁止向 `/tmp` 写 temporary files、logs 或 caches；统一使用 `/data/ycfeng/tmp`。`brainctl get replica` 等重命令必须使用 `timeout 60s` 和 `systemd-run --scope -p MemoryMax=2G`。
+
+## D67. Canonical branch and artifact consolidation
+[Original Request] 进入 scripts、docs、workload tracing 文件、slowdown dataset、slowdown predictor 权重和关键测试记录的清晰规范整理：确认一个唯一最终 branch，不按 model 分散交付；把 `/data/ycfeng/tmp` 中最终 PASS 的关键记录合理归档到该 branch；并提供一份可以快速核查、清点和复用脚本/文件的清单。

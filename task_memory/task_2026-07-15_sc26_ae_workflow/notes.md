@@ -4,6 +4,8 @@
 
 | Date       | Summary of Changes            |
 |------------|-------------------------------|
+| 2026-07-23 | Recorded the Git-ignore force-add boundary and CRLF-preserving staged-check command for compact evidence |
+| 2026-07-23 | Recorded the canonical branch, compact Git evidence boundary, and source-tree preservation rule |
 | 2026-07-23 | Recorded the exact-producer clean-clone bundle and final GPT/Qwen CPU replay operating contract |
 | 2026-07-23 | Recorded the completed functional bundle/CPU runs, controller XGBoost layer, Qwen verbose-log scale, and final clean-clone commands |
 | 2026-07-23 | Recorded root-owned `/data/ycfeng/SC26-AE` staging restriction and the writable `/data/ycfeng/tmp` functional staging location |
@@ -306,3 +308,28 @@ permission. This environment note does not change the real qualification or rele
 - The functional bundle producer remains `c7288c66...`. A later docs-only ledger commit is not a
   valid producer for this bundle and must not be used to replay it. AE operators must check out
   the exact producer commit named in `SC26-AE/README.md` and the distribution manifest.
+
+## Session 63 operational notes — canonical branch and evidence archive
+
+- The only final delivery branch is `sc26-ae-functional`; do not split GPT and Qwen into separate
+  branches. The local assembly worktree is `/data/ycfeng/sc26_ae_task3_qwen`.
+- `SC26-AE/evidence/INDEX.md` is the human checklist. `index.json` is the complete machine
+  inventory, and `checksums.sha256` verifies the 177 compact archived files.
+- Compact records are checksum-verified copies. Do not move or delete files from the original
+  validated Task1/Task2/Task3 roots because their manifests bind those exact paths and bytes.
+- The compact archive is 16,048,905 bytes. Multi-gigabyte NCU/Nsight/replay/simulator trees and
+  complete distributions remain external, immutable, and manifest-anchored.
+- The archived `c7288c66...` functional distribution is historical exact-producer evidence. After
+  the canonical branch is committed, build and verify a new external distribution from that exact
+  commit; do not commit its manifest back into the producer commit.
+- Task2 entry commands executed during consolidation remain `0`. Reuse the verified two-GPU
+  dataset/predictor; unseen Task3 kernels do not authorize Task2 recollection.
+
+## Session 64 operational note — staged archive completeness
+
+The repository-wide `.gitignore` matches runtime `logs/`, `*.txt`, and `*.log` patterns, so the
+curated evidence directory must be staged with `git add -f SC26-AE/evidence`. This is deliberate
+and limited to the archive; it does not change the ignore policy for future generated outputs.
+The archived NCU CSVs retain their source CRLF bytes. Use
+`git -c core.whitespace=cr-at-eol diff --cached --check` for the staged archive check and keep
+the source checksum list authoritative.

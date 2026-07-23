@@ -1,0 +1,50 @@
+{
+  "automatic_fallback": false,
+  "configs": [
+    {
+      "artifact_relative_path": "provenance/interpreter_configs/kernel_metric.global_config.json",
+      "python_canonical_path": "/opt/conda/envs/echo_slowdown/bin/python3.10",
+      "python_path": "/opt/conda/envs/echo_slowdown/bin/python",
+      "python_sha256": "aa90994709ba1fcc68297c1a35dc2622c2a61ce31bd107d588497711f34a7b3c",
+      "sha256": "07c82445e76cc13b6d911b7c2af7447e1c1081ee2205c8d7c3e543776a177dca",
+      "size_bytes": 217,
+      "source_relative_path": "kernel_metric/input/global_config.json"
+    },
+    {
+      "artifact_relative_path": "provenance/interpreter_configs/merge.global_config.json",
+      "python_canonical_path": "/opt/conda/envs/echo_slowdown/bin/python3.10",
+      "python_path": "/opt/conda/envs/echo_slowdown/bin/python",
+      "python_sha256": "aa90994709ba1fcc68297c1a35dc2622c2a61ce31bd107d588497711f34a7b3c",
+      "sha256": "eefaae456133ca819facb9adb1f3387d3ddb8cb48e71514c96eb68eb4d573bdd",
+      "size_bytes": 217,
+      "source_relative_path": "merge/input/global_config.json"
+    },
+    {
+      "artifact_relative_path": "provenance/interpreter_configs/slowdown_collection.global_config.json",
+      "python_canonical_path": "/opt/conda/envs/echo_slowdown/bin/python3.10",
+      "python_path": "/opt/conda/envs/echo_slowdown/bin/python",
+      "python_sha256": "aa90994709ba1fcc68297c1a35dc2622c2a61ce31bd107d588497711f34a7b3c",
+      "sha256": "bba3e634a5a837e17c618f02d7b1ba845e5a56eba67bbf829a6202e22edb23ec",
+      "size_bytes": 217,
+      "source_relative_path": "slowdown_collection/input/global_config.json"
+    },
+    {
+      "artifact_relative_path": "provenance/interpreter_configs/training_testing.global_config.json",
+      "python_canonical_path": "/opt/conda/envs/echo_slowdown/bin/python3.10",
+      "python_path": "/opt/conda/envs/echo_slowdown/bin/python",
+      "python_sha256": "aa90994709ba1fcc68297c1a35dc2622c2a61ce31bd107d588497711f34a7b3c",
+      "sha256": "bba3e634a5a837e17c618f02d7b1ba845e5a56eba67bbf829a6202e22edb23ec",
+      "size_bytes": 217,
+      "source_relative_path": "training_testing/input/global_config.json"
+    }
+  ],
+  "execution_mode": "real",
+  "fixed_canonical_path": "/opt/conda/envs/echo_slowdown/bin/python3.10",
+  "fixed_requested_path": "/opt/conda/envs/echo_slowdown/bin/python",
+  "fixed_sha256": "aa90994709ba1fcc68297c1a35dc2622c2a61ce31bd107d588497711f34a7b3c",
+  "path_lookup_canonical_path": "/opt/conda/envs/echo_slowdown/bin/python3.10",
+  "path_lookup_python": "/opt/conda/envs/echo_slowdown/bin/python",
+  "path_lookup_sha256": "aa90994709ba1fcc68297c1a35dc2622c2a61ce31bd107d588497711f34a7b3c",
+  "schema_version": "sc26-ae-task2-interpreter-binding-v1",
+  "status": "bound"
+}

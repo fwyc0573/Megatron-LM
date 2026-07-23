@@ -1,0 +1,19 @@
+{
+  "artifact_manifest_sha256": "4f2903707633e88c62c6e55d98e9fb9ecd9cb4acf9098e2a733aee2c46886a89",
+  "artifact_source": "prebaked",
+  "capture_id": "qwen3_a30b-20260722T112049Z",
+  "execution_evidence": "local_synthetic_not_gpu_qualification",
+  "manifest_sha256": "4f2903707633e88c62c6e55d98e9fb9ecd9cb4acf9098e2a733aee2c46886a89",
+  "model": "qwen3_a30b",
+  "ncu_metrics_source": "task1_rank0",
+  "predictor_run_id": "task2-20260722T142810Z-192-11368",
+  "run_path": "runs/qwen3_a30b-clean-final-cpu-20260723T063749",
+  "schema_version": "sc26-ae-task3-run-marker-v1",
+  "simulation_run_id": "qwen3_a30b-clean-final-cpu-20260723T063749",
+  "slowdown_trace_rank_ids": [
+    0
+  ],
+  "slowdown_trace_scope": "global_rank_0",
+  "task": "task3",
+  "verified": true
+}

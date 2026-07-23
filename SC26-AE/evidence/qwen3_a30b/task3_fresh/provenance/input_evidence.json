@@ -1,0 +1,213 @@
+{
+  "artifact_source": "fresh",
+  "capture_id": "qwen3_a30b-20260722T112049Z",
+  "model": "qwen3_a30b",
+  "ncu_metrics_csv": {
+    "name": "kernel_metric_output.csv",
+    "sha256": "138c15936f17e3b50d0a74830db7e6f2da25705eafd0913a23ea0c28291d1ab3",
+    "size_bytes": 371055
+  },
+  "nsys_sqlite": {
+    "name": "qwen3_a30b.sqlite",
+    "sha256": "1ba8b7d722fac904b453a541da8dfe85a4621ce15da1bc1821900b0ed9fd372d",
+    "size_bytes": 144748544
+  },
+  "predictor_run_id": "task2-20260722T142810Z-192-11368",
+  "schema_version": "sc26-ae-task3-input-evidence-v1",
+  "simulation_run_id": "qwen3_a30b-20260722T173544Z-303-7078",
+  "slowdown_model": {
+    "name": "xgb_model.json",
+    "sha256": "6f9474775b1c60a0489abf1f314af1f9366a87d515bb629f9430a12dc605e06e",
+    "size_bytes": 412174
+  },
+  "slowdown_scaler": {
+    "name": "standard_scaler.json",
+    "sha256": "71fdebff4a797f860f2f9f4088c9f0bdf6ca83ae01df303ca6ddb573df9fa16b",
+    "size_bytes": 616
+  },
+  "slowdown_trace_file_count": 1,
+  "slowdown_trace_files": [
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank0_20260722112126.txt",
+      "sha256": "7aa9eb2bfdf1aad05c6f1ba6d2b5fff95cae7c66980eeea4d0061327229455bd",
+      "size_bytes": 18366
+    }
+  ],
+  "slowdown_trace_rank_ids": [
+    0
+  ],
+  "slowdown_trace_scope": "global_rank_0",
+  "task1_manifest": {
+    "name": "artifact_manifest.json",
+    "sha256": "a29941939c7b9b19b5d7cc2508ac5be94fafc926934f171d1d7a2602dd6fd123",
+    "size_bytes": 67111
+  },
+  "task2_manifest": {
+    "name": "artifact_manifest.json",
+    "sha256": "d344fbfc0f4e56286efe9dd5ee6ac3f125ed3ad34fe8e4599bc9a71f67dda76e",
+    "size_bytes": 3662
+  },
+  "trace_file_count": 32,
+  "trace_files": [
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank0_20260722112126.txt",
+      "sha256": "7aa9eb2bfdf1aad05c6f1ba6d2b5fff95cae7c66980eeea4d0061327229455bd",
+      "size_bytes": 18366
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank104_20260722112504.txt",
+      "sha256": "eab9674be82fd075776a8077ced333026eb80179b0855db00301b8a3f726250e",
+      "size_bytes": 15869
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank112_20260722112521.txt",
+      "sha256": "b467d58eba44b6c6ff693ebf9296e0ddede70012440786760d3e5d7b61734826",
+      "size_bytes": 15866
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank120_20260722112538.txt",
+      "sha256": "94eda6d2c0cd808139e245e2c3ea9d4b50c34215884ca9a7ddbf0afae9d9263c",
+      "size_bytes": 15869
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank128_20260722112554.txt",
+      "sha256": "4165705bc980a0195464451b9b4a41f21747c29893fc634773f3dcefed4c8aeb",
+      "size_bytes": 15871
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank136_20260722112611.txt",
+      "sha256": "fa96d7aa9f401dc7bb9a8ba18b4f47677ffb86bfb29bd5b02d53a7c04ac46717",
+      "size_bytes": 15868
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank144_20260722112628.txt",
+      "sha256": "51c7f5bdb85ed0c66210c3ab0715d0bb4e0a6d3923d739dabf8739ed05eee9df",
+      "size_bytes": 15866
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank152_20260722112644.txt",
+      "sha256": "2fe2544269c137a12a2e6ae43e1904ef8a38e6f774617bcb3893cd20b37211ce",
+      "size_bytes": 15874
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank160_20260722112703.txt",
+      "sha256": "638b59420c3ea739dca4038e4c7afa5b89a39b93ebe3269d4815bf251631c7ef",
+      "size_bytes": 15876
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank168_20260722112718.txt",
+      "sha256": "673c0c33f15e3a09576c202527ec3c3a97b56ebbe8efd0b73961adc67196c3f9",
+      "size_bytes": 15867
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank16_20260722112159.txt",
+      "sha256": "b876e776cc70467c2fdc414b4a8b47c4d71aa7d3635387873263ffb0ef5397f0",
+      "size_bytes": 18374
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank176_20260722112735.txt",
+      "sha256": "a65a45c5128be4e80fa6c92dc64ef18c2239af591144d4da0888c7626b3d7294",
+      "size_bytes": 15866
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank184_20260722112752.txt",
+      "sha256": "2b600ce7af7ff2d6f82ded0ddf0a54515e7b3c1e3dc9b4ec17b666f72aefdcf8",
+      "size_bytes": 15867
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank192_20260722112810.txt",
+      "sha256": "581783b9e49e9597a6698ab5a7b5b1b63a5fe3df2392b08599271970c5a0717d",
+      "size_bytes": 15879
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank200_20260722112827.txt",
+      "sha256": "01b116bc06b4e53cff7cf15688837e1aa70f8f783d2d2e3323e7ee9b850d9a65",
+      "size_bytes": 15860
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank208_20260722112842.txt",
+      "sha256": "2023a762d0b84398df8ea3754f872503720aecdb833e94459301a977e97da50f",
+      "size_bytes": 15870
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank216_20260722112858.txt",
+      "sha256": "5c28e473d87a46ff25d74807c31f159f4de80630bf249bdd162861e5646b16a4",
+      "size_bytes": 15862
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank224_20260722112915.txt",
+      "sha256": "ebae9b7b2e2ee2c8145ac0227f81ec48ce516129a1e4b40720c7d86a6cf75fb8",
+      "size_bytes": 18092
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank232_20260722112935.txt",
+      "sha256": "2fdf030da2f7f66520e34f721f7b2354e8f5bc1a32238c7a285a5d89c2e88c3b",
+      "size_bytes": 18089
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank240_20260722112949.txt",
+      "sha256": "88b282b388987a05047f603582fa5783ba71dff49c9ffa264dd190754363bec0",
+      "size_bytes": 18081
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank248_20260722113005.txt",
+      "sha256": "83528d567009fb3728f0d2783d9e935f8dd701b8da889f3f20958fa1c71f5688",
+      "size_bytes": 18089
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank24_20260722112216.txt",
+      "sha256": "2a24541eeae096159b43583e97b0b7702cc43adbd01fbda868e7cc6159077c0c",
+      "size_bytes": 18377
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank32_20260722112235.txt",
+      "sha256": "d67b11ef4469880f86d6e7feb50d215abcc7b98aa2071559c34716dd689423b5",
+      "size_bytes": 15862
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank40_20260722112252.txt",
+      "sha256": "b7d05faae5ad3af82e788546a148e49fa5da14852dfdba0ee4a677520b3ae3fa",
+      "size_bytes": 15865
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank48_20260722112308.txt",
+      "sha256": "a647df4c1ce8688db731b0ca42e65dbb77e94f94a3ce68ce8b67c1c3b1becaf4",
+      "size_bytes": 15864
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank56_20260722112324.txt",
+      "sha256": "54a39a146a5fd9f277d692cd6e632c89ca10f7ef053e32ad63fdcd0028e6922f",
+      "size_bytes": 15861
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank64_20260722112340.txt",
+      "sha256": "ecad7a024a00da18695d95b3ff0ed3b5e368fc56714aaee76ad4296e0492da77",
+      "size_bytes": 15865
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank72_20260722112357.txt",
+      "sha256": "c71c4e0f037f86ff9144b1b8b39fad1a5d1f86d88be95e95778bfcd686b56cd4",
+      "size_bytes": 15865
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank80_20260722112413.txt",
+      "sha256": "c12ab62093b948908395563a4e12627111f3242e528c19bc2d1b524bf535dfe7",
+      "size_bytes": 15860
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank88_20260722112431.txt",
+      "sha256": "b7d2f60217a5b372a000f233e5f5bf029c03eee1cf2d0666dc23109b1ea3e493",
+      "size_bytes": 15863
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank8_20260722112142.txt",
+      "sha256": "28db3c5c002efdadd8f866720d8607df485e26f1850ae2fb9c08e2873273ed8c",
+      "size_bytes": 18361
+    },
+    {
+      "name": "wd256_tp8_pp8_exp4_expNum128_numl48_bs1_rank96_20260722112447.txt",
+      "sha256": "5b6068137327adc2a39f37d69fa202eb3053ea81178f5bbf41421b86d6004008",
+      "size_bytes": 15869
+    }
+  ]
+}

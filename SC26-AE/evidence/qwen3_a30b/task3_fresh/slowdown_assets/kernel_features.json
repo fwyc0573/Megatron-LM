@@ -1,0 +1,218 @@
+{
+  "CatArrayBatchedCopy": {
+    "Achieved occupancy": 71.972917,
+    "Compute throughput": 15.427708,
+    "DRAM throughput": 1.363542,
+    "L1 hit rate": 19.38,
+    "L2 hit rate": 84.817083,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 7.963125
+  },
+  "DeviceRadixSortSingleTileKernel": {
+    "Achieved occupancy": 12.46,
+    "Compute throughput": 0.2325,
+    "DRAM throughput": 0.08,
+    "L1 hit rate": 60.0,
+    "L2 hit rate": 98.5275,
+    "Maximum occupancy": 12.5,
+    "Memory throughput": 3.525
+  },
+  "Kernel": {
+    "Achieved occupancy": 7.640838,
+    "Compute throughput": 8.074169,
+    "DRAM throughput": 3.169775,
+    "L1 hit rate": 11.12406,
+    "L2 hit rate": 81.578685,
+    "Maximum occupancy": 32.050409,
+    "Memory throughput": 11.854244
+  },
+  "_scatter_gather_elementwise_kernel": {
+    "Achieved occupancy": 6.153952,
+    "Compute throughput": 0.027339,
+    "DRAM throughput": 0.20129,
+    "L1 hit rate": 0.500242,
+    "L2 hit rate": 96.260968,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 6.500323
+  },
+  "elementwise_kernel": {
+    "Achieved occupancy": 23.462723,
+    "Compute throughput": 8.135852,
+    "DRAM throughput": 2.206921,
+    "L1 hit rate": 22.588651,
+    "L2 hit rate": 88.481552,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 16.784631
+  },
+  "elementwise_kernel_with_index": {
+    "Achieved occupancy": 3.004286,
+    "Compute throughput": 0.010667,
+    "DRAM throughput": 0.030667,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 99.755905,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 11.257905
+  },
+  "flash_bwd_convert_dq_kernel": {
+    "Achieved occupancy": 12.307917,
+    "Compute throughput": 0.906667,
+    "DRAM throughput": 2.47,
+    "L1 hit rate": 0.97,
+    "L2 hit rate": 70.62125,
+    "Maximum occupancy": 62.5,
+    "Memory throughput": 6.172917
+  },
+  "flash_bwd_dot_do_o_kernel": {
+    "Achieved occupancy": 11.845833,
+    "Compute throughput": 0.812083,
+    "DRAM throughput": 2.466667,
+    "L1 hit rate": 48.606667,
+    "L2 hit rate": 77.615833,
+    "Maximum occupancy": 62.5,
+    "Memory throughput": 7.0625
+  },
+  "flash_bwd_dq_dk_dv_loop_seqk_parallel_kernel": {
+    "Achieved occupancy": 12.365833,
+    "Compute throughput": 1.5175,
+    "DRAM throughput": 1.250417,
+    "L1 hit rate": 1.66,
+    "L2 hit rate": 67.43875,
+    "Maximum occupancy": 12.5,
+    "Memory throughput": 2.366667
+  },
+  "fused_rope_backward": {
+    "Achieved occupancy": 11.259583,
+    "Compute throughput": 7.419375,
+    "DRAM throughput": 1.3075,
+    "L1 hit rate": 76.505,
+    "L2 hit rate": 80.331458,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 5.751667
+  },
+  "indexFuncLargeIndex": {
+    "Achieved occupancy": 45.533333,
+    "Compute throughput": 30.417292,
+    "DRAM throughput": 5.002292,
+    "L1 hit rate": 10.710625,
+    "L2 hit rate": 66.33625,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 10.600833
+  },
+  "indexSelectLargeIndex": {
+    "Achieved occupancy": 37.8985,
+    "Compute throughput": 20.972917,
+    "DRAM throughput": 2.278917,
+    "L1 hit rate": 27.642417,
+    "L2 hit rate": 80.146167,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 7.85125
+  },
+  "indexing_backward_kernel": {
+    "Achieved occupancy": 3.7925,
+    "Compute throughput": 0.435,
+    "DRAM throughput": 0.1475,
+    "L1 hit rate": 69.1875,
+    "L2 hit rate": 67.5075,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 0.335
+  },
+  "kernel": {
+    "Achieved occupancy": 9.470722,
+    "Compute throughput": 5.232528,
+    "DRAM throughput": 3.341056,
+    "L1 hit rate": 44.729306,
+    "L2 hit rate": 72.151611,
+    "Maximum occupancy": 18.75,
+    "Memory throughput": 10.612278
+  },
+  "kernel4": {
+    "Achieved occupancy": 6.088333,
+    "Compute throughput": 0.719167,
+    "DRAM throughput": 1.02,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 88.084167,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 8.2825
+  },
+  "reduce_kernel": {
+    "Achieved occupancy": 12.804021,
+    "Compute throughput": 1.889948,
+    "DRAM throughput": 4.485928,
+    "L1 hit rate": 18.001624,
+    "L2 hit rate": 80.541418,
+    "Maximum occupancy": 70.489691,
+    "Memory throughput": 9.087113
+  },
+  "rmsnorm_bwd_finalize_general_kernel": {
+    "Achieved occupancy": 6.182917,
+    "Compute throughput": 0.060625,
+    "DRAM throughput": 0.2925,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 92.374167,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 4.689167
+  },
+  "rmsnorm_bwd_finalize_tuned_kernel": {
+    "Achieved occupancy": 48.928125,
+    "Compute throughput": 6.678958,
+    "DRAM throughput": 23.317917,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 15.94875,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 23.317917
+  },
+  "rmsnorm_bwd_general_kernel": {
+    "Achieved occupancy": 8.831042,
+    "Compute throughput": 3.728958,
+    "DRAM throughput": 2.035625,
+    "L1 hit rate": 19.55,
+    "L2 hit rate": 80.721667,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 7.650208
+  },
+  "rmsnorm_bwd_tuned_kernel": {
+    "Achieved occupancy": 19.3775,
+    "Compute throughput": 6.566667,
+    "DRAM throughput": 8.578125,
+    "L1 hit rate": 25.775833,
+    "L2 hit rate": 85.712083,
+    "Maximum occupancy": 31.25,
+    "Memory throughput": 46.274375
+  },
+  "softmax_warp_backward": {
+    "Achieved occupancy": 5.962292,
+    "Compute throughput": 0.322708,
+    "DRAM throughput": 1.146042,
+    "L1 hit rate": 8.113333,
+    "L2 hit rate": 90.23,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 9.815
+  },
+  "splitKreduce_kernel": {
+    "Achieved occupancy": 23.16517,
+    "Compute throughput": 2.658155,
+    "DRAM throughput": 3.486262,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 75.361845,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 9.043155
+  },
+  "unrolled_elementwise_kernel": {
+    "Achieved occupancy": 26.633759,
+    "Compute throughput": 12.667874,
+    "DRAM throughput": 9.342236,
+    "L1 hit rate": 16.599561,
+    "L2 hit rate": 81.368299,
+    "Maximum occupancy": 99.794239,
+    "Memory throughput": 14.65299
+  },
+  "vectorized_elementwise_kernel": {
+    "Achieved occupancy": 18.72261,
+    "Compute throughput": 2.923181,
+    "DRAM throughput": 4.457936,
+    "L1 hit rate": 5.696778,
+    "L2 hit rate": 92.49779,
+    "Maximum occupancy": 98.817292,
+    "Memory throughput": 14.590506
+  }
+}

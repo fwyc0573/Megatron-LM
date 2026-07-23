@@ -1,0 +1,9 @@
+{
+  "artifact_manifest_sha256": "d344fbfc0f4e56286efe9dd5ee6ac3f125ed3ad34fe8e4599bc9a71f67dda76e",
+  "manifest_sha256": "d344fbfc0f4e56286efe9dd5ee6ac3f125ed3ad34fe8e4599bc9a71f67dda76e",
+  "predictor_run_id": "task2-20260722T142810Z-192-11368",
+  "run_path": "_shared/task2/runs/task2-20260722T142810Z-192-11368",
+  "run_relative_path": "_shared/task2/runs/task2-20260722T142810Z-192-11368",
+  "schema_version": "sc26-ae-task2-shared-pointer-v1",
+  "verified": true
+}

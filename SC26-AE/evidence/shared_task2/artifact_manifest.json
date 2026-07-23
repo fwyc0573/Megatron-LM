@@ -1,0 +1,106 @@
+{
+  "artifact_source": "fresh",
+  "execution_evidence": "runtime_measurement_requires_external_two_gpu_qualification",
+  "files": [
+    {
+      "path": "interpreter_binding.json",
+      "sha256": "f0d290edb23ca5d7bfef81788b0eb9cb54f31c946167079d2256134d6a5817e6",
+      "size_bytes": 2742
+    },
+    {
+      "path": "logs/metrics_stdout.log",
+      "sha256": "d6cfb2333fca58c541b6e0aa7a78c4fd45bb1144f1d764f964a553c0f925aa1b",
+      "size_bytes": 895
+    },
+    {
+      "path": "logs/predict_stdout.log",
+      "sha256": "f7d714c655f2545f327c2d61cc0f19c5fede846db9fce9fa5221cf122f2eef89",
+      "size_bytes": 815
+    },
+    {
+      "path": "logs/run_all.log",
+      "sha256": "496acc35a6e70996651f9c0490ec7abaf2496985fa1e7dcca0ef7328275e852a",
+      "size_bytes": 623861
+    },
+    {
+      "path": "logs/run_timing.json",
+      "sha256": "46ab76c7c5b60e1afcb987041e92f438c538ede27de805499182c7d1b2439b83",
+      "size_bytes": 141
+    },
+    {
+      "path": "merge/input/kernel_metric_output.csv",
+      "sha256": "bf0c082d33d8ca001f534e4739e6a05a7a0a3c6fded523794786a2d4133fe173",
+      "size_bytes": 60547
+    },
+    {
+      "path": "metrics.json",
+      "sha256": "6cda47a5f011ec763443f8a31ccaa7fd27ac7398016a62b2b1bf6832003a8761",
+      "size_bytes": 973
+    },
+    {
+      "path": "metrics.md",
+      "sha256": "e0d31780ae7a41a611f9b44297fc3178cec5827242c8ba1a4c2bf4e2f200703b",
+      "size_bytes": 1136
+    },
+    {
+      "path": "provenance.json",
+      "sha256": "9807561094f2a314b658edba10b10f1e88ef91577dc2a478483aac5429d5449f",
+      "size_bytes": 995
+    },
+    {
+      "path": "provenance/interpreter_configs/kernel_metric.global_config.json",
+      "sha256": "07c82445e76cc13b6d911b7c2af7447e1c1081ee2205c8d7c3e543776a177dca",
+      "size_bytes": 217
+    },
+    {
+      "path": "provenance/interpreter_configs/merge.global_config.json",
+      "sha256": "eefaae456133ca819facb9adb1f3387d3ddb8cb48e71514c96eb68eb4d573bdd",
+      "size_bytes": 217
+    },
+    {
+      "path": "provenance/interpreter_configs/slowdown_collection.global_config.json",
+      "sha256": "bba3e634a5a837e17c618f02d7b1ba845e5a56eba67bbf829a6202e22edb23ec",
+      "size_bytes": 217
+    },
+    {
+      "path": "provenance/interpreter_configs/training_testing.global_config.json",
+      "sha256": "bba3e634a5a837e17c618f02d7b1ba845e5a56eba67bbf829a6202e22edb23ec",
+      "size_bytes": 217
+    },
+    {
+      "path": "snapshot_precheck.json",
+      "sha256": "65262f18dbbab5a7acf9cd7c7bcc88f8ecb9db842c1eb11a881b2dad8151cd93",
+      "size_bytes": 134
+    },
+    {
+      "path": "source_manifest.json",
+      "sha256": "026e8970c43b00d26f7ebaaa97804cb51b1ec1b4b05cc2766f2a82b0e158ba26",
+      "size_bytes": 7386
+    },
+    {
+      "path": "training_testing/output/standard_scaler.json",
+      "sha256": "71fdebff4a797f860f2f9f4088c9f0bdf6ca83ae01df303ca6ddb573df9fa16b",
+      "size_bytes": 616
+    },
+    {
+      "path": "training_testing/output/train_dataset.csv",
+      "sha256": "3f6fd7be758f016eb32cb864611348edee0d6e08d9289bb839c57c87879d7eb3",
+      "size_bytes": 39391
+    },
+    {
+      "path": "training_testing/output/xgb_model.json",
+      "sha256": "6f9474775b1c60a0489abf1f314af1f9366a87d515bb629f9430a12dc605e06e",
+      "size_bytes": 412174
+    }
+  ],
+  "model": "shared_task2",
+  "model_marker": "qwen3_a30b",
+  "predictor_run_id": "task2-20260722T142810Z-192-11368",
+  "schema_version": "sc26-ae-artifact-manifest-v1",
+  "source_commits": {
+    "echo_slowdown": "1390b4416ded08bc1b9cd0620d329d81d4470bf9",
+    "megatron_lm": "df940b09c25537add927441594664c71ce01d473",
+    "megatron_sim_engine": "2b18afc9ad3b860de2f46b9fc4b364313a21647a"
+  },
+  "task": "task2"
+}

@@ -1,0 +1,48 @@
+{
+    "3": {
+        "samples": [
+            {
+                "timestamp_s": 0.0002,
+                "reserved_memory_MB": 5260.9375,
+                "allocated_memory_MB": 2342.5107421875
+            },
+            {
+                "timestamp_s": 0.0105,
+                "reserved_memory_MB": 5264.9375,
+                "allocated_memory_MB": 2358.291015625
+            },
+            {
+                "timestamp_s": 0.0209,
+                "reserved_memory_MB": 5278.9375,
+                "allocated_memory_MB": 2377.00634765625
+            },
+            {
+                "timestamp_s": 0.0311,
+                "reserved_memory_MB": 5296.9375,
+                "allocated_memory_MB": 2392.9248046875
+            },
+            {
+                "timestamp_s": 0.0426,
+                "reserved_memory_MB": 5306.9375,
+                "allocated_memory_MB": 2402.7294921875
+            },
+            {
+                "timestamp_s": 0.0528,
+                "reserved_memory_MB": 5332.9375,
+                "allocated_memory_MB": 2382.0546875
+            },
+            {
+                "timestamp_s": 0.0631,
+                "reserved_memory_MB": 5332.9375,
+                "allocated_memory_MB": 2361.86181640625
+            },
+            {
+                "timestamp_s": 0.0741,
+                "reserved_memory_MB": 5332.9375,
+                "allocated_memory_MB": 2343.51123046875
+            }
+        ],
+        "peak_allocated_MB": 2436.15,
+        "theoretical_memory_MB": 63236.86
+    }
+}

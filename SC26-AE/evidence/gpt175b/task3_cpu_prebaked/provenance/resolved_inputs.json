@@ -1,0 +1,125 @@
+{
+  "artifact_source": "prebaked",
+  "capture_id": "gpt175b-20260722T181829Z",
+  "distribution_id": "sc26-ae-functional-clean-20260723T063212-c7288c6",
+  "distribution_manifest": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/distribution_manifest.json",
+  "input_expectations": {
+    "distribution_manifest": {
+      "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/distribution_manifest.json",
+      "sha256": "6e9ab347df9107b9f2ada1900db47e56f246f6b445ed06d62b5e2b4960a50468",
+      "size_bytes": 158614
+    },
+    "model_path": {
+      "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/shared_task2/training_testing/output/xgb_model.json",
+      "sha256": "6f9474775b1c60a0489abf1f314af1f9366a87d515bb629f9430a12dc605e06e",
+      "size_bytes": 412174
+    },
+    "ncu_metrics_csv": {
+      "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/ncu/kernel_metric_output.csv",
+      "sha256": "56270094af4a9b84e48a8989f1af3601298c2d9e74f92ef51d147f5527b477ae",
+      "size_bytes": 484342
+    },
+    "nsys_sqlite": {
+      "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/nsys/gpt175b.sqlite",
+      "sha256": "4a62b5db97331e9db89d9617aa9e411625ae8f1b4efe1282a2211a9869b195f3",
+      "size_bytes": 49344512
+    },
+    "scaler_path": {
+      "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/shared_task2/training_testing/output/standard_scaler.json",
+      "sha256": "71fdebff4a797f860f2f9f4088c9f0bdf6ca83ae01df303ca6ddb573df9fa16b",
+      "size_bytes": 616
+    },
+    "source_assets": [
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/slowdown_assets/backward_kernel_blueprints.json",
+        "sha256": "b6d5f2642f4cf68e10fab7f543e1cfccfe7fd458e912018227fb5f90d58722f3",
+        "size_bytes": 1617452
+      },
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/slowdown_assets/kernel_features.json",
+        "sha256": "c0a21fb2ca70f15e0430b58904572615eb3f3faf2d514045abcc8d60791172a8",
+        "size_bytes": 5762
+      },
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/slowdown_assets/manifest.json",
+        "sha256": "8e62f4efaba7e379fb91820cc21eea5df96e31534bfbd142d8d593b88a0c4165",
+        "size_bytes": 1027
+      }
+    ],
+    "task1_manifest": {
+      "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/artifact_manifest.json",
+      "sha256": "2a1dd4b083b8ed44c201b529663d2b1cd8033242f4a604eadbdb9f35318ed940",
+      "size_bytes": 23966
+    },
+    "task2_manifest": {
+      "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/shared_task2/artifact_manifest.json",
+      "sha256": "c1a06db5f21fa6c81afb8960fe5d82a433833d4f8a283d41c8a680fe832d5b53",
+      "size_bytes": 4149
+    },
+    "trace_files": [
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048/wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank0_20260722181904.txt",
+        "sha256": "eda11bb6019bf3d069073a04519dfaf2f8e233e58331162b5e09b4f2e51e710c",
+        "size_bytes": 39727
+      },
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048/wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank128_20260722181921.txt",
+        "sha256": "2f293acc999401f820f2ec49d075195f6ef888b9482560c8a1f255b7d71ff873",
+        "size_bytes": 11133
+      },
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048/wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank256_20260722181938.txt",
+        "sha256": "e94f050d0e85bc5396ebe079a08f4380867a6483b593db9efdb7c300103a106c",
+        "size_bytes": 11133
+      },
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048/wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank384_20260722181955.txt",
+        "sha256": "01776018c1a54e2dad7d96352080d0f0ddf4fc2afd6139556169feda69954266",
+        "size_bytes": 11132
+      },
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048/wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank512_20260722182011.txt",
+        "sha256": "edb26c35b709989f2a439df6802a1b140229a6d01774d93593bfb52c0502f775",
+        "size_bytes": 11136
+      },
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048/wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank640_20260722182028.txt",
+        "sha256": "393bba7ad0962a0c1bb7e642fee5fabd542ab473e479868d8ab14899b4c9357e",
+        "size_bytes": 11136
+      },
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048/wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank768_20260722182044.txt",
+        "sha256": "62897128437f16833e81377f9716a59de2a2d0dabc2558827bfe497717f05033",
+        "size_bytes": 11135
+      },
+      {
+        "path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048/wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank896_20260722182101.txt",
+        "sha256": "2738c56a71b724b69ca595710fa5596e6940ed9bb31d387e1fd13891ff8a41cc",
+        "size_bytes": 13382
+      }
+    ]
+  },
+  "model_path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/shared_task2/training_testing/output/xgb_model.json",
+  "model_relative": "training_testing/output/xgb_model.json",
+  "ncu_metrics_csv": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/ncu/kernel_metric_output.csv",
+  "ncu_metrics_relative": "ncu/kernel_metric_output.csv",
+  "ncu_metrics_source": "task1_rank0",
+  "nsys_sqlite": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/nsys/gpt175b.sqlite",
+  "nsys_sqlite_relative": "nsys/gpt175b.sqlite",
+  "predictor_run_id": "task2-20260722T142810Z-192-11368",
+  "scaler_path": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/shared_task2/training_testing/output/standard_scaler.json",
+  "scaler_relative": "training_testing/output/standard_scaler.json",
+  "schema_version": "sc26-ae-task3-resolved-inputs-v1",
+  "slowdown_trace_rank_ids": [
+    0
+  ],
+  "slowdown_trace_scope": "global_rank_0",
+  "slowdown_trace_source_dir": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048",
+  "source_assets_dir": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/slowdown_assets",
+  "task1_manifest": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/artifact_manifest.json",
+  "task1_root": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b",
+  "task2_manifest": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/shared_task2/artifact_manifest.json",
+  "task2_root": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/shared_task2",
+  "trace_dir": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/gpt175b/runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048",
+  "trace_dir_relative": "runtime/profiler_log/pp8_tp8_ep1_expnNone_dp16_nl96_hs12288_sl2048"
+}

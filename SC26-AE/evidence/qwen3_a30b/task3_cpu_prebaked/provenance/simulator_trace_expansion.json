@@ -1,0 +1,19 @@
+{
+  "destination_trace_dir": "/data/ycfeng/tmp/sc26_ae_clean_final_cpu_20260723T063749_qwen/qwen3_a30b/task3/runs/qwen3_a30b-clean-final-cpu-20260723T063749/simulator_trace",
+  "destination_trace_file_count": 256,
+  "mapping": "target rank maps to the captured representative with the same PP and EP coordinates; TP coordinate is expanded",
+  "representative_coordinates": [
+    "pp",
+    "ep"
+  ],
+  "schema_version": "sc26-ae-task3-simulator-trace-expansion-v1",
+  "source_trace_dir": "/data/ycfeng/tmp/sc26_ae_functional_prebaked_clean_20260723T063212_c7288c6/bundles/qwen3_a30b/runtime/profiler_log/pp8_tp8_ep4_expn128_dp4_nl48_hs2048_sl256",
+  "source_trace_file_count": 32,
+  "topology": {
+    "dp_size": 4,
+    "exp_size": 4,
+    "pp_size": 8,
+    "tp_size": 8,
+    "world_size": 256
+  }
+}

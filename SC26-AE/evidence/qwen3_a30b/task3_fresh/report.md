@@ -1,0 +1,16 @@
+# SC26 AE Rank0 Simulation Report
+
+| Field | Value |
+|---|---|
+| `schema_version` | `sc26-ae-rank0-report-v1` |
+| `model` | `qwen3_a30b` |
+| `artifact_source` | `fresh` |
+| `rank_id` | `0` |
+| `rank0_step_time_ms` | `3051.24` |
+| `rank0_forward_step_duration_sum_ms` | `0.32` |
+| `rank0_backward_step_duration_sum_ms` | `26.29` |
+| `rank0_optimizer_step_duration_sum_ms` | `3.62` |
+| `rank0_comp_plus_comm_diagnostic_ms` | `6221.86` |
+| `simulator_load_time_s` | `70.935776` |
+| `simulator_execution_time_s` | `760.9432` |
+| `simulator_wall_clock_s` | `831.878976` |

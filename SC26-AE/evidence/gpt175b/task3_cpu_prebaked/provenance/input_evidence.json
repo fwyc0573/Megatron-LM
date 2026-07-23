@@ -1,0 +1,98 @@
+{
+  "artifact_source": "prebaked",
+  "capture_id": "gpt175b-20260722T181829Z",
+  "distribution_manifest": {
+    "name": "distribution_manifest.json",
+    "sha256": "6e9ab347df9107b9f2ada1900db47e56f246f6b445ed06d62b5e2b4960a50468",
+    "size_bytes": 158614
+  },
+  "model": "gpt175b",
+  "ncu_metrics_csv": {
+    "name": "kernel_metric_output.csv",
+    "sha256": "56270094af4a9b84e48a8989f1af3601298c2d9e74f92ef51d147f5527b477ae",
+    "size_bytes": 484342
+  },
+  "nsys_sqlite": {
+    "name": "gpt175b.sqlite",
+    "sha256": "4a62b5db97331e9db89d9617aa9e411625ae8f1b4efe1282a2211a9869b195f3",
+    "size_bytes": 49344512
+  },
+  "predictor_run_id": "task2-20260722T142810Z-192-11368",
+  "schema_version": "sc26-ae-task3-input-evidence-v1",
+  "simulation_run_id": "gpt175b-clean-final-cpu-20260723T063628",
+  "slowdown_model": {
+    "name": "xgb_model.json",
+    "sha256": "6f9474775b1c60a0489abf1f314af1f9366a87d515bb629f9430a12dc605e06e",
+    "size_bytes": 412174
+  },
+  "slowdown_scaler": {
+    "name": "standard_scaler.json",
+    "sha256": "71fdebff4a797f860f2f9f4088c9f0bdf6ca83ae01df303ca6ddb573df9fa16b",
+    "size_bytes": 616
+  },
+  "slowdown_trace_file_count": 1,
+  "slowdown_trace_files": [
+    {
+      "name": "wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank0_20260722181904.txt",
+      "sha256": "eda11bb6019bf3d069073a04519dfaf2f8e233e58331162b5e09b4f2e51e710c",
+      "size_bytes": 39727
+    }
+  ],
+  "slowdown_trace_rank_ids": [
+    0
+  ],
+  "slowdown_trace_scope": "global_rank_0",
+  "task1_manifest": {
+    "name": "artifact_manifest.json",
+    "sha256": "2a1dd4b083b8ed44c201b529663d2b1cd8033242f4a604eadbdb9f35318ed940",
+    "size_bytes": 23966
+  },
+  "task2_manifest": {
+    "name": "artifact_manifest.json",
+    "sha256": "c1a06db5f21fa6c81afb8960fe5d82a433833d4f8a283d41c8a680fe832d5b53",
+    "size_bytes": 4149
+  },
+  "trace_file_count": 8,
+  "trace_files": [
+    {
+      "name": "wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank0_20260722181904.txt",
+      "sha256": "eda11bb6019bf3d069073a04519dfaf2f8e233e58331162b5e09b4f2e51e710c",
+      "size_bytes": 39727
+    },
+    {
+      "name": "wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank128_20260722181921.txt",
+      "sha256": "2f293acc999401f820f2ec49d075195f6ef888b9482560c8a1f255b7d71ff873",
+      "size_bytes": 11133
+    },
+    {
+      "name": "wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank256_20260722181938.txt",
+      "sha256": "e94f050d0e85bc5396ebe079a08f4380867a6483b593db9efdb7c300103a106c",
+      "size_bytes": 11133
+    },
+    {
+      "name": "wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank384_20260722181955.txt",
+      "sha256": "01776018c1a54e2dad7d96352080d0f0ddf4fc2afd6139556169feda69954266",
+      "size_bytes": 11132
+    },
+    {
+      "name": "wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank512_20260722182011.txt",
+      "sha256": "edb26c35b709989f2a439df6802a1b140229a6d01774d93593bfb52c0502f775",
+      "size_bytes": 11136
+    },
+    {
+      "name": "wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank640_20260722182028.txt",
+      "sha256": "393bba7ad0962a0c1bb7e642fee5fabd542ab473e479868d8ab14899b4c9357e",
+      "size_bytes": 11136
+    },
+    {
+      "name": "wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank768_20260722182044.txt",
+      "sha256": "62897128437f16833e81377f9716a59de2a2d0dabc2558827bfe497717f05033",
+      "size_bytes": 11135
+    },
+    {
+      "name": "wd1024_tp8_pp8_exp1_expNumNone_numl96_bs1_rank896_20260722182101.txt",
+      "sha256": "2738c56a71b724b69ca595710fa5596e6940ed9bb31d387e1fd13891ff8a41cc",
+      "size_bytes": 13382
+    }
+  ]
+}

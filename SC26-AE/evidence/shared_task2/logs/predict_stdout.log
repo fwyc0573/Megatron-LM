@@ -1,0 +1,9 @@
+/data/ycfeng/SC26-AE/output_gpu_20260722T2224_qwen3_df940_task2/_work/task2.task2-20260722T142810Z-192-11368/source/training_testing/predict.py:1: DeprecationWarning: 
+Pyarrow will become a required dependency of pandas in the next major release of pandas (pandas 3.0),
+(to allow more performant data types, such as the Arrow string type, and better interoperability with other libraries)
+but was not found to be installed on your system.
+If this would cause problems for you,
+please provide us feedback at https://github.com/pandas-dev/pandas/issues/54466
+        
+  import pandas as pd
+{'original_execution_time': 1.0, 'predicted_execution_time': 1.2976043224334717, 'predicted_execution_time_clipped': 1.2976043224334717, 'predicted_slowdown_factor': 0.59520864, 'predicted_slowdown_factor_clipped': 0.59520864}

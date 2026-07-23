@@ -1,0 +1,7 @@
+{
+    "cuda_visible_devices": "0,1",
+    "cuda_version_check": "12.1",
+    "ncu_path": "/usr/local/cuda/bin/ncu",
+    "python_path": "/opt/conda/envs/echo_slowdown/bin/python",
+    "nsys_path": "/usr/local/bin/nsys"
+}

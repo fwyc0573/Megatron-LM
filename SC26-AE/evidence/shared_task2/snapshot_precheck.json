@@ -1,0 +1,5 @@
+{
+  "excluded_paths_present_before_run": [],
+  "pre_execution_clean": true,
+  "schema_version": "sc26-ae-echo-snapshot-precheck-v1"
+}

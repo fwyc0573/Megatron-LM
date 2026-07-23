@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Added the canonical-branch and compact-evidence consolidation phase |
 | 2026-07-23 | Completed the exact-producer clean-clone bundle build, verification, and GPT/Qwen CPU-only replay |
 | 2026-07-23 | Closed both Fresh chains and the functional prebaked execution; retained clean committed-clone replay as the final functional gate |
 | 2026-07-23 | Rebased execution on the reduced GPT-175B/Qwen3 functional AE scope and closed the Task2 provenance blocker without rerunning Task2 |
@@ -2159,3 +2160,22 @@ mechanics and do not change any external qualification status.
 Stop conditions remain fail-fast for artifact checksum/provenance failures, real GPU runtime failures,
 or an independent-review `BLOCK`. Fidelity calibration and distributed ground-truth comparison are
 outside this reduced functional scope.
+
+## Session 63 canonical branch and evidence consolidation — 2026-07-23
+
+1. **Completed:** Create one branch, `sc26-ae-functional`, from the complete documentation descendant
+   `3b1b51eec0162bd00b694c054dc9527016690c9a`; do not create per-model delivery branches.
+2. **Completed:** Archive only compact, useful artifacts in `SC26-AE/evidence/`: selected workload traces and
+   memory files, rank-0 normalized NCU features, the real two-GPU dataset/predictor, Fresh/CPU
+   Task3 reports and provenance, manifests, markers, and build/verify logs.
+3. **Completed:** Keep multi-gigabyte NCU reports, Nsight databases, replay caches, simulator logs, and complete
+   functional bundles outside ordinary Git. Record their source path, bytes, manifest/hash, and
+   evidence boundary in the index instead of copying them into the branch.
+4. **Completed:** Preserve the original validated output trees. The branch copy is an immutable compact archive;
+   deleting/moving files out of their source runs would invalidate their source manifests.
+5. **Pending:** Commit the complete index/archive first, then rebuild and verify only the external functional
+   bundle against that final commit. Never rerun Task2. The bundle retains per-task producer
+   identities in `source_artifact_commits` and uses the final checkout only as the packaging
+   producer.
+6. **Completed:** Validate hashes, inventory consistency, script syntax, `git diff --check`, and the affected
+   compact package tests. Do not run distributed accuracy or paper-fidelity experiments.

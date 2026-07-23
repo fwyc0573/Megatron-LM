@@ -4,6 +4,10 @@
 
 | Date       | Summary of Changes        |
 |------------|---------------------------|
+| 2026-07-23 | Resolved I69: force-added Git-ignored compact traces/logs so all indexed evidence is tracked without changing artifact bytes |
+| 2026-07-23 | Resolved I68: corrected the consolidation process check's self-match false positive without changing Task2 behavior |
+| 2026-07-23 | Resolved I67: synchronized the public README with the current formal two-model and nine-entry documentation contract |
+| 2026-07-23 | Opened I66 for canonical-branch evidence consolidation and the external bundle self-reference boundary |
 | 2026-07-23 | Resolved I65 by rebuilding the functional bundle from the exact final producer commit and replaying both CPU consumers from its clean clone |
 | 2026-07-23 | Resolved I64 controller XGBoost dependency without rerunning Task2 and opened I65 for the final committed-clone replay |
 | 2026-07-23 | Resolved I63: functional Qwen representative capture was incorrectly routed through the release-only full-rank promotion gate |
@@ -1836,3 +1840,74 @@ artifact. The new distribution verified, and GPT/Qwen CPU-only Task3 both passed
 clean clone with new output roots, verified manifests/markers, finite nonnegative values, and zero
 Task2 commands. Functional fake-level readiness is closed; fidelity and release qualification
 remain outside scope.
+
+## I66 — Canonical branch and exact-producer evidence placement — IN PROGRESS
+
+**Problem:** the most complete source/docs commit was detached, while the verified functional
+bundle was produced by its parent. The user also requested one model-independent delivery branch
+and in-repo access to compact final artifacts.
+
+**Root cause:** a functional distribution records the checkout that performs packaging as its
+exact bundle producer. A distribution manifest cannot be committed into that same producer commit
+without changing the commit identity. Large raw captures also exceed a reasonable ordinary-Git
+scope.
+
+**Resolution direction:** `sc26-ae-functional` is the sole delivery branch and contains both model
+scripts plus compact evidence. Full bundles and multi-gigabyte raw captures remain external and are
+identified by manifest/hash. After the branch archive is committed, rebuild only the external
+functional distribution from that exact commit. Preserve every source run in place; copy verified
+records rather than removing files and breaking the original manifests. No Task2 command is
+permitted.
+
+## I67 — Stale public README contract — RESOLVED / LOCAL
+
+**Problem:** The first consolidation regression failed before package tests because the README did
+not name the existing deferred `task1_dsv3.sh` entry. Inspection showed the contract also expected
+17 other source/status/metric anchors absent from the canonical base README.
+
+**Root cause:** The README had been reduced to the new fake-level operator guide while
+`tests/unit/test_sc26_ae_docs_contract.sh` still enforced the older nine-entry documentation
+surface. This was a documentation completeness mismatch, not a missing runtime script.
+
+**Resolution:** Kept GPT-175B and Qwen3-A3B as the only formal models, added an explicitly
+deferred-only block for the three DeepSeek commands, and restored the source identity, qualification
+status, metric schema, exact-producer/no-fallback, and fail-fast contract text. The test itself was
+not weakened or changed.
+
+**Verification:** `bash tests/unit/test_sc26_ae_docs_contract.sh` returned exit `0` with
+`PUBLIC_ENTRY_COUNT=9` and `PAPER_SUGGESTION_COUNT=10`. No Task2 command was run.
+
+## I68 — Task2 process-scope self-match — RESOLVED / LOCAL
+
+**Problem:** The first full consolidation command printed two apparent Task2 processes.
+
+**Root cause:** The `ps | awk` pattern appeared literally in the validator command line, so the
+shell/awk scanner matched itself.
+
+**Resolution:** Replaced the one-off literal-pattern check with a `/proc/*/cmdline` scan that builds
+the target suffixes at runtime and excludes the scanner process. This changes only verification
+logic; it does not add a Task2 fallback or alter any artifact.
+
+**Verification:** Raw `ps` output contained no Task2 command; the self-excluding scan returned
+`TASK2_REAL_PROCESS_COUNT=0` and `PROCESS_SCOPE_STATUS=PASS`. Task2 commands executed during
+consolidation remain `0`.
+
+## I69 — Git ignore rules hid compact evidence from the staged archive — RESOLVED / LOCAL
+
+**Problem:** The first staged-scope audit showed only `112` evidence files even though the
+machine-readable inventory contained `177` indexed artifacts. Repository-wide ignore rules for
+`logs/`, `*.txt`, and `*.log` hid workload traces and provenance logs under `SC26-AE/evidence/`.
+
+**Root cause:** The evidence archive intentionally preserves runtime-produced text/log bytes, but
+the repository's historical ignore rules were written for generated runtime output and also
+matched the newly curated archive. This was a packaging/staging omission, not missing source
+artifacts.
+
+**Resolution:** Force-added only `SC26-AE/evidence/`; no source run was moved, deleted, normalized,
+or rewritten. The compact archive now stages all `180` filesystem files (`177` indexed artifacts
+plus three inventory metadata files). CRLF line endings in the preserved NCU CSVs remain byte
+exact; staged textual whitespace checks use `core.whitespace=cr-at-eol` rather than mutating
+validated evidence.
+
+**Verification:** Every indexed path is staged (`INDEXED_ARTIFACTS_STAGED=177`), no ignored
+evidence file remains, all `177` SHA256 checks pass, and the non-evidence staged diff check passes.

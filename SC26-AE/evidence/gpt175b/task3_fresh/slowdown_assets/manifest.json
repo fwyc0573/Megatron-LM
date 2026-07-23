@@ -1,0 +1,12 @@
+{
+  "clip_negative_slowdown": true,
+  "generator_version": "v3",
+  "kernel_timeline_model": "serial_interval_union_projection_v1",
+  "label_prefix": "cmd_trace",
+  "model_path": "/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4/_shared/task2/runs/task2-20260722T142810Z-192-11368/training_testing/output/xgb_model.json",
+  "scaler_path": "/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4/_shared/task2/runs/task2-20260722T142810Z-192-11368/training_testing/output/standard_scaler.json",
+  "scope": "ddp_backward_only",
+  "source_ncu_metrics": "/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4/gpt175b/task1/runs/gpt175b-20260722T181829Z/ncu/kernel_metric_output.csv",
+  "source_nsys_sqlite": "/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4/gpt175b/task1/runs/gpt175b-20260722T181829Z/nsys/gpt175b.sqlite",
+  "source_trace_dir": "/data/ycfeng/SC26-AE/output_gpu_20260722T1935_qwen3_i72_fix_r4/gpt175b/task3/runs/gpt175b-20260722T194650Z-296-25436/slowdown_trace_rank0"
+}

@@ -4,6 +4,8 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Reviewed staged archive completeness and approved force-added ignored evidence with byte-preserving CRLF handling |
+| 2026-07-23 | Recorded the independent canonical-branch provenance review and reconciliation |
 | 2026-07-23 | Recorded the exact-producer clean-clone functional replay and final fake-level AE verdict |
 | 2026-07-23 | Recorded the primary verification checkpoint for real Fresh artifacts, the functional bundle, and both CPU-only consumers before clean-clone replay |
 | 2026-07-23 | Recorded independent StepCode Claude `APPROVE` for isolating the functional 32-rank Qwen gate from release full-rank promotion |
@@ -4215,3 +4217,128 @@ closed at the exact producer commit, so `functional-fake-level-AE-ready=YES`. Th
 promote the artifacts to release qualification, multi-node distributed accuracy, or paper-number
 fidelity: `release-ready=NO`, `distributed-accuracy-qualified=NO`, and
 `paper-fidelity-reproduced=NO`.
+
+## Review Checkpoint — Session 63 canonical branch provenance — 2026-07-23
+
+### Target Component/Phase
+
+Selection of one final branch and the placement of compact versus multi-gigabyte AE evidence.
+
+### Reviewer Agent Identity
+
+Independent StepCode Claude (`claude-opus-4-6[1m]`, effort `max`), artifact
+`.omx/artifacts/claude-provide-an-independent-read-only-review-of-this-branch-prove-2026-07-23T03-22-35-589Z.md`;
+reconciled by the primary Codex lane `/root` against the current functional packager schema.
+
+### Inspected Artifacts
+
+- Commits `c7288c66...` and `3b1b51ee...`.
+- `SC26-AE/tools/package_prebaked.py` producer/source-artifact schema.
+- Existing distribution manifest and its `producer_commits` / `source_artifact_commits` records.
+- Final Fresh Task1/Task2/Task3 roots and final CPU-only Task3 output roots.
+
+### Identified Issues/Anomalies
+
+1. Claude recommended keeping the branch exactly at `c7288c66...` to avoid falsely relabeling old
+   evidence, but that option cannot also satisfy the user's requirement to version the newer docs,
+   compact records, and operator index in one branch.
+2. The review treated bundle and source-artifact producers as one identity. The implemented
+   functional schema intentionally separates them: packaging uses the current checkout, while the
+   original Task1/Task2/Task3 producers remain sealed in `source_artifact_commits`.
+3. Committing a newly generated distribution manifest into its own producer commit is inherently
+   self-referential. The full distribution therefore remains an external release artifact.
+
+### Remediation/Verification Code Actions Taken
+
+- Created only `sc26-ae-functional` from `3b1b51ee...`; no per-model branch was created.
+- Retained exact-source provenance and prohibited Task2 reruns.
+- Chose compact in-Git evidence plus an external exact-producer bundle, with hashes and source
+  locations indexed in the branch.
+- Deferred the new bundle build until all branch files are committed, preventing another producer
+  mismatch.
+
+### Review Verdict
+
+`WATCH`, reconciled to proceed. The review's provenance concern is valid and is addressed by
+preserving heterogeneous source producers and keeping the exact-producer distribution external;
+the branch must not claim release qualification or distributed/paper fidelity.
+
+## Review Checkpoint — Session 63 compact archive validation — 2026-07-23
+
+### Target Component/Phase
+
+Canonical branch documentation, compact evidence inventory, and pre-commit validation.
+
+### Reviewer Agent Identity
+
+Primary Codex lane `/root`, with the independent provenance review above retained as the separate
+cross-model input.
+
+### Inspected Artifacts
+
+- `SC26-AE/README.md`, `SC26-AE/evidence/INDEX.md`, `SC26-AE/evidence/index.json`, and
+  `SC26-AE/evidence/checksums.sha256`.
+- GPT/Qwen Task1 compact traces, memory files, rank-0 NCU CSVs, Task2 predictor/dataset, and all
+  Fresh/CPU Task3 compact manifests, markers, reports, and provenance.
+- `tests/unit/test_sc26_ae_docs_contract.sh` and
+  `tests/unit/test_sc26_ae_package_prebaked.py`.
+- Paper path `2026-SC-first-submission/sc25-ad-ae/for-paper-authors/sc26-ad.tex` and Task2
+  process scope.
+
+### Identified Issues/Anomalies
+
+1. The public README was missing deferred entry-point and current status/metric anchors required by
+   the existing docs contract.
+2. A combined process check could match its own command-line arguments.
+3. The machine index listed this report before the report file was created.
+
+### Remediation/Verification Code Actions Taken
+
+- Added explicit deferred-only DeepSeek commands and current formal GPT/Qwen source/status/metric
+  documentation without changing the docs contract or paper.
+- Separated the `/proc` Task2 process scan from the syntax command and confirmed zero real Task2
+  processes.
+- Created the consolidation report, reran document existence and all compact inventory checks, and
+  verified all `177` checksums.
+- Re-ran shell syntax (`13/13`), Python compilation (`4/4`), docs contract (`9` public entries,
+  `10` paper suggestions), and the package suite (`40 passed in 8.93 s`).
+
+### Review Verdict
+
+`PASS WITH WATCH`: compact branch evidence and documentation are internally consistent. The only
+remaining action is the planned external exact-producer functional bundle rebuild after the final
+branch commit; no Task2 rerun is allowed.
+
+## Review Checkpoint — Session 64 staged archive completeness — 2026-07-23
+
+### Target Component/Phase
+
+Pre-commit staged-file scope for the canonical compact evidence archive.
+
+### Reviewer Agent Identity
+
+Primary Codex lane `/root`, using a direct staged-index audit.
+
+### Inspected Artifacts
+
+- `SC26-AE/evidence/index.json`, `checksums.sha256`, and all compact evidence paths.
+- Repository ignore rules affecting `logs/`, `*.txt`, and `*.log`.
+- Staged Git name set and source-byte checksum verification.
+
+### Identified Issues/Anomalies
+
+Normal `git add` omitted `68` runtime-produced evidence files because historical ignore rules also
+matched the curated archive. NCU CSV files retain CRLF line endings that Git reports as trailing
+whitespace under the default whitespace policy.
+
+### Remediation/Verification Code Actions Taken
+
+- Force-added only `SC26-AE/evidence/`; did not modify the ignore policy or source artifacts.
+- Preserved CRLF bytes and checked staged text with `core.whitespace=cr-at-eol`.
+- Asserted every indexed artifact is staged and reran the archive checksum gate.
+
+### Review Verdict
+
+`PASS`: `INDEXED_ARTIFACTS_STAGED=177`, `EVIDENCE_FILES_STAGED=180`, ignored evidence count `0`,
+checksum pass `177/177`, and non-evidence staged diff check `PASS`. The final external bundle must
+still be rebuilt only after the canonical commit; Task2 remains unchanged.

@@ -1,0 +1,182 @@
+{
+  "CatArrayBatchedCopy": {
+    "Achieved occupancy": 80.231667,
+    "Compute throughput": 66.733333,
+    "DRAM throughput": 13.152083,
+    "L1 hit rate": 6.340833,
+    "L2 hit rate": 79.931667,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 47.039375
+  },
+  "DeviceRadixSortSingleTileKernel": {
+    "Achieved occupancy": 12.555,
+    "Compute throughput": 0.22,
+    "DRAM throughput": 0.16,
+    "L1 hit rate": 60.0,
+    "L2 hit rate": 95.09,
+    "Maximum occupancy": 12.5,
+    "Memory throughput": 3.3275
+  },
+  "cuComputeGradGammaBeta": {
+    "Achieved occupancy": 34.730417,
+    "Compute throughput": 12.348021,
+    "DRAM throughput": 9.223125,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 40.375625,
+    "Maximum occupancy": 50.0,
+    "Memory throughput": 9.276562
+  },
+  "cuComputeGradInput": {
+    "Achieved occupancy": 48.205938,
+    "Compute throughput": 30.544062,
+    "DRAM throughput": 44.330625,
+    "L1 hit rate": 70.332292,
+    "L2 hit rate": 25.909583,
+    "Maximum occupancy": 56.25,
+    "Memory throughput": 44.330625
+  },
+  "cuComputePartGradGammaBeta": {
+    "Achieved occupancy": 57.757812,
+    "Compute throughput": 56.071354,
+    "DRAM throughput": 46.732188,
+    "L1 hit rate": 76.972917,
+    "L2 hit rate": 12.012188,
+    "Maximum occupancy": 62.5,
+    "Memory throughput": 85.043437
+  },
+  "elementwise_kernel": {
+    "Achieved occupancy": 84.717844,
+    "Compute throughput": 53.827936,
+    "DRAM throughput": 18.617018,
+    "L1 hit rate": 30.423394,
+    "L2 hit rate": 54.891009,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 21.558486
+  },
+  "elementwise_kernel_with_index": {
+    "Achieved occupancy": 3.7175,
+    "Compute throughput": 0.15,
+    "DRAM throughput": 0.03,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 99.16,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 11.11
+  },
+  "embedding_backward_feature_kernel": {
+    "Achieved occupancy": 81.6975,
+    "Compute throughput": 26.955,
+    "DRAM throughput": 15.48,
+    "L1 hit rate": 33.3975,
+    "L2 hit rate": 36.7725,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 15.48
+  },
+  "indexing_backward_kernel": {
+    "Achieved occupancy": 3.2525,
+    "Compute throughput": 2.47,
+    "DRAM throughput": 0.87,
+    "L1 hit rate": 70.415,
+    "L2 hit rate": 52.2875,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 1.3575
+  },
+  "kernel5": {
+    "Achieved occupancy": 44.926915,
+    "Compute throughput": 31.413511,
+    "DRAM throughput": 59.428191,
+    "L1 hit rate": 11.482234,
+    "L2 hit rate": 51.575106,
+    "Maximum occupancy": 56.25,
+    "Memory throughput": 59.428191
+  },
+  "kernel6": {
+    "Achieved occupancy": 85.888511,
+    "Compute throughput": 73.635532,
+    "DRAM throughput": 65.90383,
+    "L1 hit rate": 21.119574,
+    "L2 hit rate": 37.934043,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 65.90383
+  },
+  "reduce_kernel": {
+    "Achieved occupancy": 75.78792,
+    "Compute throughput": 13.5624,
+    "DRAM throughput": 61.03276,
+    "L1 hit rate": 5.24712,
+    "L2 hit rate": 9.51996,
+    "Maximum occupancy": 82.85,
+    "Memory throughput": 61.03276
+  },
+  "scaled_upper_triang_masked_softmax_warp_backward": {
+    "Achieved occupancy": 16.716458,
+    "Compute throughput": 18.240208,
+    "DRAM throughput": 46.864792,
+    "L1 hit rate": 22.041042,
+    "L2 hit rate": 51.463333,
+    "Maximum occupancy": 18.75,
+    "Memory throughput": 46.864792
+  },
+  "sm90_xmma_gemm_bf16bf16_bf16f32_f32_nn_n_tilesize128x128x64_warpgroupsize1x1x1_execute_segment_k_off_kernel__51_cublas": {
+    "Achieved occupancy": 15.597813,
+    "Compute throughput": 60.162708,
+    "DRAM throughput": 49.452604,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 52.75724,
+    "Maximum occupancy": 18.75,
+    "Memory throughput": 66.476458
+  },
+  "sm90_xmma_gemm_bf16bf16_bf16f32_f32_nn_n_tilesize128x256x64_warpgroupsize2x1x1_execute_segment_k_off_kernel__51_cublas": {
+    "Achieved occupancy": 15.644583,
+    "Compute throughput": 77.458125,
+    "DRAM throughput": 25.730729,
+    "L1 hit rate": 36.06,
+    "L2 hit rate": 67.961458,
+    "Maximum occupancy": 18.75,
+    "Memory throughput": 49.625104
+  },
+  "sm90_xmma_gemm_bf16bf16_bf16f32_f32_nt_n_tilesize128x128x64_warpgroupsize1x1x1_execute_segment_k_off_kernel__51_cublas": {
+    "Achieved occupancy": 13.816146,
+    "Compute throughput": 34.506563,
+    "DRAM throughput": 67.880313,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 39.058646,
+    "Maximum occupancy": 18.75,
+    "Memory throughput": 67.880313
+  },
+  "sm90_xmma_gemm_bf16bf16_bf16f32_f32_tn_n_tilesize128x128x64_warpgroupsize1x1x1_execute_segment_k_off_kernel__51_cublas": {
+    "Achieved occupancy": 17.141708,
+    "Compute throughput": 61.661083,
+    "DRAM throughput": 35.724167,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 79.199875,
+    "Maximum occupancy": 18.75,
+    "Memory throughput": 58.527958
+  },
+  "sm90_xmma_gemm_bf16f32_bf16f32_f32_nt_n_tilesize128x128x64_warpgroupsize1x1x1_execute_segment_k_off_kernel__51_cublas": {
+    "Achieved occupancy": 18.116354,
+    "Compute throughput": 66.5625,
+    "DRAM throughput": 45.688906,
+    "L1 hit rate": 0.0,
+    "L2 hit rate": 62.936458,
+    "Maximum occupancy": 18.75,
+    "Memory throughput": 60.455521
+  },
+  "unrolled_elementwise_kernel": {
+    "Achieved occupancy": 24.996328,
+    "Compute throughput": 12.909009,
+    "DRAM throughput": 11.897447,
+    "L1 hit rate": 21.710845,
+    "L2 hit rate": 81.776892,
+    "Maximum occupancy": 100.0,
+    "Memory throughput": 16.055465
+  },
+  "vectorized_elementwise_kernel": {
+    "Achieved occupancy": 40.225485,
+    "Compute throughput": 10.957373,
+    "DRAM throughput": 40.620567,
+    "L1 hit rate": 13.961185,
+    "L2 hit rate": 78.054052,
+    "Maximum occupancy": 99.914163,
+    "Memory throughput": 45.690034
+  }
+}

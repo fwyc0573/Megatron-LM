@@ -4,6 +4,7 @@
 
 | Date       | Summary of Changes |
 |------------|--------------------|
+| 2026-07-23 | Declared `sc26-ae-functional` as the single GPT/Qwen delivery branch and linked the checksum-backed artifact checklist |
 | 2026-07-23 | Closed the clean committed-clone replay and recorded the exact functional bundle producer commit |
 | 2026-07-23 | Recorded verified GPT/Qwen Fresh chains, the real functional bundle, both CPU-only Task3 runs, and the remaining clean-clone gate |
 | 2026-07-23 | Bound CPU-only functional Task3 to an explicit `python3` runtime with XGBoost and `/data/ycfeng/tmp` temporary storage |
@@ -25,6 +26,33 @@ the CPU. This README describes the requested fake-level functional workflow. It 
 multi-node distributed accuracy and does not modify
 `2026-SC-first-submission/sc25-ad-ae/for-paper-authors/sc26-ad.tex`.
 
+## Canonical branch and artifact map
+
+The single AE delivery branch for both supported models is:
+
+```bash
+git switch sc26-ae-functional
+```
+
+Do not select a branch by model name. Other `sc26-ae*` branches, detached worktrees, and OMX worker
+worktrees are historical development or audit state. The canonical branch contains the formal
+Task1/2/3 scripts for GPT-175B and Qwen3-A3B together.
+
+Use the following files to locate and verify the retained artifacts:
+
+| File | Purpose |
+|------|---------|
+| [`SC26-AE/evidence/INDEX.md`](evidence/INDEX.md) | Human-readable script/artifact checklist, topology, key metrics, and verification commands |
+| [`SC26-AE/evidence/index.json`](evidence/index.json) | Machine-readable list of 177 compact artifacts plus seven external large roots |
+| [`SC26-AE/evidence/checksums.sha256`](evidence/checksums.sha256) | SHA256 verification list for the compact archive |
+
+The compact archive contains selected workload traces, memory files, model-local rank-0 NCU
+features, the real two-GPU Task2 dataset and predictor, Fresh/CPU Task3 reports, manifests,
+markers, provenance, and key logs. Multi-gigabyte NCU reports, Nsight databases, replay caches,
+expanded simulator output, and complete functional bundles remain external and are anchored by
+manifest path and SHA256 in `index.json`. Original validated output trees are preserved intact;
+the in-branch evidence files are checksum-verified copies, not files removed from those runs.
+
 ## Current scope and evidence boundary
 
 The formal AE model scope is:
@@ -34,6 +62,16 @@ The formal AE model scope is:
 
 The deferred DeepSeek-V3 path remains available only for historical diagnostics. It is not part of
 the current AE chain and must not be used as a substitute for Qwen3 evidence.
+
+The three historical DeepSeek entry points remain discoverable for audit purposes only. Do not run
+these commands as part of the current formal chain:
+
+```bash
+# DEFERRED / HISTORICAL ONLY -- not a formal AE command
+bash SC26-AE/task1_dsv3.sh
+bash SC26-AE/task2_dsv3.sh
+bash SC26-AE/task3_dsv3.sh
+```
 
 Current fake-level local evidence status:
 
@@ -45,18 +83,20 @@ real_two_gpu_task2=VERIFIED_REUSED; TASK2_COMMANDS_EXECUTED=0
 real_fresh_task3=GPT_VERIFIED; QWEN3_VERIFIED
 functional_bundle=VERIFIED
 cpu_prebaked_task3=GPT_VERIFIED; QWEN3_VERIFIED
-functional_bundle_producer_commit=c7288c66f0a6c3d0445edc841a6e5982d3b22f09
+archived_functional_bundle_producer_commit=c7288c66f0a6c3d0445edc841a6e5982d3b22f09
 clean_committed_clone=VERIFIED
 functional-fake-level-AE-ready=YES
 release-ready=NO
 ```
 
 The Fresh chains and functional prebaked path are closed, including a replay from the exact clean
-producer commit above. Functional distribution verification deliberately requires the current
-checkout to equal the bundle producer recorded in `distribution_manifest.json`; a later docs-only
-descendant is not accepted. Historical output may be retained for audit, but must not be relabeled
-as new qualified evidence. This reduced workflow never promotes the result to distributed-accuracy
-or release qualification.
+producer commit above. That archived bundle remains valid only at its recorded producer commit.
+Functional distribution verification deliberately requires the current checkout to equal the
+bundle producer recorded in `distribution_manifest.json`; a later docs/evidence descendant is not
+accepted. After changing the canonical branch, build a new complete bundle externally from the
+new exact commit rather than weakening this check. Historical output may be retained for audit,
+but must not be relabeled as new qualified evidence. This reduced workflow never promotes the
+result to distributed-accuracy or release qualification.
 
 ## Hardware and topology
 
@@ -109,6 +149,35 @@ GROUPED_GEMM_SOURCE=archive bash SC26-AE/setup.sh
 
 Setup validates the fixed runtime bindings; it does not discover or silently replace a missing
 interpreter/tool.
+
+## Source identity and qualification boundary
+
+The compact archive and historical functional record use these source identities:
+
+| Component | Commit / status |
+|-----------|----------------|
+| Main repository commit (archive base) | `3b1b51eec0162bd00b694c054dc9527016690c9a` |
+| Archived exact functional producer | `c7288c66f0a6c3d0445edc841a6e5982d3b22f09` |
+| Echo-slowdown | `1390b4416ded08bc1b9cd0620d329d81d4470bf9` |
+| megatron-sim-engine | `51eed0404635632fd52a99b3f372d5830b1d73b4` |
+| collective-sim nested gitlink | `6e06e3f5140cd4e2e7c12a35586ebcdc0f410df0` |
+| Current worker image | `hub.i.basemind.com/mg-echo/megatron-h800:v1.2-ae` (immutable digest unresolved; no release qualification) |
+
+The current status is intentionally explicit:
+
+```text
+EVIDENCE_CLASS=local_synthetic_not_gpu_qualification
+QUICK_TASK3_STATUS=LOCAL_SMOKE_COMPATIBLE_NOT_RELEASE_QUALIFIED
+REAL_RUNTIME_EVIDENCE_STATUS=PENDING_H800_QUALIFICATION
+CANONICAL_PREBAKED_DISTRIBUTION=NOT_SELECTED
+functional-fake-level-AE-ready=YES
+AE-ready=NO
+release-ready=NO
+```
+
+`AE-ready=NO` refers to release/distributed qualification. The functional fake-level workflow is
+usable, but it must not be promoted to a release or accuracy claim. The image tag alone is never
+an immutable qualification proof; resolve a digest before any future real-worker qualification.
 
 ## Task1: workload tracing
 
@@ -207,6 +276,11 @@ qualification. Task2 output is written to:
   artifact_manifest.json
 ```
 
+The reusable Task2 report preserves these machine-readable fields: `task2_run_all_elapsed_seconds`,
+`dataset_row_count`, `validation_mse_by_fold`, `average_validation_mse`, `test_mse`,
+`model_reload_max_abs_prediction_delta`, `scaler_feature_count`, `scaler_mean_count`,
+`scaler_scale_count`, `scaler_nonzero_scale_count`, and `prediction_sample`.
+
 ## Task3 path A: Fresh chain
 
 Run Fresh Task3 only after the corresponding Fresh Task1 and shared Task2 have completed. The
@@ -246,6 +320,11 @@ prebaked source automatically. A successful run emits:
 The report includes `rank0_step_time_ms`, forward/backward/optimizer scheduled sums, and
 simulator load/execution/wall-clock values. These values demonstrate workflow output; they are not
 distributed-accuracy claims for this task.
+
+The exact report fields are `rank0_step_time_ms`, `rank0_forward_step_duration_sum_ms`,
+`rank0_backward_step_duration_sum_ms`, `rank0_optimizer_step_duration_sum_ms`,
+`rank0_comp_plus_comm_diagnostic_ms`, `simulator_load_time_s`, `simulator_execution_time_s`, and
+`simulator_wall_clock_s`.
 
 ## Task3 path B: functional prebaked (CPU-only)
 
@@ -307,6 +386,26 @@ bash SC26-AE/task3_qwen3_a30b.sh
 
 The functional path must also emit report, manifest, and marker files. These outputs prove fake-
 level workflow wiring only; they do not become H800, Fresh, or release qualification.
+
+The packager's production CLI is strict about exact producer/source identity and does not accept a
+descendant checkout as a substitute. There is no automatic fresh-to-prebaked fallback: select
+`ARTIFACT_SOURCE=fresh` or `ARTIFACT_SOURCE=prebaked` explicitly. A missing kernel follows the
+documented exact-match, unique-alias, or `missing_skip` policy; it does not trigger Task2 rerun.
+The functional package is a local/synthetic distribution, not a release package.
+
+## Fail-fast troubleshooting
+
+* Missing fixed interpreter, GPU, Nsight tool, manifest, marker, or checksum: stop and report the
+  root cause; do not switch interpreters or fabricate evidence.
+* One visible GPU for Task2: stop; Task2 requires two distinct physical GPU IDs.
+* A missing Task3 kernel: use exact match, one unambiguous alias, or `missing_skip` baseline;
+  do not recollect the predictor dataset.
+* A producer-commit mismatch: check out the exact producer named by the distribution manifest or
+  build a new external bundle from the exact current commit. Do not weaken the verifier.
+
+`collective-sim` is optional background infrastructure for historical simulator work. The formal
+fake-level AE path explicitly uses the analytical backend and does not silently fall back to
+`collective-sim`.
 
 ## Validation commands (current checkout)
 

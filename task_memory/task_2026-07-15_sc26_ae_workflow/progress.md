@@ -4,6 +4,8 @@
 
 | Date       | Summary of Changes                                  |
 |------------|------------------------------------------------------|
+| 2026-07-23 | Completed the pre-commit staged-archive audit: force-added ignored compact files and preserved exact CRLF evidence bytes |
+| 2026-07-23 | Started Session 63 artifact consolidation and created the single `sc26-ae-functional` branch |
 | 2026-07-23 | Closed the final exact-producer clean-clone replay after diagnosing the older-bundle commit mismatch without weakening verification |
 | 2026-07-23 | Completed both real Fresh chains, built and reverified the functional bundle, and validated GPT/Qwen CPU-only prebaked Task3 without rerunning Task2 |
 | 2026-07-23 | Closed the real Qwen functional-build rank-policy mismatch with a one-line release-gate isolation and 40-test regression |
@@ -3407,3 +3409,111 @@ and `git diff --check` all passed with exit `0`. `sc26-ad.tex` changed paths=`0`
 processes=`0`; Echo and sim-engine tracked status lines=`0/0`. No heavy test suite or workflow was
 rerun because the final change set is documentation-only and the existing package regression
 already passed `40/40` in `10.81 s`.
+
+## Session 63 canonical branch and compact evidence consolidation — 2026-07-23
+
+### Canonical branch and archive boundary
+
+**Motivation:** Final scripts and verified records were spread across detached worktrees and large
+runtime roots, so an AE reviewer could not identify one reusable delivery branch or quickly audit
+the retained files.
+
+**Expectation:** One model-independent branch must contain the GPT-175B and Qwen3-A3B scripts,
+operator documentation, compact workload traces, memory records, rank-0 NCU features, the real
+two-GPU Task2 dataset/predictor, Task3 reports/manifests/markers, and a checksum-backed inventory.
+Multi-gigabyte runtime trees must remain intact and external. Task2 must not run.
+
+**Method:** Created branch `sc26-ae-functional` from
+`3b1b51eec0162bd00b694c054dc9527016690c9a`. Copied selected immutable files into
+`SC26-AE/evidence/` and verified every copied byte against its source SHA256. Kept each source run
+unchanged so its existing manifest remains valid. Generated the machine-readable
+`SC26-AE/evidence/index.json` and `checksums.sha256`; recorded seven large external roots by
+absolute path, byte count, anchor manifest, and anchor-manifest SHA256. No Task2 entry point was
+invoked.
+
+**Result:** The compact archive currently contains `177` indexed files totaling `16,048,905`
+bytes, including `40` workload traces, `40` memory traces, two rank-0 normalized NCU CSVs, a
+`727`-row Task2 training dataset, two predictor files, eight reports, eight manifests, seven
+markers, and selected provenance/log records. GPT coverage is `8/8` PP representatives; Qwen
+coverage is `32/32` PP×EP representatives. The next actions are to add the human-readable index,
+update the operator README, verify the complete inventory, and commit the canonical branch before
+rebuilding the external exact-producer functional bundle.
+
+### Session 63 README contract RED→GREEN repair
+
+**Motivation:** The first relevant regression run reached the existing documentation contract and
+failed with `DOC_CONTRACT_FAIL: README entry task1_dsv3.sh is missing`.
+
+**Expectation:** Preserve the reduced formal GPT/Qwen scope while keeping every repository entry
+discoverable, explicitly mark DeepSeek-V3 as deferred, and expose the source/status/metric fields
+that the contract checks. Do not alter the paper or weaken the contract.
+
+**Method:** Compared the failure against the canonical branch base README. The base already lacked
+all 18 legacy contract anchors, so the issue was an obsolete/incomplete public README rather than
+a consolidation artifact. Added a deferred-only command block for the three DeepSeek entries,
+full source identity/status boundaries, Task2/Task3 machine-readable field lists, strict
+no-fallback wording, and fail-fast troubleshooting. Re-ran the unchanged documentation test.
+
+**Result:** GREEN: `DOC_CONTRACT_STATUS=PASS`, `PUBLIC_ENTRY_COUNT=9`,
+`PAPER_SUGGESTION_COUNT=10`, exit `0`. Formal evidence scope remains GPT-175B and Qwen3-A3B;
+DeepSeek remains deferred and no Task2 command was executed.
+
+### Session 63 process-scope assertion RED→GREEN repair
+
+**Motivation:** The first full regression reported `TASK2_RUNNING_PROCESS_COUNT=2` after all
+functional checks had passed.
+
+**Root cause:** The shell assertion embedded the literal Task2 path pattern in its own command
+line. `ps` therefore matched the validator shell/awk command text, not a running Task2 process.
+
+**Method:** Inspected the raw process list (no Task2 command was present), then ran the
+`/proc/*/cmdline` scan as a separate command. The scan constructs target suffixes at runtime and
+does not share a parent command line containing the syntax-test file list. No production script or
+Task2 artifact was changed.
+
+**Result:** `TASK2_REAL_PROCESS_COUNT=0` and `PROCESS_SCOPE_STATUS=PASS`. The earlier counts were
+validator false positives; Task2 was not run during consolidation.
+
+### Session 63 final compact validation
+
+**Motivation:** Close the branch-organization phase with fresh evidence after creating the formal
+consolidation report and after correcting the process-scope self-match.
+
+**Expectation:** All relevant local checks pass without starting a workload, changing the paper,
+or rerunning Task2.
+
+**Method:** Re-ran shell syntax, Python compilation, the unchanged README contract, JSON/index
+consistency (including five indexed documents), all 177 checksums, the existing package unit suite,
+`git diff --check`, a paper changed-path check, and the separated `/proc` process guard. All temp
+and bytecode roots were under `/data/ycfeng/tmp`.
+
+**Result:** Shell `13/13`; Python compile `4/4`; docs contract `9` public entries and `10` paper
+suggestions; inventory `177` files / `16,048,905` bytes; JSON parse `101`; traces/memory `40/40`;
+GPT/Qwen rank vectors `8/32`; Task2 rows/GPU count `727/2`; external roots `7`; checksums `177/177`;
+package tests `40 passed in 8.93 s`; paper changed paths `0`; Task2 real processes `0`; and
+`git diff --check=PASS`. The formal report is
+`test_report_2026-07-23_artifact_consolidation.md`.
+
+## Session 64 staged archive completeness repair — 2026-07-23
+
+**Motivation:** Before committing the canonical branch, verify that the in-branch archive actually
+contains every path promised by `SC26-AE/evidence/index.json`, not only files visible to normal
+`git add`.
+
+**Expectation:** All `177` indexed artifacts and the three inventory metadata files must be staged;
+source bytes and source-run manifests must remain unchanged. The paper and Task2 remain untouched.
+
+**Method:** Audited `git check-ignore` and found the repository's historical `logs/`, `*.txt`, and
+`*.log` rules hiding `68` curated evidence files. Force-added only `SC26-AE/evidence/`, asserted
+that every indexed path appears in the staged name set, and used `core.whitespace=cr-at-eol` for
+the staged diff check so preserved NCU CSV CRLF bytes were not rewritten.
+
+**Result:** `INDEXED_ARTIFACTS_STAGED=177`, `EVIDENCE_FILES_STAGED=180`, ignored evidence count
+`0`, indexed SHA256 verification `177/177`, and non-evidence staged whitespace check `PASS`.
+No Task2 process or workload command was started.
+
+The first combined final-precommit probe reproduced the already-known I68 validator self-match
+because its parent shell also contained the syntax file names; it was not a running Task2 job.
+The static checks were rerun without the process scan, then the `/proc` scan was executed as a
+separate command with runtime-built suffixes and returned `TASK2_REAL_PROCESS_COUNT=0` and
+`PROCESS_SCOPE_STATUS=PASS`.

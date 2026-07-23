@@ -1,0 +1,15 @@
+{
+  "artifact_manifest_sha256": "490bf26101edbb4594b7c21d14a3a7b858d5aa654b7bfa706224d660fdbc77bd",
+  "capture_id": "gpt175b-20260722T181829Z",
+  "manifest_sha256": "490bf26101edbb4594b7c21d14a3a7b858d5aa654b7bfa706224d660fdbc77bd",
+  "model": "gpt175b",
+  "ncu_feature_csv_path": "ncu/kernel_metric_output.csv",
+  "ncu_feature_csv_sha256": "56270094af4a9b84e48a8989f1af3601298c2d9e74f92ef51d147f5527b477ae",
+  "ncu_feature_rank_ids": [
+    0
+  ],
+  "ncu_feature_scope": "global_rank_0",
+  "run_path": "runs/gpt175b-20260722T181829Z",
+  "schema_version": "sc26-ae-task1-capture-marker-v1",
+  "verified": true
+}

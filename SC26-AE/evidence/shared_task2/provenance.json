@@ -1,0 +1,27 @@
+{
+  "automatic_fallback": false,
+  "commit_provenance": "main_repository_gitlink",
+  "cuda_visible_devices": "0,1",
+  "echo_commit": "1390b4416ded08bc1b9cd0620d329d81d4470bf9",
+  "execution_evidence": "runtime_measurement_requires_external_two_gpu_qualification",
+  "execution_mode": "real",
+  "filtered_snapshot_root": "source",
+  "generated_utc": "2026-07-22T14:28:11.052623+00:00",
+  "historical_outputs_excluded_at_archive_time": true,
+  "interpreter_binding": {
+    "artifact_path": "interpreter_binding.json",
+    "sha256": "f0d290edb23ca5d7bfef81788b0eb9cb54f31c946167079d2256134d6a5817e6",
+    "status": "bound"
+  },
+  "model": "qwen3_a30b",
+  "outer_source_provenance": {
+    "bypassed": false,
+    "checked": true,
+    "reason": null
+  },
+  "predictor_run_id": "task2-20260722T142810Z-192-11368",
+  "rebuild": true,
+  "run_command": "bash run_all.sh",
+  "schema_version": "sc26-ae-echo-provenance-v1",
+  "update_command": "/opt/conda/envs/echo_slowdown/bin/python update_configs.py"
+}
